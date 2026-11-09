@@ -36,3 +36,5 @@ databases:
     region: oregon
     databaseName: mitrailer
     user: mitrailer
+    # Sin acceso desde internet: solo el servidor de Render (red interna) se conecta a la base
+    ipAllowList: []
