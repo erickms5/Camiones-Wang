@@ -10,7 +10,8 @@ Funciona sin internet y guarda los datos en el teléfono.
 ```
 public/
   index.html          app «Mi Trailer» (demo de mantenimientos: registro, historial, reportes)
-  camion3d.html       camión en 3D (se abre con el botón «Ver camión en 3D»)
+  camion3d.html       camión en 3D (va incrustado en la pantalla principal con ?embebido=1)
+  js/evidencias.js    fotos y PDF de facturas guardadas en el teléfono (IndexedDB) con fecha y hora
   js/camion3d.js      arma los datos de la vista 3D a partir de la sesión de la demo
   js/vista.js         panel de control 3D (sensores simulados con aviso)
   js/catalogo.js      catálogo interno de modelos e intervalos de mantenimiento

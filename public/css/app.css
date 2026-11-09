@@ -504,3 +504,35 @@ body.modo-holo #app { max-width: none; padding: 0; }
   .tos-panel, .tos-panel-der { position: static; width: auto; max-height: none; }
   .tos-partes { padding: .6rem .7rem; }
 }
+
+/* Fichas de llantas y frenos */
+.tos-dets { list-style: none; padding: 0; margin: 0; display: grid; gap: .3rem; }
+.tos-det { width: 100%; min-height: 44px; display: grid; gap: .05rem; text-align: left; padding: .35rem .6rem; border-radius: 8px; border: 1px solid rgb(56 225 255 / .25); background: rgb(255 255 255 / .03); cursor: pointer; }
+.tos-det small { color: var(--sv); font-size: .68rem; }
+.tos-det.sel { border-color: var(--am); background: rgb(255 209 102 / .08); }
+.tos-form { display: grid; gap: .45rem; padding: .6rem; margin: 0 0 .6rem; border: 1px solid rgb(255 209 102 / .5); border-radius: 10px; background: rgb(40 30 6 / .25); }
+.tos-form-titulo { margin-top: 0; border-top: none; padding-top: 0; color: var(--am); }
+.tos-campo { display: grid; gap: .15rem; font-size: .72rem; color: #cfe7f0; }
+.tos-campo input, .tos-campo select { min-height: 40px; padding: 0 .55rem; border-radius: 7px; border: 1px solid rgb(56 225 255 / .35); background: #04101a; color: var(--tx); font: inherit; font-size: .8rem; }
+.tos-campo input:focus, .tos-campo select:focus { outline: 2px solid var(--am); border-color: var(--am); }
+.tos-form-botones { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.tos-p-accion.tos-sec { border-color: rgb(156 195 210 / .5); background: none; }
+
+/* Vista 3D incrustada en la pantalla principal */
+.tos-embebido { position: static !important; display: block !important; min-height: 0 !important; padding-bottom: 0 !important; background: transparent; }
+.tos-embebido .tos-top { position: static; height: auto; flex-wrap: wrap; padding: .4rem; gap: .4rem; background: none; border: none; }
+.tos-embebido .tos-menu, .tos-embebido .tos-logo, .tos-embebido .tos-buscar, .tos-embebido .tos-campana, .tos-embebido .tos-usuario { display: none; }
+.tos-embebido .tos-vistas { position: static; flex: 1; }
+.tos-embebido .tos-lateral { position: static !important; visibility: visible !important; flex-direction: row; padding: 0 .4rem .4rem; gap: .3rem; background: none; border: none; }
+.tos-embebido .tos-lateral .tos-nav:first-child { display: none; }
+.tos-embebido .tos-nav { flex: 1; flex-direction: row; justify-content: center; min-height: 44px; padding: 0 .4rem; border: 1px solid rgb(56 225 255 / .2) !important; border-radius: 8px; font-size: .62rem; }
+.tos-embebido .tos-nav svg { width: 20px; height: 20px; }
+.tos-embebido .tos-main { display: block; }
+.tos-embebido .tos-zona { position: static; }
+.tos-embebido .tos-escena { position: relative; height: 380px; border-radius: 14px; }
+.tos-embebido .tos-paneles { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .6rem; padding: .6rem 0; }
+.tos-embebido .tos-panel, .tos-embebido .tos-panel-der { position: static; width: auto; max-height: none; }
+.tos-embebido .tos-partes { background: none; border: none; padding: 0; }
+.tos-embebido .tos-herr { top: auto; bottom: 2rem; right: .6rem; }
+.tos-embebido .tos-sim-aviso { font-size: .58rem; }
+body.embebido { background: transparent; }

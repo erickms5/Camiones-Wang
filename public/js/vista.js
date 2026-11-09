@@ -71,6 +71,30 @@ const NOMBRE_SENSOR = {
 };
 
 const PREF_SIM = 'vista-simulacion';
+const CLAVE_DETALLES = 'mi_trailer_detalles';
+const NOMBRE_POS = { izq: 'Izquierda', der: 'Derecha', 'izq-ext': 'Izquierda exterior', 'izq-int': 'Izquierda interior', 'der-int': 'Derecha interior', 'der-ext': 'Derecha exterior' };
+const CAMPOS_LLANTA = [
+  ['marca', 'Marca', 'text', 'Ej: Michelin'], ['medida', 'Medida', 'text', 'Ej: 295/80R22.5'], ['serie', 'DOT / N.º de serie', 'text', ''],
+  ['labrado', 'Labrado (mm)', 'number', ''], ['presion', 'Presión recomendada (PSI)', 'number', ''], ['fecha', 'Fecha de instalación', 'date', ''],
+  ['km', 'Km de instalación', 'number', ''], ['estado', 'Estado', 'select', 'Nueva|Buena|Regular|Cambiar pronto'], ['notas', 'Notas', 'text', ''],
+];
+const CAMPOS_FRENO = [
+  ['tipo', 'Tipo', 'select', 'Tambor|Disco'], ['marca', 'Marca de zapatas / pastillas', 'text', ''], ['fecha', 'Fecha del último cambio', 'date', ''],
+  ['km', 'Km del último cambio', 'number', ''], ['vida', 'Vida restante (%)', 'number', ''], ['estado', 'Estado', 'select', 'Nuevo|Bueno|Regular|Cambiar pronto'],
+  ['notas', 'Notas', 'text', ''],
+];
+const posiciones = (ejeId, delantero) => ({
+  llanta: delantero ? ['izq', 'der'] : ['izq-ext', 'izq-int', 'der-int', 'der-ext'],
+  freno: ['izq', 'der'],
+});
+function leerDetalles() {
+  try {
+    return JSON.parse(localStorage.getItem(CLAVE_DETALLES)) || {};
+  } catch {
+    return {};
+  }
+}
+const claveDetalle = (d) => `${d.eje}|${d.tipo}|${d.pos}`;
 let estado = null;
 
 // ---------------------------------------------------------------- datos
@@ -152,13 +176,13 @@ export function htmlVista(id, opciones = {}) {
   const avisos = activas().filter((u) => !conductorDe(u.id) || (u.rol === 'remolque' && !pareja(u.id))).length;
   const iniciales = (usuario.nombre || 'Mi cuenta').split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
   estado = {
-    e, puntos: e.puntos, foco: e.focoInicial, ultimoServicio: opciones.ultimoServicio, modo: 'telemetria', sim: simulacionActiva(), etiquetas: false, info: true,
+    e, puntos: e.puntos, foco: e.focoInicial, ultimoServicio: opciones.ultimoServicio, alSeleccionar: opciones.alSeleccionar, detalle: null, modo: 'telemetria', sim: simulacionActiva(), etiquetas: false, info: true,
     paneles: { izq: null, der: null }, historial: Array.from({ length: 40 }, (_, i) => 70 + 12 * Math.sin(i / 3)),
     sensores: JSON.parse(JSON.stringify(SENSORES)),
   };
   crearSensoresEjes(e.puntos, estado.sensores);
   const vistas = e.cab && e.rem ? [['todo', 'Conjunto'], ['cab', 'Cabezal'], ['rem', 'Remolque']] : [];
-  return `<div class="tos" id="tos">
+  return `<div class="tos ${opciones.embebido ? 'tos-embebido' : ''}" id="tos">
   <header class="tos-top">
     <button type="button" class="tos-icono-btn tos-menu" data-v="menu" aria-label="Mostrar u ocultar el menú lateral">☰</button>
     <a class="tos-logo" href="${opciones.inicio || `#/unidad/${e.u.id}`}" aria-label="Volver"><span class="tos-volver" aria-hidden="true">‹</span><b>CAMIONES</b><span>WANG</span></a>
@@ -338,7 +362,9 @@ function contenidoPanel(p, lado) {
         ${fila('Llantas en este eje', delantero ? '2 (sencillas)' : '4 (dobles)')}
         ${fila('Último servicio', estado.ultimoServicio?.(u, n) || 'Sin registrar')}
       </dl>
+      ${listaDetallesEje(p.id, delantero)}
       <h3 class="tos-p-sec">Mantenimiento</h3>${intervalosHTML(u, ['Llantas', 'Frenos', 'Ejes'], 4)}`;
+    if (estado.detalle?.eje === p.id) cuerpo = formularioDetalle(estado.detalle) + cuerpo;
   } else if (n === 'Motor') {
     cuerpo = `<dl class="tos-datos">
         <div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div>
@@ -393,6 +419,72 @@ function contenidoPanel(p, lado) {
   }
   const sub = n === 'Motor' && a.motor ? a.motor : `${u.rol === 'cabezal' ? 'Cabezal' : 'Remolque'} ${u.placa}`;
   return `${cabecera(n === 'Llantas' ? 'Neumáticos' : n, sub, lado)}<div class="tos-p-cuerpo">${cuerpo}</div>`;
+}
+
+function resumenDetalle(d) {
+  if (!d) return '<span class="tos-nota">Sin datos</span>';
+  const partes = [d.marca, d.medida || d.tipo, d.estado].filter(Boolean);
+  return esc(partes.join(' · ') || 'Con notas');
+}
+
+function listaDetallesEje(ejeId, delantero) {
+  const datos = leerDetalles();
+  const pos = posiciones(ejeId, delantero);
+  const item = (tipo, p) => {
+    const d = { eje: ejeId, tipo, pos: p };
+    const sel = estado.detalle && claveDetalle(estado.detalle) === claveDetalle(d);
+    return `<li><button type="button" class="tos-det ${sel ? 'sel' : ''}" data-v="detalle" data-eje="${ejeId}" data-tipo="${tipo}" data-pos="${p}">
+      <span>${tipo === 'llanta' ? 'Llanta' : 'Freno'} ${NOMBRE_POS[p].toLowerCase()}</span><small>${resumenDetalle(datos[claveDetalle(d)])}</small></button></li>`;
+  };
+  return `<h3 class="tos-p-sec">Llantas</h3><ul class="tos-dets">${pos.llanta.map((p) => item('llanta', p)).join('')}</ul>
+    <h3 class="tos-p-sec">Frenos</h3><ul class="tos-dets">${pos.freno.map((p) => item('freno', p)).join('')}</ul>
+    <p class="tos-nota">También puede tocar cada llanta o freno en el camión.</p>`;
+}
+
+function formularioDetalle(d) {
+  const campos = d.tipo === 'llanta' ? CAMPOS_LLANTA : CAMPOS_FRENO;
+  const v = leerDetalles()[claveDetalle(d)] || {};
+  const campo = ([k, et, tipo, extra]) => {
+    const id = `det-${k}`;
+    const val = esc(v[k] ?? '');
+    const control = tipo === 'select'
+      ? `<select id="${id}" data-campo="${k}"><option value="">—</option>${extra.split('|').map((o) => `<option ${v[k] === o ? 'selected' : ''}>${o}</option>`).join('')}</select>`
+      : `<input id="${id}" data-campo="${k}" type="${tipo}" ${tipo === 'number' ? 'inputmode="decimal" min="0" step="any"' : ''} value="${val}" placeholder="${esc(extra)}">`;
+    return `<label class="tos-campo" for="${id}"><span>${et}</span>${control}</label>`;
+  };
+  return `<form class="tos-form" id="tos-form-detalle" data-v-form="detalle">
+    <h3 class="tos-p-sec tos-form-titulo">${d.tipo === 'llanta' ? 'Llanta' : 'Freno'} ${NOMBRE_POS[d.pos].toLowerCase()}</h3>
+    ${campos.map(campo).join('')}
+    ${v.actualizado ? `<p class="tos-nota">Actualizado: ${esc(new Date(v.actualizado).toLocaleString('es-EC'))}</p>` : ''}
+    <div class="tos-form-botones"><button type="submit" class="tos-p-accion">Guardar</button><button type="button" class="tos-p-accion tos-sec" data-v="cerrar-detalle">Cerrar</button></div>
+  </form>`;
+}
+
+function abrirDetalle(d) {
+  estado.detalle = d;
+  if (estado.paneles.izq !== d.eje && estado.paneles.der !== d.eje) seleccionar(d.eje);
+  else pintarPaneles();
+  estado.alSeleccionar?.(estado.puntos.find((x) => x.id === d.eje), d);
+  const lado = estado.paneles.izq === d.eje ? 'izq' : 'der';
+  const panel = document.getElementById(`tos-${lado}`);
+  panel.classList.remove('plegado');
+  panel.scrollTop = 0;
+  panel.querySelector('#det-marca, #det-tipo')?.focus({ preventScroll: true });
+}
+
+function guardarDetalle(form) {
+  const datos = leerDetalles();
+  const v = {};
+  form.querySelectorAll('[data-campo]').forEach((el) => {
+    if (el.value.trim() !== '') v[el.dataset.campo] = el.value.trim();
+  });
+  v.actualizado = new Date().toISOString();
+  datos[claveDetalle(estado.detalle)] = v;
+  try {
+    localStorage.setItem(CLAVE_DETALLES, JSON.stringify(datos));
+  } catch {}
+  estado.detalle = null;
+  pintarPaneles();
 }
 
 function pintarPaneles() {
@@ -500,7 +592,8 @@ function crearFabrica(sprite) {
   const partes = {};
   const unidades = {};
   // Añade una pieza holográfica (relleno tenue + aristas + nube de puntos) a una parte.
-  const pieza = (clave, geo, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, densidad = 70, umbral = 25, sinPuntos = false, opacidad = 1 } = {}) => {
+  const tocables = [];
+  const pieza = (clave, geo, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, densidad = 70, umbral = 25, sinPuntos = false, opacidad = 1, pick = null } = {}) => {
     const grupo = partes[clave];
     const obj = new T.Group();
     obj.position.set(x, y, z);
@@ -515,6 +608,11 @@ function crearFabrica(sprite) {
       const pts = new T.Points(muestrear(geo, densidad), base.puntos.clone());
       pts.userData.tipo = 'puntos';
       obj.add(pts);
+    }
+    if (pick) {
+      obj.userData.pick = pick;
+      relleno.userData.pick = pick;
+      tocables.push(relleno);
     }
     grupo.add(obj);
     return obj;
@@ -536,7 +634,7 @@ function crearFabrica(sprite) {
     unidades[clave] = g;
     raiz.add(g);
   };
-  return { pieza, linea, parte, partes, unidades, unidadGrupo };
+  return { pieza, linea, parte, partes, unidades, unidadGrupo, tocables };
 }
 
 const caja = (w, h, d) => new T.BoxGeometry(w, h, d);
@@ -552,14 +650,18 @@ function extruir(puntos, prof, bisel = 0.05) {
 
 function ruedas(f, clave, x, z0, dual, r = 0.52) {
   // clave = parte del eje, p. ej. 'cab-eje-0'
-  const lados = dual ? [z0 - 0.3, z0] : [z0];
+  // z positivo = lado del conductor (izquierdo)
+  const lados = dual ? [[z0 - 0.3, 'int'], [z0, 'ext']] : [[z0, '']];
   [1, -1].forEach((sig) =>
-    lados.forEach((z) => {
-      f.pieza(clave, cilZ(r, 0.27, 28), { x, y: r, z: sig * z, densidad: 55, umbral: 30 });
-      f.pieza(clave, cilZ(r * 0.6, 0.29, 20), { x, y: r, z: sig * z, sinPuntos: true, opacidad: 0.6 });
+    lados.forEach(([z, capa]) => {
+      const pick = { tipo: 'llanta', eje: clave, pos: [sig > 0 ? 'izq' : 'der', capa].filter(Boolean).join('-') };
+      f.pieza(clave, cilZ(r, 0.27, 28), { x, y: r, z: sig * z, densidad: 55, umbral: 30, pick });
+      f.pieza(clave, cilZ(r * 0.6, 0.29, 20), { x, y: r, z: sig * z, sinPuntos: true, opacidad: 0.6, pick });
     }),
   );
-  [1, -1].forEach((sig) => f.pieza(clave, cilZ(r * 0.45, 0.18, 18), { x, y: r, z: sig * (z0 - (dual ? 0.5 : 0.25)), densidad: 40 }));
+  [1, -1].forEach((sig) =>
+    f.pieza(clave, cilZ(r * 0.45, 0.18, 18), { x, y: r, z: sig * (z0 - (dual ? 0.5 : 0.25)), densidad: 40, pick: { tipo: 'freno', eje: clave, pos: sig > 0 ? 'izq' : 'der' } }),
+  );
   f.pieza(clave, cilZ(0.07, z0 * 2, 10), { x, y: r, densidad: 20 });
   [1, -1].forEach((sig) => f.pieza(clave, cilZ(0.14, 0.12, 12), { x, y: r, z: sig * (z0 + 0.12), sinPuntos: true }));
 }
@@ -701,7 +803,10 @@ function colorearParte(grupo, modo) {
     if (!o.material || !o.userData.tipo) return;
     o.userData.base ??= { color: o.material.color.getHex(), opacity: o.material.opacity };
     const b = o.userData.base;
-    if (modo === 'activo') {
+    if (modo === 'elegido') {
+      o.material.color.setHex(o.userData.tipo === 'relleno' ? 0xffb020 : 0xffd166);
+      o.material.opacity = o.userData.tipo === 'relleno' ? 0.45 : 1;
+    } else if (modo === 'activo') {
       o.material.color.setHex(o.userData.tipo === 'relleno' ? CIAN : ACTIVO);
       o.material.opacity = o.userData.tipo === 'relleno' ? 0.2 : 1;
     } else {
@@ -720,6 +825,13 @@ function resaltarPartes() {
     const tenue = estado.foco !== 'todo' && deUnidad !== estado.foco;
     colorearParte(g, activas.has(clave) ? 'activo' : tenue ? 'tenue' : 'normal');
   });
+  if (estado.detalle) {
+    const k = claveDetalle(estado.detalle);
+    partes[estado.detalle.eje]?.children.forEach((obj) => {
+      const pk = obj.userData.pick;
+      if (pk && claveDetalle(pk) === k) colorearParte(obj, 'elegido');
+    });
+  }
 }
 
 async function iniciar3D() {
@@ -793,7 +905,18 @@ async function iniciar3D() {
       orb.radio = Math.min(base * 1.6, Math.max(base * 0.55, (radioInicial * distInicial) / Math.max(d, 1)));
     }
   });
-  const soltar = (ev) => punteros.delete(ev.pointerId);
+  const rayo = new T.Raycaster();
+  let inicioToque = null;
+  canvas.addEventListener('pointerdown', (ev) => (inicioToque = { x: ev.clientX, y: ev.clientY }));
+  const soltar = (ev) => {
+    punteros.delete(ev.pointerId);
+    if (ev.type !== 'pointerup' || !inicioToque || Math.hypot(ev.clientX - inicioToque.x, ev.clientY - inicioToque.y) > 8) return;
+    const r = canvas.getBoundingClientRect();
+    rayo.setFromCamera(new T.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), camara);
+    const visibles = fabrica.tocables.filter((m) => estado.puntos.some((p) => p.id === m.userData.pick.eje));
+    const hit = rayo.intersectObjects(visibles, false)[0];
+    if (hit) abrirDetalle({ ...hit.object.userData.pick });
+  };
   canvas.addEventListener('pointerup', soltar);
   canvas.addEventListener('pointercancel', soltar);
   canvas.addEventListener('wheel', (ev) => {
@@ -931,6 +1054,8 @@ function seleccionar(id) {
   const p = estado.puntos.find((x) => x.id === id);
   if (!p) return;
   if (p.grupo !== estado.foco) ponerFoco(p.grupo);
+  if (estado.detalle && estado.detalle.eje !== id) estado.detalle = null;
+  estado.alSeleccionar?.(p, null);
   if (Object.values(estado.paneles).includes(id)) return enfocarPanel(id);
   const pos = estado.pantalla?.[id];
   const ancho = document.getElementById('tos-escena').clientWidth;
@@ -978,6 +1103,10 @@ function buscar(texto) {
   return q ? estado.puntos.filter((p) => !p.ir && coincide(p)) : [];
 }
 
+export function refrescarPaneles() {
+  if (estado && document.getElementById('tos')) pintarPaneles();
+}
+
 export async function montarVista() {
   const raiz = document.getElementById('tos');
   if (!estado || !raiz) return;
@@ -1006,11 +1135,21 @@ export async function montarVista() {
       estado.paneles[el.dataset.panel] = null;
       pintarPaneles();
     }
+    if (v === 'detalle') abrirDetalle({ eje: el.dataset.eje, tipo: el.dataset.tipo, pos: el.dataset.pos });
+    if (v === 'cerrar-detalle') {
+      estado.detalle = null;
+      pintarPaneles();
+    }
     if (v === 'plegar') {
       const panel = document.getElementById(`tos-${el.dataset.panel}`);
       const plegado = panel.classList.toggle('plegado');
       el.setAttribute('aria-expanded', String(!plegado));
     }
+  });
+  raiz.addEventListener('submit', (ev) => {
+    if (!ev.target.matches('[data-v-form="detalle"]')) return;
+    ev.preventDefault();
+    guardarDetalle(ev.target);
   });
   const q = document.getElementById('tos-q');
   q.addEventListener('input', () => buscar(q.value));

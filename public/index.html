@@ -80,6 +80,9 @@
       .no-print {
         display: none !important;
       }
+      #printable-report figure {
+        break-inside: avoid;
+      }
     }
 
     /* Custom scrollbar for easy mobile swipe */
@@ -248,16 +251,12 @@
             <p class="text-sm text-slate-400">Toca cualquier parte del camión o remolque para ver su estado o registrar un servicio.</p>
           </div>
 
-          <!-- Vista 3D del camión (camion3d.html) -->
-          <a href="./camion3d.html" class="touch-target w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-900 to-sky-900 border-2 border-cyan-400 text-cyan-100 font-black text-base flex items-center justify-center gap-2 shadow-lg shadow-cyan-900/40 hover:from-cyan-800 hover:to-sky-800">
-            <i class="fa-solid fa-cube text-cyan-300 text-lg"></i>
-            <span>VER CAMIÓN EN 3D</span>
-          </a>
+
           
           <!-- Alternativa Accesible "Ver como lista" (RF-57) -->
           <div class="flex items-center gap-2 bg-slate-950 p-1 rounded-2xl border border-slate-800">
             <button id="btn-toggle-graphic" onclick="app.setTrailerDisplayMode('graphic')" class="px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-slate-950 transition-colors">
-              <i class="fa-solid fa-image mr-1"></i> Gráfico
+              <i class="fa-solid fa-cube mr-1"></i> Camión 3D
             </button>
             <button id="btn-toggle-list" onclick="app.setTrailerDisplayMode('list')" class="px-3 py-2 rounded-xl text-sm font-bold text-slate-400 hover:text-white transition-colors">
               <i class="fa-solid fa-list-check mr-1"></i> Lista Accesible
@@ -268,140 +267,9 @@
         <!-- MODO 1: GRÁFICO SVG INTERACTIVO -->
         <div id="trailer-graphic-container" class="w-full bg-slate-950/70 border border-slate-800/80 rounded-2xl p-2 sm:p-4 overflow-x-auto">
           <p class="text-xs text-center text-slate-500 mb-1 flex items-center justify-center gap-1">
-            <i class="fa-solid fa-hand-pointer text-cyan-400"></i> Toca los rectángulos o piezas demarcadas:
+            <i class="fa-solid fa-hand-pointer text-cyan-400"></i> Arrastra para girar. Toca un punto, una llanta o un freno:
           </p>
-          
-          <svg viewBox="0 0 900 320" class="w-full min-w-[700px] h-auto select-none" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <linearGradient id="cabezalGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stop-color="#1e293b"/>
-                <stop offset="100%" stop-color="#0f172a"/>
-              </linearGradient>
-              <linearGradient id="tanqueGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#334155"/>
-                <stop offset="50%" stop-color="#475569"/>
-                <stop offset="100%" stop-color="#1e293b"/>
-              </linearGradient>
-            </defs>
-
-            <!-- Linea de Carretera -->
-            <line x1="10" y1="280" x2="890" y2="280" stroke="#334155" stroke-width="4" stroke-dasharray="8 8"/>
-
-            <!-- === REMOLQUE / CISTERNA === -->
-            <!-- Chasis Cisterna -->
-            <rect x="50" y="70" width="460" height="150" rx="40" fill="url(#tanqueGrad)" stroke="#64748b" stroke-width="3"/>
-            <text x="280" y="96" fill="#94a3b8" font-size="13" font-weight="bold" text-anchor="middle">REMOLQUE CISTERNA (10,000 GALONES TOTAL)</text>
-
-            <!-- Compartimentos numerados desde el cabezal (derecha) hacia atrás -->
-            <!-- Compartimento Tanque 1: 3,000 Gal -->
-            <g class="truck-part" onclick="app.selectPart('Tanque - Compartimento 1')">
-              <rect x="378" y="112" width="122" height="92" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
-              <text x="439" y="148" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Comp. 1</text>
-              <text x="439" y="168" fill="#e2e8f0" font-size="11" font-weight="black" text-anchor="middle">3,000 Gal</text>
-            </g>
-
-            <!-- Compartimento Tanque 2: 2,000 Gal -->
-            <g class="truck-part" onclick="app.selectPart('Tanque - Compartimento 2')">
-              <rect x="287" y="112" width="81" height="92" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
-              <text x="327.5" y="148" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Comp. 2</text>
-              <text x="327.5" y="168" fill="#e2e8f0" font-size="11" font-weight="black" text-anchor="middle">2,000 Gal</text>
-            </g>
-
-            <!-- Compartimento Tanque 3: 2,000 Gal -->
-            <g class="truck-part" onclick="app.selectPart('Tanque - Compartimento 3')">
-              <rect x="196" y="112" width="81" height="92" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
-              <text x="236.5" y="148" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Comp. 3</text>
-              <text x="236.5" y="168" fill="#e2e8f0" font-size="11" font-weight="black" text-anchor="middle">2,000 Gal</text>
-            </g>
-
-            <!-- Compartimento Tanque 4: 3,000 Gal -->
-            <g class="truck-part" onclick="app.selectPart('Tanque - Compartimento 4')">
-              <rect x="65" y="112" width="121" height="92" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
-              <text x="125.5" y="148" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Comp. 4</text>
-              <text x="125.5" y="168" fill="#e2e8f0" font-size="11" font-weight="black" text-anchor="middle">3,000 Gal</text>
-            </g>
-
-            <!-- Acople / Quinta Rueda -->
-            <g class="truck-part" onclick="app.selectPart('Quinta Rueda')">
-              <rect x="500" y="170" width="50" height="30" rx="6" fill="#f59e0b" fill-opacity="0.2" stroke="#f59e0b" stroke-width="2"/>
-              <text x="525" y="190" fill="#f59e0b" font-size="10" font-weight="bold" text-anchor="middle">5ta Rueda</text>
-            </g>
-
-            <!-- Ejes del Remolque: cada eje se registra por separado (1 = junto al cabezal) -->
-            <g class="truck-part" onclick="app.selectPart('Eje 1 Remolque')">
-              <circle cx="240" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
-              <circle cx="240" cy="245" r="16" fill="#334155"/>
-              <text x="240" y="298" fill="#cbd5e1" font-size="11" font-weight="bold" text-anchor="middle">Eje 1</text>
-            </g>
-            <g class="truck-part" onclick="app.selectPart('Eje 2 Remolque')">
-              <circle cx="170" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
-              <circle cx="170" cy="245" r="16" fill="#334155"/>
-              <text x="170" y="298" fill="#cbd5e1" font-size="11" font-weight="bold" text-anchor="middle">Eje 2</text>
-            </g>
-            <g class="truck-part" onclick="app.selectPart('Eje 3 Remolque')">
-              <circle cx="100" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
-              <circle cx="100" cy="245" r="16" fill="#334155"/>
-              <text x="100" y="298" fill="#cbd5e1" font-size="11" font-weight="bold" text-anchor="middle">Eje 3</text>
-            </g>
-
-            <!-- === CABEZAL TRACTO === -->
-            <!-- Cabina -->
-            <path d="M 540 220 L 540 120 Q 540 80 570 70 L 680 70 L 730 140 L 830 150 Q 850 150 850 170 L 850 220 Z" 
-                  fill="url(#cabezalGrad)" stroke="#38bdf8" stroke-width="3"/>
-            <text x="630" y="110" fill="#e2e8f0" font-size="14" font-weight="black" text-anchor="middle">CABEZAL (COLUMBIA)</text>
-            
-            <!-- Parabrisas -->
-            <polygon points="690,85 725,140 650,140 650,85" fill="#38bdf8" fill-opacity="0.4" stroke="#38bdf8"/>
-
-            <!-- Motor (Frente Cabezal) -->
-            <g class="truck-part" onclick="app.selectPart('Motor Detroit')">
-              <rect x="740" y="155" width="100" height="60" rx="8" fill="#ef4444" fill-opacity="0.2" stroke="#ef4444" stroke-width="2"/>
-              <text x="790" y="182" fill="#fca5a5" font-size="13" font-weight="bold" text-anchor="middle">MOTOR</text>
-              <text x="790" y="200" fill="#fca5a5" font-size="11" text-anchor="middle">Detroit DD15</text>
-            </g>
-
-            <!-- Caja y Transmisión -->
-            <g class="truck-part" onclick="app.selectPart('Caja de Cambios')">
-              <rect x="620" y="165" width="95" height="45" rx="6" fill="#8b5cf6" fill-opacity="0.2" stroke="#8b5cf6" stroke-width="2"/>
-              <text x="667" y="185" fill="#c4b5fd" font-size="11" font-weight="bold" text-anchor="middle">CAJA DE CAMBIOS</text>
-              <text x="667" y="200" fill="#cbd5e1" font-size="9" text-anchor="middle">Eaton Fuller</text>
-            </g>
-
-            <!-- Ejes del Cabezal: delantero y los dos traseros por separado -->
-            <g class="truck-part" onclick="app.selectPart('Eje Trasero 2 Cabezal')">
-              <circle cx="580" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
-              <circle cx="580" cy="245" r="16" fill="#334155"/>
-              <text x="580" y="298" fill="#cbd5e1" font-size="11" font-weight="bold" text-anchor="middle">Trasero 2</text>
-            </g>
-            <g class="truck-part" onclick="app.selectPart('Eje Trasero 1 Cabezal')">
-              <circle cx="655" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
-              <circle cx="655" cy="245" r="16" fill="#334155"/>
-              <text x="655" y="298" fill="#cbd5e1" font-size="11" font-weight="bold" text-anchor="middle">Trasero 1</text>
-            </g>
-            <g class="truck-part" onclick="app.selectPart('Eje Delantero Cabezal')">
-              <circle cx="790" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
-              <circle cx="790" cy="245" r="16" fill="#334155"/>
-              <text x="790" y="298" fill="#cbd5e1" font-size="11" font-weight="bold" text-anchor="middle">Delantero</text>
-            </g>
-
-            <!-- Zona General / Lavado / Eléctrico -->
-            <g class="truck-part" onclick="app.selectPart('General / Eléctrico / Engrase')">
-              <rect x="50" y="20" width="560" height="35" rx="10" fill="#334155" fill-opacity="0.4" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 5"/>
-              <text x="330" y="42" fill="#cbd5e1" font-size="12" font-weight="bold" text-anchor="middle">
-                🛠️ REVISIÓN GENERAL, LAVADO, ENGRASE O SISTEMA ELÉCTRICO
-              </text>
-            </g>
-
-            <!-- Categorías: Llantas y Frenos (se elige el eje al registrar) -->
-            <g class="truck-part" onclick="app.selectPart('Llantas')">
-              <rect x="620" y="20" width="110" height="35" rx="10" fill="#0ea5e9" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.5"/>
-              <text x="675" y="42" fill="#bae6fd" font-size="12" font-weight="bold" text-anchor="middle">🛞 LLANTAS</text>
-            </g>
-            <g class="truck-part" onclick="app.selectPart('Frenos')">
-              <rect x="740" y="20" width="110" height="35" rx="10" fill="#f97316" fill-opacity="0.15" stroke="#fb923c" stroke-width="1.5"/>
-              <text x="795" y="42" fill="#fed7aa" font-size="12" font-weight="bold" text-anchor="middle">⛔ FRENOS</text>
-            </g>
-          </svg>
+          <iframe id="frame-3d" src="./camion3d.html?embebido=1" title="Camión en 3D" class="w-full block rounded-2xl" style="height:640px;border:0;background:#050c14"></iframe>
         </div>
 
         <!-- MODO 2: LISTA ACCESIBLE (Texto grande >= 20px, fácil para adultos mayores) -->
@@ -898,6 +766,15 @@
           </div>
         </div>
 
+        <!-- Evidencias adjuntas: imágenes de facturas con fecha y hora de subida -->
+        <div id="rep-evidencias-box" class="pt-2 border-t border-slate-200 space-y-2">
+          <h5 class="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+            <i class="fa-solid fa-images text-emerald-600"></i> Evidencias adjuntas (facturas y fotos):
+          </h5>
+          <div id="rep-evidencias-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          </div>
+        </div>
+
         <!-- Pie de Integridad Criptográfica (RN-05) -->
         <div class="pt-3 border-t border-slate-300 text-[10px] text-slate-500 space-y-1 font-mono">
           <p><strong>HUELLA DIGITAL SHA-256 (INMUTABLE):</strong> <span id="rep-hash" class="break-all text-slate-700">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</span></p>
@@ -955,6 +832,9 @@
     <i id="toast-icon" class="fa-solid fa-circle-check text-2xl"></i>
     <span id="toast-message" class="text-sm">Operación realizada con éxito</span>
   </div>
+
+  <!-- Evidencias guardadas en el teléfono (IndexedDB) -->
+  <script type="module" src="./js/evidencias.js"></script>
 
   <!-- JAVASCRIPT APPLICATION CORE -->
   <script>
@@ -1415,6 +1295,11 @@
 
         this.selectedTallerFile = null;
         this.selectedRepuestosFile = null;
+        this.selectedTallerEvid = null;
+        this.selectedRepuestosEvid = null;
+        this.evidPendiente = null;
+        ['file-factura-taller', 'file-factura-repuestos'].forEach(id => { const f = document.getElementById(id); if (f) f.value = ''; });
+        if (this.ejePreseleccionado) document.getElementById('maint-eje').value = this.ejePreseleccionado;
         
         const lblTaller = document.getElementById('label-factura-taller');
         if (lblTaller) lblTaller.innerHTML = '⚠️ Sin factura de taller';
@@ -1457,11 +1342,16 @@
         const lbl = document.getElementById('label-factura-taller');
         if (!file) {
           this.selectedTallerFile = null;
+          this.selectedTallerEvid = null;
           if (lbl) lbl.innerHTML = '⚠️ Sin factura de taller';
           return;
         }
         this.selectedTallerFile = file.name;
-        if (lbl) lbl.innerHTML = `✅ <span class="text-emerald-400 font-bold">${file.name}</span>`;
+        if (lbl) lbl.textContent = `✅ ${file.name} (guardando…)`;
+        this.evidPendiente = window.Evidencias.guardar(file, 'Factura de Taller').then(ev => {
+          this.selectedTallerEvid = ev;
+          if (lbl) lbl.textContent = `✅ ${file.name} · subida ${window.Evidencias.fechaHora(ev.subidoEn)}`;
+        });
       }
 
       handleRepuestosFile(e) {
@@ -1469,15 +1359,21 @@
         const lbl = document.getElementById('label-factura-repuestos');
         if (!file) {
           this.selectedRepuestosFile = null;
+          this.selectedRepuestosEvid = null;
           if (lbl) lbl.innerHTML = '⚠️ Sin factura de repuestos';
           return;
         }
         this.selectedRepuestosFile = file.name;
-        if (lbl) lbl.innerHTML = `✅ <span class="text-cyan-400 font-bold">${file.name}</span>`;
+        if (lbl) lbl.textContent = `✅ ${file.name} (guardando…)`;
+        this.evidPendiente = window.Evidencias.guardar(file, 'Factura de Repuestos').then(ev => {
+          this.selectedRepuestosEvid = ev;
+          if (lbl) lbl.textContent = `✅ ${file.name} · subida ${window.Evidencias.fechaHora(ev.subidoEn)}`;
+        });
       }
 
-      handleSaveMaintenance(e) {
+      async handleSaveMaintenance(e) {
         e.preventDefault();
+        if (this.evidPendiente) await this.evidPendiente.catch(() => this.showToast('No se pudo guardar una factura en el teléfono', 'warning'));
         let part = document.getElementById('maint-part').value;
         if (part === 'Llantas' || part === 'Frenos') part = `${part} - ${document.getElementById('maint-eje').value}`;
         const job = document.getElementById('maint-job').value;
@@ -1526,6 +1422,7 @@
           costo: totalCosto,
           notas: notas,
           anexosPosteriores: [],
+          evidencias: [this.selectedTallerEvid, this.selectedRepuestosEvid].filter(Boolean),
           bloqueado: false,
           reportFolio: null
         };
@@ -1555,7 +1452,7 @@
         this.targetPostMaintId = null;
       }
 
-      handleSavePostEvidence(e) {
+      async handleSavePostEvidence(e) {
         e.preventDefault();
         const maint = this.maintenances.find(m => m.id === this.targetPostMaintId);
         if (!maint) return;
@@ -1571,15 +1468,17 @@
 
         if (!maint.anexosPosteriores) maint.anexosPosteriores = [];
 
-        const now = new Date();
-        const stamp = now.toLocaleDateString('es-EC') + ' ' + now.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+        const evidencia = await window.Evidencias.guardar(file, type);
+        const now = new Date(evidencia.subidoEn);
+        const stamp = window.Evidencias.fechaHora(evidencia.subidoEn);
         const hash = this.generateSimulatedHash(file.name + now.getTime());
 
         maint.anexosPosteriores.push({
           tipo: type,
           archivo: file.name,
           fechaCarga: stamp,
-          hash: hash
+          hash: hash,
+          evidencia: evidencia
         });
 
         // If it was missing specific invoices, also populate the reference
@@ -1823,6 +1722,7 @@
           `).join('');
         }
 
+        this.renderEvidenciasReporte(this.maintenances);
         document.getElementById('rep-total-items').textContent = `${this.maintenances.length} registros`;
         document.getElementById('rep-total-cost').textContent = `$${totalCost.toFixed(2)}`;
 
@@ -1901,10 +1801,47 @@
           `).join('');
         }
 
+        this.renderEvidenciasReporte([item]);
         document.getElementById('rep-total-items').textContent = `1 trabajo individual`;
         document.getElementById('rep-total-cost').textContent = `$${item.costo.toFixed(2)}`;
 
         document.getElementById('modal-report-preview').classList.remove('hidden');
+      }
+
+      // Imágenes de facturas y anexos con su fecha y hora de subida (guardadas en el teléfono)
+      renderEvidenciasReporte(lista) {
+        const cont = document.getElementById('rep-evidencias-list');
+        if (!cont) return;
+        const esc = (t) => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const items = [];
+        lista.forEach(m => {
+          (m.evidencias || []).forEach(ev => items.push({ ev, m, anexo: false }));
+          (m.anexosPosteriores || []).filter(a => a.evidencia).forEach(a => items.push({ ev: a.evidencia, m, anexo: true }));
+        });
+        if (items.length === 0) {
+          cont.innerHTML = '<span class="text-slate-500 italic">No hay imágenes de facturas o evidencias guardadas para este reporte.</span>';
+          return;
+        }
+        cont.innerHTML = items.map(({ ev, m, anexo }) => `
+          <figure class="border border-slate-300 rounded-lg p-2 bg-slate-50">
+            ${ev.tipo.startsWith('image/')
+              ? `<img data-ev="${esc(ev.id)}" alt="${esc(ev.nombre)}" class="w-full max-h-72 object-contain bg-white rounded border border-slate-200">`
+              : `<div class="h-24 flex flex-col items-center justify-center bg-white rounded border border-slate-200 text-slate-600"><i class="fa-solid fa-file-pdf text-3xl text-rose-600"></i><a data-ev-doc="${esc(ev.id)}" target="_blank" class="no-print underline mt-1">Abrir documento</a></div>`}
+            <figcaption class="mt-1.5 space-y-0.5 text-[11px] text-slate-700">
+              <div class="font-bold text-slate-900">${esc(ev.categoria)}${anexo ? ' · anexo posterior' : ''}</div>
+              <div class="break-all">${esc(ev.nombre)}</div>
+              <div class="font-mono font-bold">Subida: ${esc(window.Evidencias.fechaHora(ev.subidoEn))}</div>
+              <div class="text-slate-500">${esc(m.trabajo)} · ${esc(m.parte)} · ${Number(m.km).toLocaleString()} km</div>
+            </figcaption>
+          </figure>`).join('');
+        cont.querySelectorAll('[data-ev]').forEach(async img => {
+          const u = await window.Evidencias.url(img.dataset.ev);
+          if (u) img.src = u; else img.replaceWith(Object.assign(document.createElement('div'), { className: 'text-slate-500 italic p-4', textContent: 'Imagen no disponible en este teléfono' }));
+        });
+        cont.querySelectorAll('[data-ev-doc]').forEach(async a => {
+          const u = await window.Evidencias.url(a.dataset.evDoc);
+          if (u) a.href = u;
+        });
       }
 
       closeReportModal() {
@@ -2048,6 +1985,26 @@
     let app;
     window.addEventListener('DOMContentLoaded', () => {
       app = new TrailerApp();
+
+      // Camión 3D incrustado: lo tocado en el 3D selecciona la parte; cada guardado actualiza el 3D
+      const frame3d = document.getElementById('frame-3d');
+      const guardarOriginal = app.saveStorage.bind(app);
+      app.saveStorage = () => {
+        guardarOriginal();
+        frame3d?.contentWindow?.postMessage({ origen: 'mi-trailer', tipo: 'datos' }, location.origin);
+      };
+      // Pedir al 3D su altura cuando termina de cargar (por si avisó antes de que la página escuchara)
+      frame3d?.addEventListener('load', () => frame3d.contentWindow.postMessage({ origen: 'mi-trailer', tipo: 'datos' }, location.origin));
+      frame3d?.contentWindow?.postMessage({ origen: 'mi-trailer', tipo: 'datos' }, location.origin);
+    });
+    window.addEventListener('message', (ev) => {
+      if (ev.origin !== location.origin || ev.data?.origen !== 'camion3d') return;
+      const frame3d = document.getElementById('frame-3d');
+      if (ev.data.tipo === 'altura' && frame3d) frame3d.style.height = Math.max(420, Math.ceil(ev.data.alto)) + 'px';
+      if (ev.data.tipo === 'parte' && app) {
+        app.ejePreseleccionado = ev.data.eje || null;
+        app.selectPart(ev.data.parte);
+      }
     });
 
     // Funcionamiento sin conexión para los archivos propios de la app

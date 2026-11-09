@@ -2,7 +2,7 @@
 // y el conductor a partir de la sesión y los mantenimientos guardados por la demo.
 import { usarDatos } from './store.js';
 import { buscarModelo, INTERVALOS_GENERICOS } from './catalogo.js';
-import { htmlVista, montarVista } from './vista.js';
+import { htmlVista, montarVista, refrescarPaneles } from './vista.js';
 
 const leer = (k, def) => {
   try {
@@ -13,11 +13,22 @@ const leer = (k, def) => {
 };
 
 const sesion = leer('mi_trailer_session', null);
-const mantenimientos = leer('mi_trailer_maint', []);
+let mantenimientos = leer('mi_trailer_maint', []);
 const app = document.getElementById('app');
+// ?embebido=1 → se muestra dentro de la tarjeta «Mi Trailer Interactivo» de la pantalla principal
+const embebido = new URLSearchParams(location.search).has('embebido');
+// Alto real del contenido (no del marco), para que el marco también pueda encogerse
+const altoContenido = () => Math.ceil(document.getElementById('app').getBoundingClientRect().height);
+const avisar = (msg) => embebido && parent !== window && parent.postMessage({ origen: 'camion3d', ...msg }, location.origin);
 
 if (!sesion?.placa) {
-  location.replace('./index.html');
+  if (embebido) {
+    app.innerHTML = '<p style="color:#9cc3d2;text-align:center;padding:2rem">Inicia sesión para ver tu camión en 3D.</p>';
+    window.addEventListener('message', (ev) => {
+      if (ev.origin === location.origin && ev.data?.origen === 'mi-trailer' && leer('mi_trailer_session', null)?.placa) location.reload();
+    });
+  }
+  else location.replace('./index.html');
 } else {
   const t = new Date().toISOString();
   const [marca = 'Freightliner', modelo = 'Columbia', anio = '2020'] = (sesion.trailerModel || '').split(' ');
@@ -97,9 +108,39 @@ if (!sesion?.placa) {
     return m ? `${m.trabajo} · ${m.fecha} · ${Number(m.km).toLocaleString('es-EC')} km` : null;
   };
 
+  // Parte de la pantalla principal que corresponde a lo tocado en el 3D
+  const DEMO = {
+    Motor: 'Motor Detroit', 'Transmisión': 'Caja de Cambios', 'Quinta rueda': 'Quinta Rueda',
+    'Eje delantero': 'Eje Delantero Cabezal', 'Eje trasero 1': 'Eje Trasero 1 Cabezal', 'Eje trasero 2': 'Eje Trasero 2 Cabezal',
+    'Eje 1': 'Eje 1 Remolque', 'Eje 2': 'Eje 2 Remolque', 'Eje 3': 'Eje 3 Remolque',
+  };
+  const alSeleccionar = (p, detalle) => {
+    if (!p) return;
+    const eje = DEMO[p.componente];
+    if (detalle) return avisar({ tipo: 'parte', parte: detalle.tipo === 'llanta' ? 'Llantas' : 'Frenos', eje });
+    const parte = p.compartimento ? `Tanque - Compartimento ${p.compartimento.orden}` : DEMO[p.componente];
+    if (parte) avisar({ tipo: 'parte', parte });
+  };
+
   document.body.classList.add('modo-holo');
-  app.innerHTML = htmlVista(cab.id, { inicio: './index.html', cuenta: './index.html', ultimoServicio });
+  if (embebido) document.body.classList.add('embebido');
+  app.innerHTML = htmlVista(cab.id, { inicio: './index.html', cuenta: './index.html', ultimoServicio, alSeleccionar, embebido });
   montarVista();
+
+  if (embebido) {
+    // La pantalla principal ajusta la altura del marco al contenido
+    new ResizeObserver(() => avisar({ tipo: 'altura', alto: altoContenido() })).observe(app);
+    // Respaldo: también al tocar o guardar algo (algunos navegadores no avisan cambios de tamaño en segundo plano)
+    ['click', 'submit'].forEach((t) => document.addEventListener(t, () => setTimeout(() => avisar({ tipo: 'altura', alto: altoContenido() }), 60)));
+    window.addEventListener('message', (ev) => {
+      if (ev.origin !== location.origin || ev.data?.origen !== 'mi-trailer') return;
+      avisar({ tipo: 'altura', alto: altoContenido() });
+      const s2 = leer('mi_trailer_session', null);
+      if (s2?.placa !== sesion.placa || s2?.nombre !== sesion.nombre) return location.reload();
+      mantenimientos = leer('mi_trailer_maint', []);
+      refrescarPaneles();
+    });
+  }
 }
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
