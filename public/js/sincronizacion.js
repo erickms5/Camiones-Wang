@@ -1,5 +1,5 @@
 // Conexión de «Mi Trailer» con el servidor (API Node.js + PostgreSQL).
-// - Ingreso con código al email (chofer y dueño; el dueño va a su panel).
+// - Ingreso con correo y contraseña (chofer y dueño; el dueño va a su panel).
 // - Todo se guarda primero en el teléfono y se envía con una cola: funciona sin señal.
 // - Mantenimientos, facturas (fotos/PDF), fichas de llantas y frenos, km y reportes.
 // Si no hay servidor configurado, la app sigue en modo demostración local.
@@ -248,7 +248,7 @@ async function traerMantenimientos(app) {
 
 function sesionVencida(app) {
   localStorage.removeItem(CLAVE_TOKEN);
-  app.showToast('Tu sesión venció. Vuelve a entrar con tu correo.', 'warning');
+  app.showToast('Tu sesión venció. Vuelve a entrar con tu correo y contraseña.', 'warning');
   app.session = null;
   app.saveStorage();
   app.switchView('login');
@@ -266,81 +266,84 @@ function pintarEstado(fase) {
   b.innerHTML = `<span class="w-2.5 h-2.5 rounded-full ${color} ${fase === 'enviando' ? 'animate-pulse' : ''}"></span><span>${esc(texto)}</span>`;
 }
 
-// ---------------------------------------------------------------- pantalla de ingreso por email
+// ---------------------------------------------------------------- pantalla de ingreso (correo y contraseña)
+const campo = (id, etiqueta, tipo, extra = '') => `
+  <div><label class="block text-slate-300 font-bold text-lg mb-1" for="${id}">${etiqueta}</label>
+    <input id="${id}" type="${tipo}" ${extra} class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 px-4 text-lg text-white font-semibold focus:outline-none"></div>`;
+
 function pantallaIngreso(app) {
   const vista = document.getElementById('view-login');
   vista.innerHTML = `
     <div class="bg-slate-900 border-2 border-slate-800 rounded-3xl p-5 sm:p-8 max-w-lg mx-auto shadow-2xl">
       <div class="text-center mb-6">
-        <div class="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl"><i class="fa-solid fa-envelope-open-text"></i></div>
+        <div class="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl"><i class="fa-solid fa-truck-moving"></i></div>
         <h2 class="text-2xl sm:text-3xl font-extrabold text-white" id="ing-titulo">Entrar a Mi Trailer</h2>
-        <p class="text-slate-400 text-base mt-1" id="ing-ayuda">Escribe tu correo y te enviaremos un código de 6 números.</p>
+        <p class="text-slate-400 text-base mt-1" id="ing-ayuda">Escribe tu correo y tu contraseña.</p>
       </div>
       <form id="ing-form" class="space-y-5" novalidate>
         <div id="ing-registro" class="hidden space-y-5">
-          <div><label class="block text-slate-300 font-bold text-lg mb-1" for="ing-nombre">Tu nombre completo</label>
-            <input id="ing-nombre" autocomplete="name" class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 px-4 text-lg text-white font-semibold focus:outline-none"></div>
-          <div><label class="block text-slate-300 font-bold text-lg mb-1" for="ing-empresa">Nombre de tu empresa o flota</label>
-            <input id="ing-empresa" class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 px-4 text-lg text-white font-semibold focus:outline-none"></div>
+          ${campo('ing-nombre', 'Tu nombre completo', 'text', 'autocomplete="name"')}
+          ${campo('ing-empresa', 'Nombre de tu empresa o flota', 'text')}
         </div>
-        <div id="ing-paso-correo"><label class="block text-slate-300 font-bold text-lg mb-1" for="ing-email">Correo electrónico</label>
-          <input id="ing-email" type="email" inputmode="email" autocomplete="email" required placeholder="chofer@ejemplo.com" class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 px-4 text-lg text-white font-semibold focus:outline-none"></div>
-        <div id="ing-paso-codigo" class="hidden"><label class="block text-slate-300 font-bold text-lg mb-1" for="ing-codigo">Código de 6 números</label>
-          <input id="ing-codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 px-4 text-3xl text-center tracking-[0.5em] font-mono text-white font-bold focus:outline-none">
-          <p class="text-xs text-slate-400 mt-1">Revisa tu correo (también la carpeta de spam). Vence en 10 minutos.</p></div>
+        ${campo('ing-email', 'Correo electrónico', 'email', 'inputmode="email" autocomplete="username" required')}
+        <div>
+          <label class="block text-slate-300 font-bold text-lg mb-1" for="ing-clave">Contraseña</label>
+          <div class="relative">
+            <input id="ing-clave" type="password" autocomplete="current-password" required class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 pl-4 pr-24 text-lg text-white font-semibold focus:outline-none">
+            <button type="button" id="ing-ver" class="absolute right-2 top-2 bottom-2 px-3 rounded-xl text-sm font-bold text-cyan-300 bg-slate-800">Mostrar</button>
+          </div>
+          <p id="ing-clave-ayuda" class="text-xs text-slate-400 mt-1">Si eres chofer, te la da el dueño del camión.</p>
+        </div>
         <p id="ing-error" class="hidden text-amber-400 font-bold" role="alert"></p>
         <button type="submit" id="ing-boton" class="touch-target w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-slate-950 font-black text-xl py-4 rounded-2xl shadow-xl flex items-center justify-center gap-3">
-          <span id="ing-boton-texto">ENVIARME EL CÓDIGO</span><i class="fa-solid fa-arrow-right"></i></button>
-        <button type="button" id="ing-otro" class="hidden w-full text-center text-sm font-semibold text-cyan-400 underline py-2">Usar otro correo o pedir un código nuevo</button>
-        <button type="button" id="ing-crear" class="w-full text-center text-sm font-semibold text-cyan-400 underline py-2">¿Eres dueño y aún no tienes cuenta? Créala aquí</button>
+          <span id="ing-boton-texto">ENTRAR</span><i class="fa-solid fa-arrow-right"></i></button>
+        <button type="button" id="ing-cambiar" class="w-full text-center text-sm font-semibold text-cyan-400 underline py-2">¿Eres dueño y aún no tienes cuenta? Créala aquí</button>
       </form>
     </div>`;
-  let paso = 'correo';
   let registro = false;
   const $ = (id) => document.getElementById(id);
   const error = (msg) => {
     $('ing-error').textContent = msg || '';
     $('ing-error').classList.toggle('hidden', !msg);
   };
-  const irA = (p) => {
-    paso = p;
-    $('ing-paso-codigo').classList.toggle('hidden', p !== 'codigo');
-    $('ing-paso-correo').classList.toggle('hidden', p === 'codigo');
-    $('ing-registro').classList.toggle('hidden', !(registro && p === 'correo'));
-    $('ing-otro').classList.toggle('hidden', p !== 'codigo');
-    $('ing-crear').classList.toggle('hidden', p === 'codigo' || registro);
-    $('ing-boton-texto').textContent = p === 'codigo' ? 'ENTRAR' : registro ? 'CREAR CUENTA Y ENVIAR CÓDIGO' : 'ENVIARME EL CÓDIGO';
-    $('ing-titulo').textContent = registro && p === 'correo' ? 'Crear cuenta de dueño' : 'Entrar a Mi Trailer';
-    (p === 'codigo' ? $('ing-codigo') : $('ing-email')).focus();
+  const modo = (esRegistro) => {
+    registro = esRegistro;
+    error('');
+    $('ing-registro').classList.toggle('hidden', !registro);
+    $('ing-titulo').textContent = registro ? 'Crear cuenta de dueño' : 'Entrar a Mi Trailer';
+    $('ing-ayuda').textContent = registro ? 'Con esta cuenta registras a tus choferes y camiones y ves sus reportes.' : 'Escribe tu correo y tu contraseña.';
+    $('ing-boton-texto').textContent = registro ? 'CREAR MI CUENTA' : 'ENTRAR';
+    $('ing-cambiar').textContent = registro ? 'Ya tengo cuenta: entrar' : '¿Eres dueño y aún no tienes cuenta? Créala aquí';
+    $('ing-clave').autocomplete = registro ? 'new-password' : 'current-password';
+    $('ing-clave-ayuda').textContent = registro ? 'Al menos 6 caracteres.' : 'Si eres chofer, te la da el dueño del camión.';
+    (registro ? $('ing-nombre') : $('ing-email')).focus();
   };
-  $('ing-crear').onclick = () => {
-    registro = true;
-    irA('correo');
+  $('ing-cambiar').onclick = () => modo(!registro);
+  $('ing-ver').onclick = () => {
+    const ver = $('ing-clave').type === 'password';
+    $('ing-clave').type = ver ? 'text' : 'password';
+    $('ing-ver').textContent = ver ? 'Ocultar' : 'Mostrar';
   };
-  $('ing-otro').onclick = () => irA('correo');
   $('ing-form').onsubmit = async (e) => {
     e.preventDefault();
     error('');
     const email = $('ing-email').value.trim().toLowerCase();
+    const clave = $('ing-clave').value;
     $('ing-boton').disabled = true;
     try {
-      if (paso === 'correo') {
-        if (registro) await api('/auth/registro', { metodo: 'POST', cuerpo: { email, nombre: $('ing-nombre').value.trim(), nombreCuenta: $('ing-empresa').value.trim() || undefined } });
-        else await api('/auth/codigo', { metodo: 'POST', cuerpo: { email } });
-        irA('codigo');
-      } else {
-        const r = await api('/auth/verificar', { metodo: 'POST', cuerpo: { email, codigo: $('ing-codigo').value.trim() } });
-        const sesion = await iniciarSesionServidor(r.token);
-        if (!sesion) return; // dueño → su panel
-        app.session = sesion;
-        app.saveStorage();
-        app.switchView('dashboard');
-        app.refreshUI();
-        app.showToast(`¡Bienvenido, ${sesion.nombre}!`, 'success');
-        document.getElementById('frame-3d')?.contentWindow?.location.reload();
-        await traerMantenimientos(app).catch(() => {});
-        enviarPendientes(app);
-      }
+      const r = registro
+        ? await api('/auth/registro', { metodo: 'POST', cuerpo: { email, clave, nombre: $('ing-nombre').value.trim(), nombreCuenta: $('ing-empresa').value.trim() || undefined } })
+        : await api('/auth/entrar', { metodo: 'POST', cuerpo: { email, clave } });
+      const sesion = await iniciarSesionServidor(r.token);
+      if (!sesion) return; // dueño → su panel
+      app.session = sesion;
+      app.saveStorage();
+      app.switchView('dashboard');
+      app.refreshUI();
+      app.showToast(`¡Bienvenido, ${sesion.nombre}!`, 'success');
+      document.getElementById('frame-3d')?.contentWindow?.location.reload();
+      await traerMantenimientos(app).catch(() => {});
+      enviarPendientes(app);
     } catch (err) {
       // Error de red (servidor apagado, sin señal o dirección no permitida): mensaje claro en vez de «Failed to fetch»
       error(err instanceof ErrorApi ? err.message : err instanceof TypeError ? 'No se pudo conectar con el servidor. Revisa tu señal o intenta en un momento.' : err.message);

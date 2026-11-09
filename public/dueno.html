@@ -59,9 +59,11 @@
         <h2 class="text-2xl font-black text-white mb-3">Registrar chofer</h2>
         <form id="c-form" class="grid sm:grid-cols-2 gap-3" novalidate>
           <label class="text-sm font-bold text-slate-300">Nombre completo<input name="nombre" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label class="text-sm font-bold text-slate-300">Correo (con este entra a la app)<input name="email" type="email" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
+          <label class="text-sm font-bold text-slate-300">Correo (con este y su contraseña entra a la app)<input name="email" type="email" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
           <label class="text-sm font-bold text-slate-300">Cédula<input name="cedula" inputmode="numeric" maxlength="10" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono"></label>
           <label class="text-sm font-bold text-slate-300">Celular<input name="telefono" inputmode="tel" placeholder="099 123 4567" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
+          <label class="sm:col-span-2 text-sm font-bold text-slate-300">Contraseña para el chofer (mínimo 6 caracteres; entrégasela tú)
+            <input name="clave" type="text" autocomplete="off" required minlength="6" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono"></label>
           <label class="sm:col-span-2 flex gap-3 items-start text-sm text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-3">
             <input name="consentimiento" type="checkbox" class="w-6 h-6 mt-0.5 accent-emerald-500">
             El chofer autoriza guardar su cédula y teléfono para el registro de mantenimientos (Ley Orgánica de Protección de Datos Personales).

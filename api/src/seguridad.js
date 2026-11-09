@@ -32,4 +32,19 @@ export function crearSeguridad({ claveCedula, pimienta }) {
   };
 }
 
+// Contraseñas: scrypt con sal aleatoria. Formato guardado: scrypt$sal$hash (base64)
+export function hashClave(clave) {
+  const sal = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(clave, sal, 64);
+  return `scrypt$${sal.toString('base64')}$${hash.toString('base64')}`;
+}
+
+const HASH_FALSO = hashClave('clave-inexistente-para-igualar-tiempos');
+export function claveCorrecta(clave, guardado) {
+  // Si el usuario no existe se compara igual contra un hash falso: no se nota por el tiempo de respuesta
+  const [, sal, hash] = (guardado || HASH_FALSO).split('$');
+  const calculado = crypto.scryptSync(clave, Buffer.from(sal, 'base64'), 64);
+  return crypto.timingSafeEqual(calculado, Buffer.from(hash, 'base64')) && !!guardado;
+}
+
 export const mascaraCedula = (c) => (c ? `${c.slice(0, 2)}******${c.slice(-2)}` : null);

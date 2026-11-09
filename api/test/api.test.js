@@ -9,14 +9,11 @@ import { crearSeguridad } from '../src/seguridad.js';
 import { crearAlmacenMemoria } from '../src/almacen.js';
 
 let app, cerrar;
-const codigos = new Map();
-const correo = { enviarCodigo: async (email, codigo) => codigos.set(email, codigo) };
 const hoy = new Date().toISOString().slice(0, 10);
 const t = {};
 
-async function entrar(email) {
-  await request(app).post('/auth/codigo').send({ email }).expect(200);
-  const r = await request(app).post('/auth/verificar').send({ email, codigo: codigos.get(email) }).expect(200);
+async function entrar(email, clave) {
+  const r = await request(app).post('/auth/entrar').send({ email, clave }).expect(200);
   return r.body.token;
 }
 const como = (token) => ({
@@ -30,35 +27,32 @@ before(async () => {
   const conexion = await conectarMemoria();
   cerrar = conexion.cerrar;
   const config = leerConfig({ NODE_ENV: 'test' });
-  app = crearApp({ db: conexion.db, config, seguridad: crearSeguridad(config), correo, almacen: crearAlmacenMemoria() });
+  app = crearApp({ db: conexion.db, config, seguridad: crearSeguridad(config), almacen: crearAlmacenMemoria() });
 });
 after(() => cerrar?.());
 
-test('el dueño se registra y entra con el código de su email', async () => {
-  await request(app).post('/auth/registro').send({ email: 'Dueno@Ejemplo.com', nombre: 'Carlos Wang', nombreCuenta: 'Transportes Wang' }).expect(201);
-  assert.match(codigos.get('dueno@ejemplo.com'), /^\d{6}$/);
-  await request(app).post('/auth/verificar').send({ email: 'dueno@ejemplo.com', codigo: '000000' === codigos.get('dueno@ejemplo.com') ? '111111' : '000000' }).expect(401);
-  const r = await request(app).post('/auth/verificar').send({ email: 'dueno@ejemplo.com', codigo: codigos.get('dueno@ejemplo.com') }).expect(200);
+test('el dueño crea su cuenta con contraseña y entra', async () => {
+  await request(app).post('/auth/registro').send({ email: 'Dueno@Ejemplo.com', nombre: 'Carlos Wang', nombreCuenta: 'Transportes Wang', clave: '123' }).expect(400);
+  const r = await request(app).post('/auth/registro').send({ email: 'Dueno@Ejemplo.com', nombre: 'Carlos Wang', nombreCuenta: 'Transportes Wang', clave: 'camion2026' }).expect(201);
   assert.equal(r.body.usuario.rol, 'dueno');
-  t.dueno = como(r.body.token);
-  // un código no se puede usar dos veces
-  await request(app).post('/auth/verificar').send({ email: 'dueno@ejemplo.com', codigo: codigos.get('dueno@ejemplo.com') }).expect(401);
+  await request(app).post('/auth/registro').send({ email: 'dueno@ejemplo.com', nombre: 'Otro', clave: 'camion2026' }).expect(409);
+  t.dueno = como(await entrar('dueno@ejemplo.com', 'camion2026'));
 });
 
-test('pedir código no revela si el correo existe y sin sesión no hay acceso', async () => {
-  const r = await request(app).post('/auth/codigo').send({ email: 'nadie@ejemplo.com' }).expect(200);
-  assert.ok(r.body.ok);
-  assert.equal(codigos.has('nadie@ejemplo.com'), false);
+test('contraseña incorrecta o correo inexistente dan el mismo mensaje y sin sesión no hay acceso', async () => {
+  const a = await request(app).post('/auth/entrar').send({ email: 'dueno@ejemplo.com', clave: 'otra-clave' }).expect(401);
+  const b = await request(app).post('/auth/entrar').send({ email: 'nadie@ejemplo.com', clave: 'otra-clave' }).expect(401);
+  assert.equal(a.body.error, b.body.error);
   await request(app).get('/unidades').expect(401);
 });
 
 test('el dueño registra a su chofer con cédula validada y cifrada', async () => {
-  const mala = await t.dueno.post('/choferes', { nombre: 'Manuel Benítez', email: 'chofer@ejemplo.com', cedula: '1710034064', consentimiento: true }).expect(400);
+  const mala = await t.dueno.post('/choferes', { nombre: 'Manuel Benítez', email: 'chofer@ejemplo.com', cedula: '1710034064', clave: 'chofer123', consentimiento: true }).expect(400);
   assert.match(mala.body.detalles[0].mensaje, /último número/);
-  const r = await t.dueno.post('/choferes', { nombre: 'Manuel Benítez', email: 'chofer@ejemplo.com', cedula: '1710034065', telefono: '0991234567', consentimiento: true }).expect(201);
+  const r = await t.dueno.post('/choferes', { nombre: 'Manuel Benítez', email: 'chofer@ejemplo.com', cedula: '1710034065', telefono: '0991234567', clave: 'chofer123', consentimiento: true }).expect(201);
   assert.equal(r.body.chofer.cedula, '17******65');
   t.choferId = r.body.chofer.id;
-  await t.dueno.post('/choferes', { nombre: 'Otro Chofer', email: 'otro@ejemplo.com', cedula: '1710034065', consentimiento: true }).expect(409);
+  await t.dueno.post('/choferes', { nombre: 'Otro Chofer', email: 'otro@ejemplo.com', cedula: '1710034065', clave: 'chofer123', consentimiento: true }).expect(409);
 });
 
 test('el dueño registra el cabezal con sus ejes, llantas, frenos e intervalos del catálogo', async () => {
@@ -91,7 +85,7 @@ test('el tanquero suma sus compartimentos y se engancha y asigna al chofer', asy
 });
 
 test('el chofer entra con su email y ve solo sus unidades', async () => {
-  t.chofer = como(await entrar('chofer@ejemplo.com'));
+  t.chofer = como(await entrar('chofer@ejemplo.com', 'chofer123'));
   const r = await t.chofer.get('/unidades').expect(200);
   assert.deepEqual(r.body.unidades.map((u) => u.placa).sort(), ['ABC-1234', 'XYZ-123']);
   await t.chofer.get('/choferes').expect(403);
@@ -142,43 +136,11 @@ test('el chofer genera su reporte mensual y el dueño lo ve íntegro', async () 
 });
 
 test('otra cuenta no puede ver datos ajenos', async () => {
-  await request(app).post('/auth/registro').send({ email: 'otro.dueno@ejemplo.com', nombre: 'Otra Persona' }).expect(201);
-  const otro = como((await request(app).post('/auth/verificar').send({ email: 'otro.dueno@ejemplo.com', codigo: codigos.get('otro.dueno@ejemplo.com') })).body.token);
+  const reg = await request(app).post('/auth/registro').send({ email: 'otro.dueno@ejemplo.com', nombre: 'Otra Persona', clave: 'otraclave1' }).expect(201);
+  const otro = como(reg.body.token);
   await otro.get(`/unidades/${t.cabezal}`).expect(404);
   await otro.get(`/mantenimientos/${t.mant}`).expect(404);
   assert.equal((await otro.get('/reportes').expect(200)).body.reportes.length, 0);
-});
-
-test('un código se bloquea tras 5 intentos fallidos, aunque lleguen en paralelo', async () => {
-  const email = 'chofer@ejemplo.com';
-  await request(app).post('/auth/codigo').send({ email }).expect(200);
-  const bueno = codigos.get(email);
-  const malo = bueno === '123456' ? '654321' : '123456';
-  await Promise.all(Array.from({ length: 8 }, () => request(app).post('/auth/verificar').send({ email, codigo: malo })));
-  await request(app).post('/auth/verificar').send({ email, codigo: bueno }).expect(401);
-});
-
-test('un código nuevo anula el anterior', async () => {
-  const email = 'chofer@ejemplo.com';
-  await request(app).post('/auth/codigo').send({ email }).expect(200);
-  const viejo = codigos.get(email);
-  await request(app).post('/auth/codigo').send({ email }).expect(200);
-  const nuevo = codigos.get(email);
-  if (viejo !== nuevo) await request(app).post('/auth/verificar').send({ email, codigo: viejo }).expect(401);
-  await request(app).post('/auth/verificar').send({ email, codigo: nuevo }).expect(200);
-});
-
-test('el límite de códigos responde igual exista o no la cuenta', async () => {
-  const pedir = async (email) => {
-    const r = [];
-    for (let i = 0; i < 7; i++) r.push((await request(app).post('/auth/codigo').send({ email })).status);
-    return r;
-  };
-  const sinCuenta = await pedir('fantasma@ejemplo.com');
-  await request(app).post('/auth/registro').send({ email: 'limite@ejemplo.com', nombre: 'Prueba Límite' }).expect(201);
-  const conCuenta = await pedir('limite@ejemplo.com');
-  assert.deepEqual(sinCuenta.slice(-2), [429, 429]);
-  assert.deepEqual(conCuenta.slice(-2), [429, 429]);
 });
 
 test('el km parte del registro y solo sube con los mantenimientos (no se edita a mano)', async () => {
@@ -197,4 +159,15 @@ test('un km imposible (error de tipeo) se rechaza y no daña el odómetro', asyn
   const r = await t.chofer.post('/mantenimientos', { ...base, km: 1_900_000 }).expect(400);
   assert.match(r.body.error, /Revisa que esté bien escrito/);
   assert.equal((await t.dueno.get(`/unidades/${t.cabezal}`).expect(200)).body.km, 190000);
+});
+
+test('el dueño pone una contraseña nueva al chofer que la olvidó y se cierran sus sesiones', async () => {
+  await t.dueno.patch(`/choferes/${t.choferId}`, { clave: 'nueva456' }).expect(200);
+  await t.chofer.get('/unidades').expect(401); // la sesión anterior quedó cerrada
+  await request(app).post('/auth/entrar').send({ email: 'chofer@ejemplo.com', clave: 'chofer123' }).expect(401);
+  t.chofer = como(await entrar('chofer@ejemplo.com', 'nueva456'));
+  await t.chofer.get('/unidades').expect(200);
+  // y el chofer puede cambiarla él mismo
+  await t.chofer.post('/auth/clave', { actual: 'nueva456', nueva: 'mia789' }).expect(200);
+  await entrar('chofer@ejemplo.com', 'mia789');
 });

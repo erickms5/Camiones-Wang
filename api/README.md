@@ -12,8 +12,6 @@ npm install
 npm run dev                         # aplica migraciones y arranca en http://localhost:3000
 ```
 
-Sin SMTP configurado, los códigos de acceso se muestran en la consola.
-
 ## Pruebas
 
 ```bash
@@ -30,8 +28,10 @@ Usan PostgreSQL en memoria (PGlite): no necesitan la base instalada.
 
 ## Roles
 
-- **Dueño**: crea su cuenta (`POST /auth/registro`), registra choferes y unidades, ve los reportes de todos sus choferes.
-- **Chofer**: lo registra el dueño; entra con un código a su email; ve sus unidades asignadas, registra mantenimientos y genera sus reportes.
+- **Dueño**: crea su cuenta con correo y contraseña (`POST /auth/registro`), registra choferes y unidades, ve los reportes de todos sus choferes.
+- **Chofer**: lo registra el dueño con una contraseña que le entrega (y que puede cambiar si la olvida); entra con correo y contraseña; ve sus unidades asignadas, registra mantenimientos y genera sus reportes.
+
+Las contraseñas se guardan con scrypt (nunca en texto). Cambiar la contraseña o desactivar a un chofer cierra sus sesiones.
 
 ## Kilometraje
 
@@ -41,8 +41,8 @@ Se pide al registrar el cabezal (punto de partida) y después **solo sube con el
 
 | Método | Ruta | Quién |
 |---|---|---|
-| POST | `/auth/registro`, `/auth/codigo`, `/auth/verificar`, `/auth/salir` · GET `/auth/yo` | todos |
-| GET/POST/PATCH | `/choferes` | dueño |
+| POST | `/auth/registro`, `/auth/entrar`, `/auth/clave`, `/auth/salir` · GET `/auth/yo` | todos |
+| GET/POST/PATCH | `/choferes` (PATCH: activar/desactivar o contraseña nueva) | dueño |
 | GET/POST | `/unidades` · GET `/unidades/:id` | ambos |
 | POST | `/unidades/:id/acoplar`, `/unidades/:id/asignar` | dueño |
 | PATCH | `/unidades/componentes/:id` (ficha de llanta o freno) | ambos |

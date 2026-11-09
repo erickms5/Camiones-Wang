@@ -1,102 +1,67 @@
-// Ingreso por email con código de 6 dígitos. El dueño crea su cuenta; a los choferes los registra el dueño.
+// Ingreso con correo y contraseña. El dueño crea su cuenta; a los choferes los registra el dueño
+// con una contraseña que les entrega (y que puede cambiar si la olvidan).
 import { Router } from 'express';
 import { z } from 'zod';
-import crypto from 'node:crypto';
-import { and, count, desc, eq, gt, lt, ne, sql } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
-import { codigosAcceso, cuentas, sesiones, usuarios } from '../db/esquema.js';
+import { cuentas, sesiones, usuarios } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
-import { mascaraCedula } from '../seguridad.js';
+import { mascaraCedula, hashClave, claveCorrecta } from '../seguridad.js';
 
 const email = z.string().trim().toLowerCase().email('Escribe un correo válido');
+export const clave = z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').max(100);
 const DIAS_SESION = 30;
-const MAX_INTENTOS = 5;
-const MAX_CODIGOS_HORA = 5;
 
 export const usuarioPublico = (u, seguridad) => ({
   id: u.id, nombre: u.nombre, email: u.email, rol: u.rol, telefono: u.telefono, cuentaId: u.cuentaId,
   cedula: u.cedulaCifrada ? mascaraCedula(seguridad.descifrarCedula(u.cedulaCifrada)) : null,
 });
 
-export function rutasAuth({ db, seguridad, correo, autenticado, config }) {
+export function rutasAuth({ db, seguridad, autenticado, config }) {
   const r = Router();
-  // Además del límite por IP: límite por correo (frena ataques repartidos entre muchas IP)
+  // Límite por correo + IP: frena a quien prueba contraseñas sin bloquear a la persona real desde su teléfono
   const porCorreo = rateLimit({
     windowMs: 15 * 60 * 1000, limit: config?.prod ? 10 : 1000, standardHeaders: 'draft-8', legacyHeaders: false,
-    // Correo + IP: un tercero no puede agotar el cupo de otra persona desde su conexión
     keyGenerator: (req) => `correo:${String(req.body?.email || '').trim().toLowerCase()}|${ipKeyGenerator(req.ip)}`,
     message: { error: 'Demasiados intentos. Espera unos minutos.' },
   });
 
-  // Pedidos de código en la última hora para un correo (exista o no la cuenta)
-  async function pedidosRecientes(correoDestino) {
-    const [{ n }] = await db.select({ n: count() }).from(codigosAcceso)
-      .where(and(eq(codigosAcceso.email, correoDestino), gt(codigosAcceso.creadoEn, new Date(Date.now() - 3600_000))));
-    return n;
-  }
-
-  async function enviarCodigo(correoDestino) {
-    if ((await pedidosRecientes(correoDestino)) >= MAX_CODIGOS_HORA) return false;
-    const codigo = seguridad.nuevoCodigo();
-    const [nuevo] = await db.insert(codigosAcceso).values({ email: correoDestino, codigoHash: seguridad.hashCodigo(correoDestino, codigo), expiraEn: new Date(Date.now() + 10 * 60 * 1000) }).returning({ id: codigosAcceso.id });
-    await correo.enviarCodigo(correoDestino, codigo);
-    // Solo cuando el nuevo ya salió se anulan los anteriores
-    await db.update(codigosAcceso).set({ usado: true })
-      .where(and(eq(codigosAcceso.email, correoDestino), eq(codigosAcceso.usado, false), ne(codigosAcceso.id, nuevo.id)));
-    return true;
-  }
-
-  // Registro del dueño: crea su cuenta y le envía el código
-  r.post('/registro', async (req, res) => {
-    const d = z.object({ email, nombre: z.string().trim().min(3).max(80), nombreCuenta: z.string().trim().min(2).max(80).optional() }).parse(req.body);
-    const [existe] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.email, d.email));
-    if (existe) throw new ErrorHttp(409, 'Ese correo ya tiene cuenta. Pide un código para entrar.');
-    const [cuenta] = await db.insert(cuentas).values({ nombre: d.nombreCuenta || d.nombre }).returning();
-    await db.insert(usuarios).values({ cuentaId: cuenta.id, email: d.email, nombre: d.nombre, rol: 'dueno' });
-    await enviarCodigo(d.email);
-    res.status(201).json({ ok: true, mensaje: 'Te enviamos un código a tu correo' });
-  });
-
-  // Pedir código. Responde igual exista o no el correo (no revela quién está registrado).
-  r.post('/codigo', porCorreo, async (req, res) => {
-    const d = z.object({ email }).parse(req.body);
-    const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
-    // Misma respuesta y mismo límite exista o no la cuenta (no revela qué correos están registrados)
-    if ((await pedidosRecientes(d.email)) >= MAX_CODIGOS_HORA) throw new ErrorHttp(429, 'Ya pediste varios códigos. Usa el último que te llegó o espera una hora.');
-    if (u) await enviarCodigo(d.email);
-    else {
-      // Correo sin cuenta: se registra el pedido (con un código inservible) para que cuente igual
-      await db.insert(codigosAcceso).values({ email: d.email, codigoHash: seguridad.nuevoToken(), expiraEn: new Date(), usado: true });
-    }
-    res.json({ ok: true, mensaje: 'Si el correo está registrado, te llegará un código' });
-  });
-
-  r.post('/verificar', porCorreo, async (req, res) => {
-    const d = z.object({ email, codigo: z.string().trim().regex(/^\d{6}$/, 'El código tiene 6 números') }).parse(req.body);
-    const [vigente] = await db.select({ id: codigosAcceso.id }).from(codigosAcceso)
-      .where(and(eq(codigosAcceso.email, d.email), eq(codigosAcceso.usado, false), gt(codigosAcceso.expiraEn, new Date())))
-      .orderBy(desc(codigosAcceso.creadoEn)).limit(1);
-    // El intento se cuenta y se comprueba en una sola operación: intentos en paralelo no pasan del máximo
-    const [c] = vigente
-      ? await db.update(codigosAcceso).set({ intentos: sql`${codigosAcceso.intentos} + 1` })
-        .where(and(eq(codigosAcceso.id, vigente.id), eq(codigosAcceso.usado, false), lt(codigosAcceso.intentos, MAX_INTENTOS))).returning()
-      : [];
-    if (!c) throw new ErrorHttp(401, 'El código venció o no es válido. Pide uno nuevo.');
-    const esperado = Buffer.from(c.codigoHash);
-    const recibido = Buffer.from(seguridad.hashCodigo(d.email, d.codigo));
-    if (esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) throw new ErrorHttp(401, 'Código incorrecto');
-    // Se marca usado solo si nadie lo usó antes (dos verificaciones simultáneas no abren dos sesiones)
-    const [marcado] = await db.update(codigosAcceso).set({ usado: true })
-      .where(and(eq(codigosAcceso.id, c.id), eq(codigosAcceso.usado, false))).returning({ id: codigosAcceso.id });
-    if (!marcado) throw new ErrorHttp(401, 'El código ya fue usado. Pide uno nuevo.');
-    const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
-    if (!u) throw new ErrorHttp(401, 'Cuenta no disponible');
+  async function abrirSesion(u) {
     const token = seguridad.nuevoToken();
     await db.insert(sesiones).values({ usuarioId: u.id, tokenHash: seguridad.hashToken(token), expiraEn: new Date(Date.now() + DIAS_SESION * 86400000) });
-    res.json({ token, usuario: usuarioPublico(u, seguridad) });
+    return { token, usuario: usuarioPublico(u, seguridad) };
+  }
+
+  // Registro del dueño: crea su cuenta y entra de una vez
+  r.post('/registro', porCorreo, async (req, res) => {
+    const d = z.object({ email, nombre: z.string().trim().min(3).max(80), nombreCuenta: z.string().trim().min(2).max(80).optional(), clave }).parse(req.body);
+    const [existe] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.email, d.email));
+    if (existe) throw new ErrorHttp(409, 'Ese correo ya tiene cuenta. Entra con tu contraseña.');
+    const u = await db.transaction(async (tx) => {
+      const [cuenta] = await tx.insert(cuentas).values({ nombre: d.nombreCuenta || d.nombre }).returning();
+      const [nuevo] = await tx.insert(usuarios).values({ cuentaId: cuenta.id, email: d.email, nombre: d.nombre, rol: 'dueno', claveHash: hashClave(d.clave) }).returning();
+      return nuevo;
+    });
+    res.status(201).json(await abrirSesion(u));
+  });
+
+  r.post('/entrar', porCorreo, async (req, res) => {
+    const d = z.object({ email, clave: z.string().min(1, 'Escribe tu contraseña').max(100) }).parse(req.body);
+    const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
+    // Mismo mensaje y mismo tiempo exista o no el correo
+    if (!claveCorrecta(d.clave, u?.claveHash)) throw new ErrorHttp(401, 'Correo o contraseña incorrectos');
+    res.json(await abrirSesion(u));
   });
 
   r.get('/yo', autenticado, (req, res) => res.json({ usuario: usuarioPublico(req.usuario, seguridad) }));
+
+  // Cambiar la propia contraseña (con la actual)
+  r.post('/clave', autenticado, async (req, res) => {
+    const d = z.object({ actual: z.string().min(1).max(100), nueva: clave }).parse(req.body);
+    if (!claveCorrecta(d.actual, req.usuario.claveHash)) throw new ErrorHttp(401, 'La contraseña actual no es correcta');
+    await db.update(usuarios).set({ claveHash: hashClave(d.nueva) }).where(eq(usuarios.id, req.usuario.id));
+    res.json({ ok: true });
+  });
 
   r.post('/salir', autenticado, async (req, res) => {
     const token = req.get('authorization').slice(7);

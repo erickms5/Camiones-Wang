@@ -26,6 +26,7 @@ export const usuarios = pgTable('usuarios', {
   nombre: text('nombre').notNull(),
   rol: rolUsuario('rol').notNull(),
   telefono: text('telefono'),
+  claveHash: text('clave_hash'), // contraseña con scrypt (sal propia por usuario)
   cedulaCifrada: text('cedula_cifrada'), // AES-256-GCM
   cedulaHash: text('cedula_hash'), // HMAC para evitar cédulas repetidas sin descifrar
   consentimientoEn: timestamp('consentimiento_en', { withTimezone: true }),

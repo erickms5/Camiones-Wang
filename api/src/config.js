@@ -17,13 +17,6 @@ export function leerConfig(entorno = process.env) {
     // Clave de 32 bytes en base64 para cifrar cédulas; en desarrollo se usa una fija
     claveCedula: prod ? requerida('CEDULA_CLAVE') : entorno.CEDULA_CLAVE || Buffer.alloc(32, 7).toString('base64'),
     pimienta: prod ? requerida('PIMIENTA') : entorno.PIMIENTA || 'desarrollo',
-    correo: {
-      host: entorno.SMTP_HOST || '',
-      puerto: Number(entorno.SMTP_PUERTO || 587),
-      usuario: entorno.SMTP_USUARIO || '',
-      clave: entorno.SMTP_CLAVE || '',
-      remitente: entorno.CORREO_REMITENTE || 'Mi Trailer <no-responder@camiones-wang.ec>',
-    },
     carpetaArchivos: entorno.CARPETA_ARCHIVOS || './archivos',
   };
 }

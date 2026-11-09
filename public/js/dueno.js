@@ -131,12 +131,26 @@ async function cargarChoferes() {
           <p class="text-sm text-slate-400">${esc(c.email)} · Cédula ${esc(c.cedula || '—')}</p>
           <p class="text-xs text-cyan-300">${c.unidades.length ? `Maneja ${esc(c.unidades.join(', '))}` : 'Sin unidad asignada'}</p>
         </div>
-        <button data-chofer="${esc(c.id)}" data-activo="${c.activo}" class="px-4 py-2 rounded-xl border ${c.activo ? 'border-rose-500/40 text-rose-300' : 'border-emerald-500/40 text-emerald-300'} font-bold">${c.activo ? 'Desactivar' : 'Activar'}</button>
+        <div class="flex gap-2">
+          <button data-clave="${esc(c.id)}" data-nombre="${esc(c.nombre)}" class="px-4 py-2 rounded-xl border border-cyan-500/40 text-cyan-300 font-bold">Nueva contraseña</button>
+          <button data-chofer="${esc(c.id)}" data-activo="${c.activo}" class="px-4 py-2 rounded-xl border ${c.activo ? 'border-rose-500/40 text-rose-300' : 'border-emerald-500/40 text-emerald-300'} font-bold">${c.activo ? 'Desactivar' : 'Activar'}</button>
+        </div>
       </div>`).join('')
     : '<p class="text-slate-400 italic">Aún no registras choferes.</p>';
   $('c-lista').querySelectorAll('[data-chofer]').forEach((b) => (b.onclick = async () => {
     await api(`/choferes/${b.dataset.chofer}`, { metodo: 'PATCH', cuerpo: { activo: b.dataset.activo !== 'true' } });
     await cargarChoferes();
+  }));
+  // Si el chofer olvidó su contraseña, el dueño le pone una nueva
+  $('c-lista').querySelectorAll('[data-clave]').forEach((b) => (b.onclick = async () => {
+    const nueva = prompt(`Nueva contraseña para ${b.dataset.nombre} (mínimo 6 caracteres):`);
+    if (!nueva) return;
+    try {
+      await api(`/choferes/${b.dataset.clave}`, { metodo: 'PATCH', cuerpo: { clave: nueva } });
+      aviso('Contraseña cambiada. Entrégasela al chofer.');
+    } catch (err) {
+      aviso(err.message, 'error');
+    }
   }));
   const opciones = choferes.filter((c) => c.activo).map((c) => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
   $('r-filtro').innerHTML = `<option value="">Todos</option>${choferes.map((c) => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('')}`;
@@ -151,12 +165,12 @@ $('c-form').onsubmit = async (e) => {
       metodo: 'POST',
       cuerpo: {
         nombre: f.get('nombre'), email: f.get('email'), cedula: f.get('cedula'),
-        telefono: f.get('telefono') || undefined, consentimiento: f.get('consentimiento') === 'on',
+        telefono: f.get('telefono') || undefined, clave: f.get('clave'), consentimiento: f.get('consentimiento') === 'on',
       },
     });
     errorEn('c-error');
     e.target.reset();
-    aviso('Chofer registrado. Ya puede entrar con su correo.');
+    aviso('Chofer registrado. Entrégale su correo y su contraseña para entrar.');
     await cargarChoferes();
   } catch (err) {
     errorEn('c-error', err);
