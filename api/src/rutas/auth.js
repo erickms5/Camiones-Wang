@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import crypto from 'node:crypto';
-import { and, count, desc, eq, gt, lt, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gt, lt, ne, sql } from 'drizzle-orm';
 import { rateLimit } from 'express-rate-limit';
 import { codigosAcceso, cuentas, sesiones, usuarios } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
@@ -23,7 +23,8 @@ export function rutasAuth({ db, seguridad, correo, autenticado, config }) {
   // Además del límite por IP: límite por correo (frena ataques repartidos entre muchas IP)
   const porCorreo = rateLimit({
     windowMs: 15 * 60 * 1000, limit: config?.prod ? 10 : 1000, standardHeaders: 'draft-8', legacyHeaders: false,
-    keyGenerator: (req) => `correo:${String(req.body?.email || '').trim().toLowerCase()}`,
+    // Correo + IP: un tercero no puede agotar el cupo de otra persona desde su conexión
+    keyGenerator: (req) => `correo:${String(req.body?.email || '').trim().toLowerCase()}|${req.ip}`,
     message: { error: 'Demasiados intentos. Espera unos minutos.' },
   });
 
@@ -31,12 +32,14 @@ export function rutasAuth({ db, seguridad, correo, autenticado, config }) {
     // Máximo de códigos por hora para un mismo correo
     const [{ n }] = await db.select({ n: count() }).from(codigosAcceso)
       .where(and(eq(codigosAcceso.email, correoDestino), gt(codigosAcceso.creadoEn, new Date(Date.now() - 3600_000))));
-    if (n >= MAX_CODIGOS_HORA) return;
-    // Un código nuevo anula los anteriores
-    await db.update(codigosAcceso).set({ usado: true }).where(and(eq(codigosAcceso.email, correoDestino), eq(codigosAcceso.usado, false)));
+    if (n >= MAX_CODIGOS_HORA) return false;
     const codigo = seguridad.nuevoCodigo();
-    await db.insert(codigosAcceso).values({ email: correoDestino, codigoHash: seguridad.hashCodigo(correoDestino, codigo), expiraEn: new Date(Date.now() + 10 * 60 * 1000) });
+    const [nuevo] = await db.insert(codigosAcceso).values({ email: correoDestino, codigoHash: seguridad.hashCodigo(correoDestino, codigo), expiraEn: new Date(Date.now() + 10 * 60 * 1000) }).returning({ id: codigosAcceso.id });
     await correo.enviarCodigo(correoDestino, codigo);
+    // Solo cuando el nuevo ya salió se anulan los anteriores
+    await db.update(codigosAcceso).set({ usado: true })
+      .where(and(eq(codigosAcceso.email, correoDestino), eq(codigosAcceso.usado, false), ne(codigosAcceso.id, nuevo.id)));
+    return true;
   }
 
   // Registro del dueño: crea su cuenta y le envía el código
@@ -54,7 +57,8 @@ export function rutasAuth({ db, seguridad, correo, autenticado, config }) {
   r.post('/codigo', porCorreo, async (req, res) => {
     const d = z.object({ email }).parse(req.body);
     const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
-    if (u) await enviarCodigo(d.email);
+    const enviado = u ? await enviarCodigo(d.email) : true;
+    if (!enviado) throw new ErrorHttp(429, 'Ya pediste varios códigos. Usa el último que te llegó o espera una hora.');
     res.json({ ok: true, mensaje: 'Si el correo está registrado, te llegará un código' });
   });
 
