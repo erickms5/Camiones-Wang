@@ -3,7 +3,7 @@
 Prototipo web (PWA) del módulo de registro de vehículo y conductor: cabezal, tanquero con compartimentos y conductor.
 Funciona sin internet y guarda los datos en el teléfono.
 
-**Web:** https://camiones-wang-registro.erick-emelec-m.workers.dev
+**Web:** https://camiones-wang.erick-emelec-m.workers.dev
 
 ## Estructura
 
