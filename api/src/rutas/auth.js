@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import crypto from 'node:crypto';
 import { and, count, desc, eq, gt, lt, ne, sql } from 'drizzle-orm';
-import { rateLimit } from 'express-rate-limit';
+import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { codigosAcceso, cuentas, sesiones, usuarios } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
 import { mascaraCedula } from '../seguridad.js';
@@ -24,7 +24,7 @@ export function rutasAuth({ db, seguridad, correo, autenticado, config }) {
   const porCorreo = rateLimit({
     windowMs: 15 * 60 * 1000, limit: config?.prod ? 10 : 1000, standardHeaders: 'draft-8', legacyHeaders: false,
     // Correo + IP: un tercero no puede agotar el cupo de otra persona desde su conexión
-    keyGenerator: (req) => `correo:${String(req.body?.email || '').trim().toLowerCase()}|${req.ip}`,
+    keyGenerator: (req) => `correo:${String(req.body?.email || '').trim().toLowerCase()}|${ipKeyGenerator(req.ip)}`,
     message: { error: 'Demasiados intentos. Espera unos minutos.' },
   });
 
