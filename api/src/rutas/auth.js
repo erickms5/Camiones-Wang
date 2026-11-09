@@ -28,11 +28,15 @@ export function rutasAuth({ db, seguridad, correo, autenticado, config }) {
     message: { error: 'Demasiados intentos. Espera unos minutos.' },
   });
 
-  async function enviarCodigo(correoDestino) {
-    // Máximo de códigos por hora para un mismo correo
+  // Pedidos de código en la última hora para un correo (exista o no la cuenta)
+  async function pedidosRecientes(correoDestino) {
     const [{ n }] = await db.select({ n: count() }).from(codigosAcceso)
       .where(and(eq(codigosAcceso.email, correoDestino), gt(codigosAcceso.creadoEn, new Date(Date.now() - 3600_000))));
-    if (n >= MAX_CODIGOS_HORA) return false;
+    return n;
+  }
+
+  async function enviarCodigo(correoDestino) {
+    if ((await pedidosRecientes(correoDestino)) >= MAX_CODIGOS_HORA) return false;
     const codigo = seguridad.nuevoCodigo();
     const [nuevo] = await db.insert(codigosAcceso).values({ email: correoDestino, codigoHash: seguridad.hashCodigo(correoDestino, codigo), expiraEn: new Date(Date.now() + 10 * 60 * 1000) }).returning({ id: codigosAcceso.id });
     await correo.enviarCodigo(correoDestino, codigo);
@@ -57,8 +61,13 @@ export function rutasAuth({ db, seguridad, correo, autenticado, config }) {
   r.post('/codigo', porCorreo, async (req, res) => {
     const d = z.object({ email }).parse(req.body);
     const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
-    const enviado = u ? await enviarCodigo(d.email) : true;
-    if (!enviado) throw new ErrorHttp(429, 'Ya pediste varios códigos. Usa el último que te llegó o espera una hora.');
+    // Misma respuesta y mismo límite exista o no la cuenta (no revela qué correos están registrados)
+    if ((await pedidosRecientes(d.email)) >= MAX_CODIGOS_HORA) throw new ErrorHttp(429, 'Ya pediste varios códigos. Usa el último que te llegó o espera una hora.');
+    if (u) await enviarCodigo(d.email);
+    else {
+      // Correo sin cuenta: se registra el pedido (con un código inservible) para que cuente igual
+      await db.insert(codigosAcceso).values({ email: d.email, codigoHash: seguridad.nuevoToken(), expiraEn: new Date(), usado: true });
+    }
     res.json({ ok: true, mensaje: 'Si el correo está registrado, te llegará un código' });
   });
 

@@ -167,3 +167,16 @@ test('un código nuevo anula el anterior', async () => {
   if (viejo !== nuevo) await request(app).post('/auth/verificar').send({ email, codigo: viejo }).expect(401);
   await request(app).post('/auth/verificar').send({ email, codigo: nuevo }).expect(200);
 });
+
+test('el límite de códigos responde igual exista o no la cuenta', async () => {
+  const pedir = async (email) => {
+    const r = [];
+    for (let i = 0; i < 7; i++) r.push((await request(app).post('/auth/codigo').send({ email })).status);
+    return r;
+  };
+  const sinCuenta = await pedir('fantasma@ejemplo.com');
+  await request(app).post('/auth/registro').send({ email: 'limite@ejemplo.com', nombre: 'Prueba Límite' }).expect(201);
+  const conCuenta = await pedir('limite@ejemplo.com');
+  assert.deepEqual(sinCuenta.slice(-2), [429, 429]);
+  assert.deepEqual(conCuenta.slice(-2), [429, 429]);
+});
