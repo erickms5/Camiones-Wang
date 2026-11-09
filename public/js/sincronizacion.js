@@ -23,11 +23,24 @@ const escribir = (k, v) => {
 };
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Dirección del servidor: ?api=… (se recuerda), o localhost en desarrollo, o la de producción
+// Dirección del servidor. Solo se acepta una lista fija de servidores: un enlace con otra dirección
+// no puede desviar el código de acceso, la sesión ni los datos del chofer a un sitio ajeno.
+const SERVIDORES_PERMITIDOS = [API_PRODUCCION, 'http://localhost:3000', 'http://127.0.0.1:3000'].filter(Boolean);
+const permitido = (valor) => {
+  try {
+    const origen = new URL(valor).origin;
+    return SERVIDORES_PERMITIDOS.includes(origen) ? origen : null;
+  } catch {
+    return null;
+  }
+};
+
 function direccionApi() {
   const param = new URLSearchParams(location.search).get('api');
-  if (param) localStorage.setItem('mi_trailer_api_url', param);
-  return localStorage.getItem('mi_trailer_api_url') || (['localhost', '127.0.0.1'].includes(location.hostname) ? 'http://localhost:3000' : API_PRODUCCION);
+  if (param && permitido(param)) localStorage.setItem('mi_trailer_api_url', permitido(param));
+  const guardada = permitido(localStorage.getItem('mi_trailer_api_url'));
+  if (!guardada) localStorage.removeItem('mi_trailer_api_url');
+  return guardada || (['localhost', '127.0.0.1'].includes(location.hostname) ? 'http://localhost:3000' : API_PRODUCCION);
 }
 
 export const API = direccionApi();
@@ -366,6 +379,13 @@ function conectar(app) {
   // Guardar mantenimiento → cola de envío (con sus facturas y el km)
   const guardarOriginal = app.handleSaveMaintenance.bind(app);
   app.handleSaveMaintenance = async (e) => {
+    // El km solo sube con los mantenimientos y no se puede corregir: se frena un salto imposible antes de guardar
+    const km = parseInt(document.getElementById('maint-km')?.value, 10);
+    const actual = app.session?.servidor?.km || 0;
+    if (app.session?.servidor && km > actual + 60000) {
+      e?.preventDefault?.();
+      return app.showToast(`El km ${km.toLocaleString('es-EC')} es mucho mayor al actual (${actual.toLocaleString('es-EC')}). Revisa que esté bien escrito.`, 'warning');
+    }
     const antes = app.maintenances[0]?.id;
     await guardarOriginal(e);
     const m = app.maintenances[0];

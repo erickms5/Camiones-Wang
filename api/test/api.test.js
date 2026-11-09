@@ -191,3 +191,10 @@ test('el km parte del registro y solo sube con los mantenimientos (no se edita a
   await t.chofer.post('/mantenimientos', { ...base, km: 150000 }).expect(201); // trabajo atrasado: no baja el km
   assert.equal(await kmDe(), 190000);
 });
+
+test('un km imposible (error de tipeo) se rechaza y no daña el odómetro', async () => {
+  const base = { unidadId: t.cabezal, fecha: hoy, parte: 'Motor Detroit', trabajo: 'Cambio de Aceite y Filtros' };
+  const r = await t.chofer.post('/mantenimientos', { ...base, km: 1_900_000 }).expect(400);
+  assert.match(r.body.error, /Revisa que esté bien escrito/);
+  assert.equal((await t.dueno.get(`/unidades/${t.cabezal}`).expect(200)).body.km, 190000);
+});

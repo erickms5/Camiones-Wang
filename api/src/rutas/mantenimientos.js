@@ -15,7 +15,7 @@ const esquemaMantenimiento = z.object({
   id: z.string().uuid().optional(),
   unidadId: z.string().uuid().optional(),
   fecha: z.string().date().refine((f) => f <= new Date().toISOString().slice(0, 10), 'La fecha no puede ser futura'),
-  km: z.number().int().min(0),
+  km: z.number().int().min(0).max(5_000_000),
   parte: z.string().trim().min(2).max(120),
   trabajo: z.string().trim().min(2).max(120),
   provincia: texto(60), canton: texto(60),
@@ -39,18 +39,29 @@ async function mantenimientoVisible(db, usuario, id) {
 
 // El kilometraje no se edita a mano: parte del valor del registro y solo sube con el km de cada mantenimiento.
 // Si el trabajo es del remolque, cuenta el km del cabezal enganchado (el odómetro está en el cabezal).
-async function actualizarKm(db, usuario, unidadId, km, mantenimientoId) {
-  if (!unidadId) return;
+const SALTO_MAXIMO_KM = 60_000; // más que esto entre un mantenimiento y otro es casi seguro un error de tipeo
+
+async function cabezalDe(db, usuario, unidadId) {
   const [u] = await db.select().from(unidades).where(eq(unidades.id, unidadId));
   let cabezalId = u?.rol === 'cabezal' ? u.id : null;
   if (u?.rol === 'remolque') {
     const [a] = await db.select().from(acoplamientos).where(and(eq(acoplamientos.remolqueId, u.id), isNull(acoplamientos.hasta)));
     cabezalId = a?.cabezalId || null;
   }
-  if (!cabezalId) return;
+  if (!cabezalId) return null;
+  // Solo se toca el km de un cabezal al que la persona tiene acceso
+  try {
+    await unidadAccesible(db, usuario, cabezalId);
+  } catch {
+    return null;
+  }
   const [ultimo] = await db.select().from(odometro).where(eq(odometro.unidadId, cabezalId)).orderBy(desc(odometro.registradoEn)).limit(1);
-  if (ultimo && km <= ultimo.km) return;
-  await db.insert(odometro).values({ unidadId: cabezalId, km, fuente: `mantenimiento:${mantenimientoId}`, registradoPor: usuario.id });
+  return { cabezalId, kmActual: ultimo?.km ?? 0 };
+}
+
+async function actualizarKm(db, usuario, cab, km, mantenimientoId) {
+  if (!cab || km <= cab.kmActual) return;
+  await db.insert(odometro).values({ unidadId: cab.cabezalId, km, fuente: `mantenimiento:${mantenimientoId}`, registradoPor: usuario.id });
 }
 
 export function rutasMantenimientos({ db, almacen }) {
@@ -59,6 +70,11 @@ export function rutasMantenimientos({ db, almacen }) {
   r.post('/mantenimientos', async (req, res) => {
     const d = esquemaMantenimiento.parse(req.body);
     if (d.unidadId) await unidadAccesible(db, req.usuario, d.unidadId);
+    // El km no se puede editar después: se rechazan saltos imposibles para no dañarlo con un error de tipeo
+    const cab = d.unidadId ? await cabezalDe(db, req.usuario, d.unidadId) : null;
+    if (cab && d.km > cab.kmActual + SALTO_MAXIMO_KM) {
+      throw new ErrorHttp(400, `El kilometraje ${d.km.toLocaleString('es-EC')} es ${(d.km - cab.kmActual).toLocaleString('es-EC')} km mayor al actual (${cab.kmActual.toLocaleString('es-EC')}). Revisa que esté bien escrito.`);
+    }
     // Reintento desde el teléfono (mismo id): se devuelve lo ya guardado sin duplicar
     if (d.id) {
       const [ya] = await db.select().from(mantenimientos).where(eq(mantenimientos.id, d.id));
@@ -71,7 +87,7 @@ export function rutasMantenimientos({ db, almacen }) {
       ...d, costoTaller: d.costoTaller.toFixed(2), costoRepuestos: d.costoRepuestos.toFixed(2),
       cuentaId: req.usuario.cuentaId, creadoPor: req.usuario.id,
     }).returning();
-    await actualizarKm(db, req.usuario, d.unidadId, d.km, m.id);
+    await actualizarKm(db, req.usuario, cab, d.km, m.id);
     await db.insert(auditoria).values({ cuentaId: req.usuario.cuentaId, usuarioId: req.usuario.id, entidad: 'mantenimiento', entidadId: m.id, accion: 'crear' });
     res.status(201).json({ mantenimiento: m });
   });
