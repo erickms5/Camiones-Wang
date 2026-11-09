@@ -116,32 +116,23 @@ export function validarCampo(campo, valor) {
   }
 }
 
-export function resumenCompartimentos(total, compartimentos) {
-  const asignado = compartimentos.reduce((s, c) => s + (aEntero(c.galones) || 0), 0);
-  const t = aEntero(total) || 0;
-  const diferencia = asignado - t;
-  let mensaje = T.tanque.completo;
-  if (diferencia < 0) mensaje = T.tanque.faltan(-diferencia);
-  if (diferencia > 0) mensaje = T.tanque.sobran(diferencia);
-  return { asignado, total: t, diferencia, mensaje };
+// La capacidad total del tanque es la suma de los compartimentos (no se ingresa).
+export function totalCompartimentos(compartimentos) {
+  return compartimentos.reduce((s, c) => {
+    const n = aEntero(c.galones);
+    return s + (Number.isFinite(n) && n > 0 ? n : 0);
+  }, 0);
 }
 
-export function dividirIguales(total, n) {
-  const base = Math.floor(total / n);
-  return Array.from({ length: n }, (_, i) => (i === n - 1 ? total - base * (n - 1) : base));
-}
-
-export function validarCompartimentos(total, compartimentos, aceptaDiferencia) {
+export function validarCompartimentos(compartimentos) {
   const errores = {};
   if (!compartimentos.length) errores.tanque = T.tanque.sinCompartimentos;
   if (compartimentos.length > CONFIG.maxCompartimentos) errores.tanque = T.tanque.maximo(CONFIG.maxCompartimentos);
   compartimentos.forEach((c, i) => {
-    const r = validarEntero(c.galones, { nombre: `los galones del compartimento ${i + 1}`, min: CONFIG.minGalonesCompartimento });
-    if (r.error) errores[`comp-${i}`] = r.error;
+    const n = aEntero(c.galones);
+    if (n === null || n === 0) errores[`comp-${i}`] = T.tanque.galones(i + 1);
+    else if (Number.isNaN(n)) errores[`comp-${i}`] = T.tanque.soloNumeros(i + 1);
+    else if (n > CONFIG.maxGalonesCompartimento) errores[`comp-${i}`] = T.tanque.max(i + 1, CONFIG.maxGalonesCompartimento);
   });
-  if (!Object.keys(errores).length) {
-    const r = resumenCompartimentos(total, compartimentos);
-    if (r.diferencia !== 0 && !aceptaDiferencia) errores.tanque = T.tanque.aceptar(r.mensaje);
-  }
   return errores;
 }

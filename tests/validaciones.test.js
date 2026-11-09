@@ -44,25 +44,36 @@ test('nombre del conductor', () => {
   assert.ok(V.validarNombre('Juan 3').error);
 });
 
-test('compartimentos: tanquero del cliente suma 10.000 (CA-03)', () => {
-  const comps = [3000, 2000, 2000, 3000].map((g) => ({ galones: g }));
-  const r = V.resumenCompartimentos(10000, comps);
-  assert.equal(r.asignado, 10000);
-  assert.equal(r.diferencia, 0);
-  assert.deepEqual(V.validarCompartimentos(10000, comps, false), {});
+test('compartimentos: el total es la suma de los galones (criterio c)', () => {
+  const casos = [
+    [[8000], 8000],
+    [[6000, 4000], 10000],
+    [[5000, 3000, 2000], 10000],
+    [[3000, 2000, 2000, 3000], 10000],
+    [[1500, 2750, 900], 5150],
+  ];
+  for (const [galones, total] of casos) {
+    const comps = galones.map((g) => ({ galones: g }));
+    assert.equal(V.totalCompartimentos(comps), total, galones.join('+'));
+    assert.deepEqual(V.validarCompartimentos(comps), {}, galones.join('+'));
+  }
+  assert.equal(V.miles(10000), '10.000');
 });
 
-test('compartimentos: suma incorrecta bloquea salvo aceptación (CA-04)', () => {
-  const comps = [3000, 2000, 2000, 2000].map((g) => ({ galones: g }));
-  assert.equal(V.resumenCompartimentos(10000, comps).mensaje, 'Faltan 1.000 galones');
-  assert.match(V.validarCompartimentos(10000, comps, false).tanque, /Faltan 1.000 galones/);
-  assert.deepEqual(V.validarCompartimentos(10000, comps, true), {});
-  assert.ok(V.validarCompartimentos(10000, [{ galones: 0 }], true)['comp-0']);
+test('compartimentos: vacíos o en 0 no se pueden guardar', () => {
+  const r = V.validarCompartimentos([{ galones: 3000 }, { galones: null }, { galones: 0 }, { galones: '' }]);
+  assert.equal(r['comp-1'], 'Ingresa los galones del compartimento 2');
+  assert.equal(r['comp-2'], 'Ingresa los galones del compartimento 3');
+  assert.equal(r['comp-3'], 'Ingresa los galones del compartimento 4');
+  assert.equal(r['comp-0'], undefined);
+  assert.equal(V.totalCompartimentos([{ galones: 3000 }, { galones: null }]), 3000);
 });
 
-test('dividir en partes iguales', () => {
-  assert.deepEqual(V.dividirIguales(10000, 4), [2500, 2500, 2500, 2500]);
-  assert.deepEqual(V.dividirIguales(10000, 3), [3333, 3333, 3334]);
+test('compartimentos: mínimo 1 y máximo 10', () => {
+  assert.ok(V.validarCompartimentos([]).tanque);
+  const diez = Array.from({ length: 10 }, () => ({ galones: 1000 }));
+  assert.deepEqual(V.validarCompartimentos(diez), {});
+  assert.ok(V.validarCompartimentos([...diez, { galones: 1000 }]).tanque);
 });
 
 test('kilometraje: advierte sobre 2.000.000 sin bloquear', () => {

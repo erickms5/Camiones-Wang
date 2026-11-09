@@ -6,9 +6,8 @@ export const CONFIG = {
   cedulaObligatoria: true,     // D3: la cédula se pide al registrar un conductor
   tanqueComoUnidad: false,     // D4: el tanque es atributo del remolque, con placa propia opcional
   placaUnica: 'global',        // D5: la placa no se puede repetir
-  maxCompartimentos: 8,
-  minGalonesCompartimento: 1,
-  maxGalonesTanque: 100000,
+  maxCompartimentos: 10,
+  maxGalonesCompartimento: 50000,
   kmAdvertencia: 2000000,
   anioMin: 1980,
 };

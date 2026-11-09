@@ -238,7 +238,10 @@ body.en-registro .contenedor { padding-bottom: 130px; }
 .t-txt-activo { fill: #1d1400; }
 .t-num { font-size: 26px; }
 .t-gal { font-size: 17px; font-weight: 700; }
-.t-txt-libre { fill: var(--suave); text-anchor: middle; font-size: 15px; font-weight: 700; font-family: system-ui, sans-serif; }
+.t-txt-libre { fill: var(--suave); text-anchor: middle; font-weight: 700; font-family: system-ui, sans-serif; }
+.t-punteado { fill: none; stroke: var(--suave); stroke-width: 3; stroke-dasharray: 8 6; }
+.t-vacio-activo { stroke: var(--t-activo); stroke-width: 5; }
+.total-tanque { font-size: 1.4rem; }
 .estado-tanque { text-align: center; margin: .3rem 0 0; font-size: 1rem; }
 .estado-tanque .bien, .estado-tanque.bien { color: var(--bien); font-weight: 700; }
 .estado-tanque .mal, .estado-tanque.mal { color: var(--mal); font-weight: 700; }
@@ -246,6 +249,18 @@ body.en-registro .contenedor { padding-bottom: 130px; }
 .comp { background: var(--superficie); border: 2px solid var(--borde); border-radius: var(--radio); padding: .7rem; }
 .comp:focus-within { border-color: var(--t-activo); }
 .comp-cab { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+.comp-titulo { flex: 1; font-size: 1.05rem; }
+.comp-nombre { margin-bottom: .5rem; }
+.comp-acciones { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; margin-top: .6rem; }
+.btn-comp { min-height: 48px; padding: .2rem .3rem; border-radius: 10px; border: 2px solid var(--borde); background: var(--superficie); color: var(--primario); font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.btn-comp-quitar { color: var(--peligro); }
+.btn-comp[disabled] { opacity: .35; cursor: not-allowed; }
+.btn-comp:focus-visible { outline: 3px solid var(--primario); outline-offset: 2px; }
+.intervalo legend { font-weight: 700; padding: 0 .3rem; }
+.intervalo-fila { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.intervalo-fila label { font-weight: 600; font-size: .85rem; }
+.lista-intervalos li { gap: .8rem; }
+.lista-intervalos strong { text-align: right; white-space: nowrap; }
 .comp-num { flex: 0 0 44px; height: 44px; border-radius: 50%; background: var(--t-a); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 1.1rem; }
 .btn-icono { flex: 0 0 52px; min-height: 52px; border-radius: 12px; border: 2px solid var(--borde); background: var(--superficie); color: var(--peligro); font-size: 1.2rem; cursor: pointer; }
 

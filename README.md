@@ -13,6 +13,7 @@ public/               ← todo lo que se publica
   css/app.css
   js/app.js           pantallas y asistente de registro
   js/plantillas.js    tipos de unidad (agregar un tipo = agregar una plantilla)
+  js/catalogo.js      catálogo interno de modelos e intervalos de mantenimiento (no visible)
   js/validaciones.js  placa, cédula, teléfono, compartimentos
   js/textos.js        todos los mensajes
   js/config.js        decisiones abiertas D1–D5

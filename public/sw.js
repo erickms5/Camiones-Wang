@@ -1,8 +1,8 @@
 // Funcionamiento sin conexión: primero la red, y si no hay señal, la copia guardada.
-const CACHE = 'registro-unidades-v2';
+const CACHE = 'registro-unidades-v3';
 const ARCHIVOS = [
   './', './index.html', './css/app.css', './manifest.webmanifest', './icono.svg',
-  './js/app.js', './js/config.js', './js/textos.js', './js/plantillas.js', './js/validaciones.js', './js/store.js',
+  './js/app.js', './js/config.js', './js/textos.js', './js/plantillas.js', './js/validaciones.js', './js/store.js', './js/catalogo.js',
 ];
 
 self.addEventListener('install', (e) => {

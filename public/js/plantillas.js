@@ -9,7 +9,6 @@ export const PLANTILLAS = [
     nombre: 'Tractocamión',
     rol: 'cabezal',
     descripcion: 'Cabezal con motor y odómetro',
-    defectos: { num_ejes: 3, num_llantas: 10 },
     campos: [
       { id: 'km_inicial', etiqueta: 'Kilometraje actual del odómetro', tipo: 'numero', requerido: true, min: 0, advertirSobre: 2000000, unidad: 'km', nombreMensaje: 'el kilometraje', ayuda: 'Mire el tablero del camión y escriba el número completo.' },
       { id: 'motor', etiqueta: 'Motor', tipo: 'lista', opciones: ['Detroit DD13', 'Detroit DD15', 'Cummins X15', 'Otro / no sé'], nombreMensaje: 'el motor' },
@@ -24,7 +23,6 @@ export const PLANTILLAS = [
     rol: 'remolque',
     descripcion: 'Tanque para líquidos',
     tanque: true,
-    defectos: { num_ejes: 3, num_llantas: 12 },
     campos: [
       { id: 'material', etiqueta: 'Material del tanque', tipo: 'lista', requerido: true, opciones: ['Aluminio', 'Acero inoxidable', 'Acero al carbono'], nombreMensaje: 'el material del tanque' },
       { id: 'producto', etiqueta: '¿Qué transporta?', tipo: 'lista', opciones: ['Combustible', 'Agua', 'Químicos', 'Alimentos líquidos', 'Otro'], nombreMensaje: 'lo que transporta' },
@@ -37,7 +35,6 @@ export const PLANTILLAS = [
     nombre: 'Plataforma',
     rol: 'remolque',
     descripcion: 'Carga plana o contenedores',
-    defectos: { num_ejes: 2, num_llantas: 8 },
     limites: { num_ejes: { min: 2, max: 3 } },
     campos: [
       { id: 'largo_pies', etiqueta: 'Largo', tipo: 'numero', requerido: true, min: 20, max: 60, unidad: 'pies', nombreMensaje: 'el largo' },
@@ -50,7 +47,6 @@ export const PLANTILLAS = [
     nombre: 'Furgón',
     rol: 'remolque',
     descripcion: 'Caja cerrada',
-    defectos: { num_ejes: 2, num_llantas: 8 },
     campos: [
       { id: 'puertas', etiqueta: 'Número de puertas', tipo: 'numero', requerido: true, min: 1, max: 6, nombreMensaje: 'el número de puertas' },
       { id: 'refrigerado', etiqueta: '¿Es refrigerado?', tipo: 'sino', requerido: true, nombreMensaje: 'si es refrigerado' },
@@ -62,7 +58,6 @@ export const PLANTILLAS = [
     nombre: 'Otro',
     rol: 'remolque',
     descripcion: 'Otro tipo de remolque',
-    defectos: { num_ejes: 2, num_llantas: 8 },
     campos: [
       { id: 'descripcion', etiqueta: 'Describa la unidad', tipo: 'texto', requerido: true, min: 3, max: 80, nombreMensaje: 'la descripción' },
     ],
@@ -72,25 +67,6 @@ export const PLANTILLAS = [
 
 export const plantilla = (id) => PLANTILLAS.find((p) => p.id === id);
 export const plantillasPorRol = (rol) => PLANTILLAS.filter((p) => p.rol === rol);
-
-export const CATALOGO = {
-  cabezal: {
-    Freightliner: ['Columbia', 'Cascadia', 'M2 106', 'Coronado'],
-    Kenworth: ['T800', 'T880', 'W900'],
-    International: ['LT', 'ProStar', '9800i'],
-    Volvo: ['VNL', 'FH', 'FM'],
-    Mack: ['Anthem', 'Granite', 'Pinnacle'],
-    Hino: ['500', '700'],
-  },
-  remolque: {
-    'Fabricación nacional': [],
-    Heil: [],
-    Polar: [],
-    'Great Dane': [],
-    Utility: [],
-    Wabash: [],
-  },
-};
 
 const rueda = (x, y = 50, r = 7) => `<circle cx="${x}" cy="${y}" r="${r}" class="ic-rueda"/><circle cx="${x}" cy="${y}" r="${r / 2.6}" class="ic-cubo"/>`;
 

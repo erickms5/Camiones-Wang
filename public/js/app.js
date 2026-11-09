@@ -1,6 +1,7 @@
 import { T, miles } from './textos.js';
 import { CONFIG, DECISIONES } from './config.js';
-import { plantilla, plantillasPorRol, CATALOGO, ICONOS } from './plantillas.js';
+import { plantilla, plantillasPorRol, ICONOS } from './plantillas.js';
+import { buscarModelo, sugerirMarcas, sugerirModelos, INTERVALOS_GENERICOS } from './catalogo.js';
 import * as V from './validaciones.js';
 import { db, guardar, uid, auditar, resetear, ahora } from './store.js';
 
@@ -91,11 +92,6 @@ function campoPlantilla(c, valor) {
   </fieldset>`;
 }
 
-function chips(bind, lista, actual) {
-  if (!lista.length) return '';
-  return `<div class="chips" role="group" aria-label="Sugerencias">${lista.map((m) => `<button type="button" class="chip ${m === actual ? 'sel' : ''}" data-accion="elegir" data-bind="${bind}" data-valor="${esc(m)}">${esc(m)}</button>`).join('')}</div>`;
-}
-
 function valorAtributo(c, v) {
   if (v === undefined || v === null || v === '') return '';
   if (c.tipo === 'sino') return v === 'si' ? 'Sí' : 'No';
@@ -104,38 +100,48 @@ function valorAtributo(c, v) {
 }
 
 // Dibujo lateral del tanque, dividido en proporción a los galones (RF-24).
-function svgTanque(total, comps, { activo = -1 } = {}) {
+// Un compartimento sin galones se dibuja punteado, con un ancho de referencia.
+function svgTanque(comps, { activo = -1 } = {}) {
   const x0 = 24, x1 = 384, y0 = 26, h = 80, ancho = x1 - x0;
-  const gal = comps.map((c) => V.aEntero(c.galones) || 0);
-  const asignado = gal.reduce((a, b) => a + b, 0);
-  const t = V.aEntero(total) || 0;
-  const base = Math.max(t, asignado, 1);
-  const sobra = t > 0 && asignado > t;
+  const gal = comps.map((c) => {
+    const n = V.aEntero(c.galones);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  });
+  const llenos = gal.filter((g) => g > 0);
+  const referencia = llenos.length ? llenos.reduce((a, b) => a + b, 0) / llenos.length : 1;
+  const pesos = gal.map((g) => g || referencia);
+  const base = pesos.reduce((a, b) => a + b, 0) || 1;
+  const total = V.totalCompartimentos(comps);
   const id = 'c' + Math.random().toString(36).slice(2, 8);
   let x = x0;
-  const partes = gal.map((g, i) => {
-    const w = (ancho * g) / base;
-    const p = { x, w, g, i };
+  const partes = pesos.map((p, i) => {
+    const w = (ancho * p) / base;
+    const parte = { x, w, g: gal[i], i, vacio: !gal[i] };
     x += w;
-    return p;
+    return parte;
   });
-  const libreX = x, libreW = x1 - x;
-  const desc = `Tanque de ${miles(t)} galones con ${comps.length} compartimento${comps.length === 1 ? '' : 's'}: ${gal.map(miles).join(', ')} galones`;
-  const rect = (p) => `<rect x="${p.x}" y="${y0}" width="${p.w}" height="${h}" class="t-comp ${p.i % 2 ? 't-b' : 't-a'} ${p.i === activo ? 't-activo' : ''}" data-i="${p.i}"/>`;
+  const desc = comps.length
+    ? `Tanque de ${miles(total)} galones con ${comps.length} compartimento${comps.length === 1 ? '' : 's'}: ${gal.map((g) => (g ? miles(g) : 'sin galones')).join(', ')}`
+    : 'Tanque sin compartimentos';
+  const rect = (p) =>
+    p.vacio
+      ? `<rect x="${p.x}" y="${y0}" width="${p.w}" height="${h}" fill="url(#${id}r)" class="${p.i === activo ? 't-vacio-activo' : ''}"/>`
+      : `<rect x="${p.x}" y="${y0}" width="${p.w}" height="${h}" class="t-comp ${p.i % 2 ? 't-b' : 't-a'} ${p.i === activo ? 't-activo' : ''}"/>`;
   const etiqueta = (p) => {
     const cx = p.x + p.w / 2;
-    const cls = p.i === activo ? 't-txt t-txt-activo' : 't-txt';
+    const cls = p.vacio ? 't-txt-libre' : p.i === activo ? 't-txt t-txt-activo' : 't-txt';
     let s = '';
     if (p.w >= 22) s += `<text x="${cx}" y="${y0 + 36}" class="${cls} t-num">${p.i + 1}</text>`;
-    if (p.w >= 50) s += `<text x="${cx}" y="${y0 + 62}" class="${cls} t-gal">${miles(p.g)}</text>`;
+    if (p.w >= 50) s += `<text x="${cx}" y="${y0 + 62}" class="${cls} t-gal">${p.vacio ? '—' : miles(p.g)}</text>`;
     return s;
   };
+  const punteado = (p) => `<rect x="${p.x + 3}" y="${y0 + 3}" width="${Math.max(p.w - 6, 0)}" height="${h - 6}" rx="6" class="t-punteado"/>`;
   return `<svg viewBox="0 0 400 168" class="svg-tanque" role="img" aria-label="${esc(desc)}">
     <defs>
       <clipPath id="${id}"><rect x="${x0}" y="${y0}" width="${ancho}" height="${h}" rx="40"/></clipPath>
       <pattern id="${id}r" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" class="t-libre"/><line x1="0" y1="0" x2="0" y2="12" class="t-raya"/></pattern>
     </defs>
-    ${partes.filter((p) => p.w > 0).map((p) => `<rect x="${p.x + p.w / 2 - 12}" y="${y0 - 10}" width="24" height="11" rx="3" class="t-boca"/>`).join('')}
+    ${partes.map((p) => `<rect x="${p.x + p.w / 2 - 12}" y="${y0 - 10}" width="24" height="11" rx="3" class="t-boca"/>`).join('')}
     <rect x="12" y="110" width="376" height="8" rx="2" class="t-chasis"/>
     <rect x="40" y="116" width="10" height="9" class="t-chasis"/>
     <rect x="128" y="116" width="7" height="30" class="t-chasis"/><rect x="120" y="144" width="23" height="5" rx="2" class="t-chasis"/>
@@ -143,11 +149,11 @@ function svgTanque(total, comps, { activo = -1 } = {}) {
     <g clip-path="url(#${id})">
       <rect x="${x0}" y="${y0}" width="${ancho}" height="${h}" fill="url(#${id}r)"/>
       ${partes.map(rect).join('')}
+      ${partes.filter((p) => p.vacio).map(punteado).join('')}
       ${partes.slice(1).map((p) => `<line x1="${p.x}" y1="${y0}" x2="${p.x}" y2="${y0 + h}" class="t-divisor"/>`).join('')}
     </g>
-    <rect x="${x0}" y="${y0}" width="${ancho}" height="${h}" rx="40" class="t-borde ${sobra ? 't-borde-mal' : ''}"/>
+    <rect x="${x0}" y="${y0}" width="${ancho}" height="${h}" rx="40" class="t-borde"/>
     ${partes.map(etiqueta).join('')}
-    ${libreW > 70 && t > 0 && asignado < t ? `<text x="${libreX + libreW / 2}" y="${y0 + 49}" class="t-txt-libre">Sin asignar</text>` : ''}
   </svg>`;
 }
 
@@ -222,7 +228,7 @@ function render() {
   const { v, id } = ruta();
   document.body.classList.toggle('en-registro', v === 'registro');
   if (v === 'registro') return renderRegistro();
-  const vistas = { inicio: vistaInicio, unidad: vistaUnidad, conductores: vistaConductores, conductor: vistaConductor, cuenta: vistaCuenta };
+  const vistas = { inicio: vistaInicio, unidad: vistaUnidad, intervalos: vistaIntervalos, conductores: vistaConductores, conductor: vistaConductor, cuenta: vistaCuenta };
   app.innerHTML = (vistas[v] || vistaInicio)(id);
   window.scrollTo(0, 0);
   app.querySelector('h1')?.focus({ preventScroll: true });
@@ -238,7 +244,8 @@ function tarjetaUnidad(u) {
     const km = lecturasKm(u.id)[0]?.km;
     dato = km !== undefined ? `${miles(km)} km` : 'Sin kilometraje';
   } else if (p?.tanque) {
-    dato = `${miles(u.atributos.capacidad_galones)} gal · ${compartimentosDe(u.id).length} compartimentos`;
+    const cs = compartimentosDe(u.id);
+    dato = `${miles(V.totalCompartimentos(cs.map((x) => ({ galones: x.capacidad_galones }))))} gal · ${cs.length} compartimento${cs.length === 1 ? '' : 's'}`;
   }
   return `<a class="tarjeta tarjeta-unidad" href="#/unidad/${u.id}">
     <span class="tu-icono">${ICONOS[u.tipo_unidad_id] || ICONOS.otro}</span>
@@ -280,7 +287,6 @@ function vistaInicio() {
   }
   html += `<div class="acciones-inicio">
     <button class="btn btn-primario btn-bloque" data-accion="nuevo-registro">＋ Registrar unidad</button>
-    ${!lista.length ? `<button class="btn btn-secundario btn-bloque" data-accion="cargar-ejemplo">Ver ejemplo: Freightliner Columbia 2020 + tanquero</button>` : ''}
     <a class="btn btn-secundario btn-bloque" href="#/conductores">Conductores</a>
     <a class="btn btn-secundario btn-bloque" href="#/cuenta">Mi cuenta y ajustes</a>
   </div>`;
@@ -327,12 +333,13 @@ function vistaUnidad(id) {
   </section>
 
   ${p?.tanque ? `<section class="tarjeta">
-    <h2>Tanque · ${miles(u.atributos.capacidad_galones)} galones</h2>
+    <h2>Tanque · ${miles(V.totalCompartimentos(comps.map((x) => ({ galones: x.capacidad_galones }))))} galones</h2>
     ${u.atributos.placa_tanque ? `<p>Placa del tanque: ${placaHTML(u.atributos.placa_tanque)}</p>` : ''}
-    ${svgTanque(u.atributos.capacidad_galones, comps.map((x) => ({ galones: x.capacidad_galones })))}
+    ${svgTanque(comps.map((x) => ({ galones: x.capacidad_galones })))}
     <ol class="lista-simple">${comps.map((x) => `<li><span>Compartimento ${x.orden}${x.nombre ? ` · ${esc(x.nombre)}` : ''}</span><strong>${miles(x.capacidad_galones)} gal</strong></li>`).join('')}</ol>
-    ${u.atributos.diferencia_aceptada ? `<p class="aviso">La suma de compartimentos no coincide con el total (aceptado al registrar).</p>` : ''}
   </section>` : ''}
+
+  ${u.rol === 'cabezal' ? seccionIntervalos(u) : ''}
 
   <section class="tarjeta">
     <h2>${u.rol === 'cabezal' ? 'Remolque enganchado' : 'Cabezal'}</h2>
@@ -365,6 +372,41 @@ function vistaUnidad(id) {
     ${u.activa ? `<button class="btn btn-peligro btn-bloque" data-accion="baja" data-id="${u.id}">Dar de baja</button>` : `<button class="btn btn-secundario btn-bloque" data-accion="reactivar" data-id="${u.id}">Reactivar</button>`}
   </div>
   ${historial.length ? `<section class="historial"><h2>Historial de cambios</h2><ul>${historial.map((h) => `<li><span>${fecha(h.en)}</span> ${esc(h.detalle || h.accion)}</li>`).join('')}</ul></section>` : ''}`;
+}
+
+function textoIntervalo(x) {
+  const partes = [];
+  if (x.cada_km) partes.push(`cada ${miles(x.cada_km)} km`);
+  if (x.cada_meses) partes.push(`${x.cada_meses} ${x.cada_meses === 1 ? 'mes' : 'meses'}`);
+  return partes.join(' o ') || '—';
+}
+
+function seccionIntervalos(u) {
+  const lista = db().intervalos.filter((x) => x.unidad_id === u.id).sort((a, b) => a.orden - b.orden);
+  if (!lista.length) return '';
+  return `<section class="tarjeta">
+    <h2>Mantenimiento</h2>
+    <p class="ayuda">Lo que ocurra primero: kilómetros o tiempo.</p>
+    <ul class="lista-simple lista-intervalos">${lista.map((x) => `<li><span>${esc(x.tarea)}</span><strong>${textoIntervalo(x)}</strong></li>`).join('')}</ul>
+    <a class="btn btn-secundario btn-bloque" href="#/intervalos/${u.id}">Editar intervalos</a>
+  </section>`;
+}
+
+function vistaIntervalos(id) {
+  const u = unidad(id);
+  const lista = u ? db().intervalos.filter((x) => x.unidad_id === u.id).sort((a, b) => a.orden - b.orden) : [];
+  if (!u || !lista.length) return `<a class="volver" href="#/">‹ Mis unidades</a><h1 tabindex="-1">No hay intervalos</h1>`;
+  return `<a class="volver" href="#/unidad/${u.id}">‹ ${esc(u.placa)}</a>
+  <h1 tabindex="-1">Intervalos de mantenimiento</h1>
+  <p class="lead">Cambie los kilómetros o meses según el manual o la costumbre del taller.</p>
+  ${lista.map((x) => `<fieldset class="tarjeta campo intervalo">
+    <legend>${esc(x.tarea)}</legend>
+    <div class="intervalo-fila">
+      <div><label for="f-int-km-${x.id}">Cada (km)</label><input id="f-int-km-${x.id}" class="input" inputmode="numeric" pattern="[0-9]*" data-int="${x.id}" data-campo="cada_km" value="${esc(x.cada_km ?? '')}"><p class="error" id="e-int-km-${x.id}"></p></div>
+      <div><label for="f-int-mes-${x.id}">o cada (meses)</label><input id="f-int-mes-${x.id}" class="input" inputmode="numeric" pattern="[0-9]*" data-int="${x.id}" data-campo="cada_meses" value="${esc(x.cada_meses ?? '')}"><p class="error" id="e-int-mes-${x.id}"></p></div>
+    </div>
+  </fieldset>`).join('')}
+  <div class="acciones-inicio"><button class="btn btn-primario btn-bloque" data-accion="guardar-intervalos" data-id="${u.id}">Guardar</button></div>`;
 }
 
 // ---------------------------------------------------------------- conductores
@@ -456,7 +498,6 @@ function vistaCuenta() {
     <h2>Sobre este prototipo</h2>
     <p>Los datos se guardan solo en este teléfono o navegador y funcionan sin internet. La sincronización con un servidor, el cifrado de la cédula y los mantenimientos llegan en la siguiente fase.</p>
     <div class="fila-botones">
-      <button class="btn btn-secundario" data-accion="cargar-ejemplo">Cargar ejemplo</button>
       <button class="btn btn-peligro" data-accion="borrar-todo">Borrar todos los datos</button>
     </div>
   </section>`;
@@ -475,12 +516,6 @@ function pasosDe(d) {
   if (d.rol && (candidatosAcople(d).length || (d.acoplarCon && d.acoplarCon !== 'ninguno'))) p.push('acople');
   p.push('conductor', 'resumen');
   return p;
-}
-
-function aplicarDefectos(d) {
-  const p = plantilla(d.tipo);
-  if (!p) return;
-  if (!d.generalesEditados) Object.assign(d, p.defectos);
 }
 
 const PASOS = {
@@ -524,7 +559,7 @@ const PASOS = {
         else if (plantilla(d.tipo)?.rol !== 'remolque') d.tipo = null;
         d.acoplarCon = null;
       }
-      aplicarDefectos(d);
+      if (plantilla(d.tipo)?.tanque && !d.compartimentos.length) d.compartimentos.push({ id: uid(), nombre: '', galones: null });
     },
     revisar(b) {
       const d = b.datos;
@@ -539,17 +574,13 @@ const PASOS = {
     ayuda: () => T.pasos.generales.ayuda,
     html: (b) => {
       const d = b.datos;
-      const cat = CATALOGO[d.rol] || {};
       const lim = limitesGenerales(d);
       return `
-        ${campoTexto('marca', 'marca', 'Marca', d.marca, { extra: 'maxlength="40" autocapitalize="words"', chips: chips('marca', Object.keys(cat), d.marca) })}
-        ${campoTexto('modelo', 'modelo', 'Modelo', d.modelo, { extra: 'maxlength="40"', chips: chips('modelo', cat[d.marca] || [], d.modelo) })}
+        ${campoTexto('marca', 'marca', 'Marca', d.marca, { extra: 'maxlength="40" autocapitalize="words" spellcheck="false"', chips: '<div class="chips" id="sug-marca" role="group" aria-label="Sugerencias de marca"></div>' })}
+        ${campoTexto('modelo', 'modelo', 'Modelo', d.modelo, { extra: 'maxlength="40" spellcheck="false"', chips: '<div class="chips" id="sug-modelo" role="group" aria-label="Sugerencias de modelo"></div>' })}
         ${campoNumero('anio', 'anio', 'Año', d.anio, { min: CONFIG.anioMin, max: anioMax(), inicio: new Date().getFullYear() })}
         ${campoNumero('num_ejes', 'num_ejes', 'Número de ejes', d.num_ejes, lim.num_ejes)}
         ${campoNumero('num_llantas', 'num_llantas', 'Número de llantas', d.num_llantas, { ...lim.num_llantas, delta: 2, ayuda: 'Cuente todas, incluidas las dobles. Sin la de repuesto.' })}`;
-    },
-    alElegir(d, bind) {
-      if (bind === 'marca' && !(CATALOGO[d.rol]?.[d.marca] || []).includes(d.modelo)) d.modelo = '';
     },
     revisar(b) {
       const d = b.datos;
@@ -591,44 +622,39 @@ const PASOS = {
       const d = b.datos;
       const n = d.compartimentos.length;
       return `
-        ${campoNumero('capacidad', 'capacidad', 'Capacidad total del tanque', d.capacidad, { min: 1, max: CONFIG.maxGalonesTanque, delta: 500, unidad: 'gal', vista: true })}
         <div class="tarjeta editor-tanque">
-          <div id="svg-tanque">${svgTanque(d.capacidad, d.compartimentos)}</div>
+          <div id="svg-tanque">${svgTanque(d.compartimentos)}</div>
           <div id="estado-tanque" class="estado-tanque" aria-live="polite">${estadoTanqueHTML(d)}</div>
         </div>
-        <fieldset class="campo"><legend>Plantillas rápidas</legend>
-          <p class="ayuda">Divide el total en partes iguales. Luego puede cambiar cada una.</p>
-          <div class="chips">${[1, 2, 3, 4].map((k) => `<button type="button" class="chip" data-accion="plantilla-comp" data-n="${k}">${k} igual${k > 1 ? 'es' : ''}</button>`).join('')}<button type="button" class="chip" data-accion="personalizado">Personalizado</button></div>
-        </fieldset>
         <h2>Compartimentos (${n})</h2>
         <p class="ayuda">El compartimento 1 es el de adelante, junto al cabezal.</p>
         <ol class="lista-comp">${d.compartimentos.map((c, i) => `<li class="comp" data-i="${i}">
           <div class="comp-cab">
             <span class="comp-num" aria-hidden="true">${i + 1}</span>
-            <input class="input input-chico" placeholder="Nombre (opcional)" maxlength="30" data-bind="compartimentos.${i}.nombre" value="${esc(c.nombre)}" aria-label="Nombre del compartimento ${i + 1} (opcional)">
-            <button type="button" class="btn-icono" data-accion="quitar-comp" data-i="${i}" aria-label="Quitar compartimento ${i + 1}">✕</button>
+            <strong class="comp-titulo">Compartimento ${i + 1}</strong>
           </div>
+          <input class="input input-chico comp-nombre" placeholder="Nombre (opcional)" maxlength="30" data-bind="compartimentos.${i}.nombre" value="${esc(c.nombre)}" aria-label="Nombre del compartimento ${i + 1} (opcional)">
           <div class="stepper">
             <button type="button" class="btn-paso" data-accion="paso-num" data-target="f-comp-${i}" data-delta="-100" data-min="1" aria-label="Restar 100 galones al compartimento ${i + 1}">−</button>
-            <input id="f-comp-${i}" class="input" inputmode="numeric" autocomplete="off" data-bind="compartimentos.${i}.galones" data-entero="1" value="${esc(c.galones ?? '')}" aria-label="Galones del compartimento ${i + 1}" aria-describedby="e-comp-${i}">
+            <input id="f-comp-${i}" class="input" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-bind="compartimentos.${i}.galones" data-entero="1" value="${esc(c.galones ?? '')}" aria-label="Galones del compartimento ${i + 1}" aria-describedby="e-comp-${i}">
             <button type="button" class="btn-paso" data-accion="paso-num" data-target="f-comp-${i}" data-delta="100" aria-label="Sumar 100 galones al compartimento ${i + 1}">+</button>
             <span class="unidad">gal</span>
+          </div>
+          <div class="comp-acciones">
+            <button type="button" class="btn-comp" data-accion="mover-comp" data-i="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Subir compartimento ${i + 1}">▲ Subir</button>
+            <button type="button" class="btn-comp" data-accion="mover-comp" data-i="${i}" data-dir="1" ${i === n - 1 ? 'disabled' : ''} aria-label="Bajar compartimento ${i + 1}">▼ Bajar</button>
+            <button type="button" class="btn-comp btn-comp-quitar" data-accion="quitar-comp" data-i="${i}" ${n <= 1 ? 'disabled' : ''} aria-label="Eliminar compartimento ${i + 1}">✕ Eliminar</button>
           </div>
           <p class="error" id="e-comp-${i}"></p>
         </li>`).join('')}</ol>
         <button type="button" class="btn btn-secundario btn-bloque" data-accion="agregar-comp" ${n >= CONFIG.maxCompartimentos ? 'disabled' : ''}>＋ Agregar compartimento${n >= CONFIG.maxCompartimentos ? ` (máximo ${CONFIG.maxCompartimentos})` : ''}</button>
-        <div id="acepta-wrap" class="campo" ${V.resumenCompartimentos(d.capacidad, d.compartimentos).diferencia === 0 ? 'hidden' : ''}>
-          <label class="check-grande aviso-borde"><input type="checkbox" id="f-tanque" data-bind="aceptaDiferencia" ${d.aceptaDiferencia ? 'checked' : ''}> <span>${T.tanque.aceptarCasilla}</span></label>
-        </div>
         <p class="error" id="e-tanque"></p>`;
     },
     revisar(b) {
       const d = b.datos;
       const errores = {};
-      const r = V.validarEntero(d.capacidad, { nombre: 'la capacidad total', min: 1, max: CONFIG.maxGalonesTanque });
-      if (r.error) errores.capacidad = r.error; else d.capacidad = r.valor;
-      Object.assign(errores, V.validarCompartimentos(d.capacidad, d.compartimentos, d.aceptaDiferencia));
-      if (V.resumenCompartimentos(d.capacidad, d.compartimentos).diferencia === 0) d.aceptaDiferencia = false;
+      Object.assign(errores, V.validarCompartimentos(d.compartimentos));
+      if (!Object.keys(errores).length) d.compartimentos.forEach((c) => (c.galones = V.aEntero(c.galones)));
       return { errores };
     },
   },
@@ -648,11 +674,8 @@ const PASOS = {
         </div>
         <p class="error" id="e-acople"></p></fieldset>
         ${d.acoplarCon && d.acoplarCon !== 'ninguno' ? `<div class="campo"><label for="f-fechaAcople">¿Desde qué fecha?</label>
-          <input id="f-fechaAcople" class="input" type="date" data-bind="fechaAcople" value="${esc(d.fechaAcople || hoy())}" max="${hoy()}"><p class="error" id="e-fechaAcople"></p></div>` : ''}
+          <input id="f-fechaAcople" class="input" type="date" data-bind="fechaAcople" value="${esc(d.fechaAcople || '')}" max="${hoy()}"><p class="error" id="e-fechaAcople"></p></div>` : ''}
         ${d.rol === 'remolque' && d.acoplarCon === 'ninguno' ? `<p class="aviso">${T.avisos.remolqueSinCabezal}</p>` : ''}`;
-    },
-    alElegir(d, bind, valor) {
-      if (valor !== 'ninguno' && !d.fechaAcople) d.fechaAcople = hoy();
     },
     revisar(b) {
       const d = b.datos;
@@ -677,7 +700,7 @@ const PASOS = {
       if (c.modo === 'despues') form = `<p class="aviso">${T.avisos.conductorDespues}</p>`;
       return `<fieldset class="campo" id="f-conductor" tabindex="-1"><legend class="sr-only">Elija una opción</legend>
         <div class="opciones">
-          ${opcion('conductor.modo', 'yo', valor, 'Yo la manejo', esc(yo?.nombre || usuario.nombre))}
+          ${opcion('conductor.modo', 'yo', valor, 'Yo la manejo', esc(yo?.nombre || usuario.nombre || 'Con mis datos'))}
           ${otros.map((x) => opcion('conductor.modo', `c:${x.id}`, valor, esc(x.nombre), `Cédula ${V.mascaraCedula(x.cedula) || '—'}`)).join('')}
           ${opcion('conductor.modo', 'nuevo', valor, 'Otro conductor', 'Registrar a otra persona')}
           ${!CONFIG.conductorObligatorio ? opcion('conductor.modo', 'despues', valor, 'Registrar después', '') : ''}
@@ -721,9 +744,8 @@ const PASOS = {
       html += sec('generales', 'Datos generales', dl([['Marca', d.marca], ['Modelo', d.modelo], ['Año', d.anio], ['Ejes', d.num_ejes], ['Llantas', d.num_llantas]]));
       html += sec('especificos', `Datos del ${p.nombre.toLowerCase()}`, dl(p.campos.map((f) => [f.etiqueta, valorAtributo(f, d.atributos[f.id])])));
       if (p.tanque) {
-        const r = V.resumenCompartimentos(d.capacidad, d.compartimentos);
-        html += sec('tanque', 'Tanque', `${svgTanque(d.capacidad, d.compartimentos)}
-          <p class="estado-tanque ${r.diferencia ? 'mal' : 'bien'}"><strong>${miles(r.asignado)} de ${miles(r.total)} gal</strong> · ${r.mensaje}</p>
+        html += sec('tanque', 'Tanque', `${svgTanque(d.compartimentos)}
+          <p class="estado-tanque">Capacidad total: <strong>${miles(V.totalCompartimentos(d.compartimentos))} gal</strong></p>
           <ol class="lista-simple">${d.compartimentos.map((x, i) => `<li><span>Compartimento ${i + 1}${x.nombre ? ` · ${esc(x.nombre)}` : ''}</span><strong>${miles(x.galones)} gal</strong></li>`).join('')}</ol>`);
       }
       if (pasosDe(d).includes('acople')) html += sec('acople', d.rol === 'cabezal' ? 'Remolque' : 'Cabezal', par ? `<p>${placaHTML(par.placa)} ${esc(nombreUnidad(par))}</p><p class="ayuda">Desde el ${fecha(d.fechaAcople)}</p>` : '<p>Ninguno por ahora.</p>');
@@ -748,19 +770,29 @@ function vistaPlaca(texto) {
 }
 
 function estadoTanqueHTML(d) {
-  const r = V.resumenCompartimentos(d.capacidad, d.compartimentos);
-  if (!r.total) return `<span class="mal">${T.tanque.sinCapacidad}</span>`;
-  return `<strong>${miles(r.asignado)} de ${miles(r.total)} gal</strong> asignados<br><span class="${r.diferencia ? 'mal' : 'bien'}">${r.diferencia ? '⚠' : '✓'} ${r.mensaje}</span>`;
+  const n = d.compartimentos.length;
+  return `Capacidad total: <strong class="total-tanque">${miles(V.totalCompartimentos(d.compartimentos))} gal</strong><br><span class="ayuda">${n} compartimento${n === 1 ? '' : 's'}</span>`;
 }
 
 function refrescarTanque(activo = -1) {
   const d = db().borrador.datos;
   const svg = document.getElementById('svg-tanque');
   if (!svg) return;
-  svg.innerHTML = svgTanque(d.capacidad, d.compartimentos, { activo });
+  svg.innerHTML = svgTanque(d.compartimentos, { activo });
   document.getElementById('estado-tanque').innerHTML = estadoTanqueHTML(d);
-  const r = V.resumenCompartimentos(d.capacidad, d.compartimentos);
-  document.getElementById('acepta-wrap').hidden = r.diferencia === 0;
+}
+
+// Autocompletado de marca y modelo con el catálogo interno (solo cabezales, solo al escribir).
+function refrescarSugerencias() {
+  const d = db().borrador?.datos;
+  if (!d) return;
+  const pintar = (id, bind, lista) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = lista.map((m) => `<button type="button" class="chip" data-accion="sugerencia" data-bind="${bind}" data-valor="${esc(m)}">${esc(m)}</button>`).join('');
+  };
+  const cab = d.rol === 'cabezal';
+  pintar('sug-marca', 'marca', cab ? sugerirMarcas(d.marca) : []);
+  pintar('sug-modelo', 'modelo', cab ? sugerirModelos(d.marca, d.modelo) : []);
 }
 
 function nuevoBorrador() {
@@ -786,11 +818,9 @@ function borradorDesdeUnidad(u, paso = 'resumen') {
       placa: u.placa, rol: u.rol, tipo: u.tipo_unidad_id, marca: u.marca, modelo: u.modelo, anio: u.anio,
       num_ejes: u.num_ejes, num_llantas: u.num_llantas, generalesEditados: true,
       atributos: { ...u.atributos },
-      capacidad: u.atributos.capacidad_galones,
       compartimentos: comps.map((x) => ({ id: x.id, nombre: x.nombre, galones: x.capacidad_galones })),
-      aceptaDiferencia: !!u.atributos.diferencia_aceptada,
       acoplarCon: par ? par.id : 'ninguno',
-      fechaAcople: acopleActivo(u.id)?.desde || hoy(),
+      fechaAcople: acopleActivo(u.id)?.desde || '',
       conductor: c ? (c.esUsuario ? { modo: 'yo' } : { modo: 'existente', conductorId: c.id }) : { modo: 'despues' },
     },
   };
@@ -820,6 +850,7 @@ function renderRegistro({ mantenerScroll = false } = {}) {
       <button type="button" class="btn btn-primario" data-accion="siguiente">${etiquetaSig}${b.paso === 'resumen' ? '' : ' ›'}</button>
     </div>
   </div>`;
+  if (b.paso === 'generales') refrescarSugerencias();
   if (mantenerScroll) window.scrollTo(0, y);
   else {
     window.scrollTo(0, 0);
@@ -927,8 +958,7 @@ function guardarUnidad(b) {
     if (v !== undefined && v !== null && v !== '') atributos[c.id] = v;
   });
   if (p.tanque) {
-    atributos.capacidad_galones = d.capacidad;
-    atributos.diferencia_aceptada = V.resumenCompartimentos(d.capacidad, d.compartimentos).diferencia !== 0;
+    atributos.capacidad_galones = V.totalCompartimentos(d.compartimentos);
   }
   let u = b.editandoId ? unidad(b.editandoId) : null;
   const nuevo = !u;
@@ -961,6 +991,8 @@ function guardarUnidad(b) {
   if (nuevo && d.rol === 'cabezal' && d.atributos.km_inicial !== undefined && d.atributos.km_inicial !== null) {
     D.odometro.push({ id: uid(), unidad_id: u.id, km: d.atributos.km_inicial, fuente: 'manual', registrado_en: t });
   }
+
+  if (d.rol === 'cabezal') asociarIntervalos(u);
 
   // Acople (RF-10)
   if (d.acoplarCon) {
@@ -997,35 +1029,27 @@ function guardarUnidad(b) {
   return u;
 }
 
+// Intervalos de mantenimiento del cabezal: los del catálogo interno si el modelo coincide,
+// si no, los genéricos. Se recalculan al editar marca/modelo/año mientras el usuario no los haya cambiado.
+function asociarIntervalos(u) {
+  const D = db();
+  const actuales = D.intervalos.filter((x) => x.unidad_id === u.id);
+  if (actuales.some((x) => x.editado)) return;
+  const cat = buscarModelo(u.marca, u.modelo, u.anio);
+  const origen = cat ? cat.id : 'generico';
+  if (actuales.length && actuales[0].origen === origen) return;
+  D.intervalos = D.intervalos.filter((x) => x.unidad_id !== u.id);
+  u.catalogo_modelo_id = cat ? cat.id : null;
+  (cat ? cat.intervalos : INTERVALOS_GENERICOS).forEach((x, i) =>
+    D.intervalos.push({ id: uid(), unidad_id: u.id, orden: i + 1, tarea: x.tarea, componente: x.componente, cada_km: x.cada_km, cada_meses: x.cada_meses, origen, editado: false }),
+  );
+}
+
 function crearConductor(c, esUsuario) {
   const nuevo = { id: uid(), usuario_id: db().usuario.id, nombre: c.nombre, cedula: c.cedula || '', telefono: c.telefono, esUsuario, consentimiento_en: ahora(), activo: true };
   db().conductores.push(nuevo);
   auditar('crear', 'conductor', nuevo.id, `Conductor registrado: ${nuevo.nombre}`);
   return nuevo;
-}
-
-function cargarEjemplo() {
-  const D = db();
-  const cab = nuevoBorrador();
-  Object.assign(cab.datos, {
-    placa: 'PCX-2020', rol: 'cabezal', tipo: 'tracto', marca: 'Freightliner', modelo: 'Columbia', anio: 2020, num_ejes: 3, num_llantas: 10,
-    atributos: { km_inicial: 845300, motor: 'Detroit DD15', transmision: 'Manual 10 velocidades' },
-    acoplarCon: null,
-    conductor: { modo: 'yo', nombre: D.usuario.nombre, cedula: '1710034065', telefono: D.usuario.telefono, consentimiento: true },
-  });
-  const u1 = guardarUnidad(cab);
-  const tq = nuevoBorrador();
-  Object.assign(tq.datos, {
-    placa: 'PTQ-1010', rol: 'remolque', tipo: 'tanquero', marca: 'Fabricación nacional', modelo: 'Tanquero 10.000 gal', anio: 2020, num_ejes: 3, num_llantas: 12,
-    atributos: { material: 'Aluminio', producto: 'Combustible' },
-    capacidad: 10000,
-    compartimentos: [3000, 2000, 2000, 3000].map((g) => ({ id: uid(), nombre: '', galones: g })),
-    acoplarCon: u1.id, fechaAcople: hoy(),
-    conductor: { modo: 'yo' },
-  });
-  guardarUnidad(tq);
-  guardar();
-  toast(T.toast.ejemplo);
 }
 
 // ---------------------------------------------------------------- eventos
@@ -1089,33 +1113,39 @@ const acciones = {
     input.value = n;
     input.dispatchEvent(new Event('input', { bubbles: true }));
   },
-  'plantilla-comp': (el) => {
-    const d = db().borrador.datos;
-    const total = V.aEntero(d.capacidad);
-    if (!total) return mostrarErrores({ capacidad: T.tanque.sinCapacidad });
-    const n = Number(el.dataset.n);
-    d.compartimentos = V.dividirIguales(total, n).map((g, i) => ({ id: d.compartimentos[i]?.id || uid(), nombre: d.compartimentos[i]?.nombre || '', galones: g }));
-    d.aceptaDiferencia = false;
-    guardarBorrador();
-    renderRegistro({ mantenerScroll: true });
-  },
-  personalizado: () => {
-    const d = db().borrador.datos;
-    if (!d.compartimentos.length) return acciones['agregar-comp']();
-    document.getElementById('f-comp-0')?.focus();
-  },
   'agregar-comp': () => {
     const d = db().borrador.datos;
     if (d.compartimentos.length >= CONFIG.maxCompartimentos) return;
-    const r = V.resumenCompartimentos(d.capacidad, d.compartimentos);
-    d.compartimentos.push({ id: uid(), nombre: '', galones: r.diferencia < 0 ? -r.diferencia : null });
+    d.compartimentos.push({ id: uid(), nombre: '', galones: null });
     guardarBorrador();
     renderRegistro({ mantenerScroll: true });
     document.getElementById(`f-comp-${d.compartimentos.length - 1}`)?.focus();
   },
+  'mover-comp': (el) => {
+    const d = db().borrador.datos;
+    const i = Number(el.dataset.i);
+    const j = i + Number(el.dataset.dir);
+    if (j < 0 || j >= d.compartimentos.length) return;
+    [d.compartimentos[i], d.compartimentos[j]] = [d.compartimentos[j], d.compartimentos[i]];
+    guardarBorrador();
+    renderRegistro({ mantenerScroll: true });
+    const destino = app.querySelector(`[data-accion="mover-comp"][data-i="${j}"][data-dir="${el.dataset.dir}"]:not([disabled])`) || document.getElementById(`f-comp-${j}`);
+    destino?.focus({ preventScroll: true });
+    refrescarTanque(j);
+  },
+  sugerencia: (el) => {
+    const d = db().borrador.datos;
+    d[el.dataset.bind] = el.dataset.valor;
+    const input = document.getElementById('f-' + el.dataset.bind);
+    input.value = el.dataset.valor;
+    guardarBorrador();
+    refrescarSugerencias();
+    input.focus();
+  },
   'quitar-comp': async (el) => {
     const b = db().borrador;
     const i = Number(el.dataset.i);
+    if (b.datos.compartimentos.length <= 1) return;
     const comp = b.datos.compartimentos[i];
     if (b.editandoId && db().componentes.some((x) => x.id === comp.id)) {
       const ok = await confirmar(`¿Quitar el compartimento ${i + 1}?`, '<p>Si tiene mantenimientos registrados, se conservarán en el historial.</p>', 'Sí, quitar', 'btn-peligro');
@@ -1239,10 +1269,24 @@ const acciones = {
     guardar();
     toast('Datos guardados');
   },
-  'cargar-ejemplo': async () => {
-    if (db().unidades.some((u) => u.placa === 'PCX-2020' || u.placa === 'PTQ-1010')) return toast('El ejemplo ya está cargado');
-    cargarEjemplo();
-    ir('#/');
+  'guardar-intervalos': (el) => {
+    const errores = {};
+    const cambios = [];
+    app.querySelectorAll('[data-int]').forEach((input) => {
+      const key = input.id.replace(/^f-/, '');
+      const r = V.validarEntero(input.value, { nombre: input.dataset.campo === 'cada_km' ? 'el número de kilómetros' : 'el número de meses', min: 1, requerido: false });
+      if (r.error) errores[key] = r.error;
+      else cambios.push([input.dataset.int, input.dataset.campo, r.valor]);
+    });
+    if (mostrarErrores(errores)) return;
+    cambios.forEach(([id, campo, valor]) => {
+      const x = db().intervalos.find((i) => i.id === id);
+      if (x && x[campo] !== valor) Object.assign(x, { [campo]: valor, editado: true });
+    });
+    auditar('intervalos', 'unidad', el.dataset.id, 'Intervalos de mantenimiento editados');
+    guardar();
+    toast(T.toast.intervalos);
+    ir(`#/unidad/${el.dataset.id}`);
   },
   'borrar-todo': async () => {
     const ok = await confirmar('¿Borrar todos los datos?', '<p>Se borrarán todas las unidades, conductores y borradores de este teléfono. No se puede deshacer.</p>', 'Sí, borrar todo', 'btn-peligro');
@@ -1281,6 +1325,7 @@ app.addEventListener('input', (e) => {
   setPath(b.datos, bind, valor);
   if (['marca', 'modelo', 'anio', 'num_ejes', 'num_llantas'].includes(bind)) b.datos.generalesEditados = true;
   if (bind === 'placa') document.getElementById('prev-placa').innerHTML = vistaPlaca(valor);
+  if (bind === 'marca' || bind === 'modelo') refrescarSugerencias();
   if (el.dataset.vista) {
     const v = document.getElementById('v-' + el.id.replace(/^f-/, ''));
     const u = el.closest('.stepper')?.querySelector('.unidad')?.textContent || '';
@@ -1289,7 +1334,6 @@ app.addEventListener('input', (e) => {
   if (b.paso === 'tanque') {
     const li = el.closest('.comp');
     refrescarTanque(li ? Number(li.dataset.i) : -1);
-    if (document.getElementById('e-tanque')) document.getElementById('e-tanque').textContent = '';
   }
   guardarBorrador();
 });
