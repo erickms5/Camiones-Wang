@@ -189,3 +189,9 @@ test('al cambiar su contraseña se cierran sus otras sesiones', async () => {
   await s1.get('/unidades').expect(200);
   await s2.get('/unidades').expect(401);
 });
+
+test('intentos fallidos en paralelo no se saltan la pausa', async () => {
+  await t.dueno.patch(`/choferes/${t.choferId}`, { clave: 'paralelo1' }).expect(200);
+  await Promise.all(Array.from({ length: 12 }, () => request(app).post('/auth/entrar').send({ email: 'chofer@ejemplo.com', clave: 'mal' })));
+  await request(app).post('/auth/entrar').send({ email: 'chofer@ejemplo.com', clave: 'paralelo1' }).expect(429);
+});

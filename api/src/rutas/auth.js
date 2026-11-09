@@ -57,10 +57,10 @@ export function rutasAuth({ db, seguridad, autenticado, config }) {
     // Mismo mensaje y mismo tiempo exista o no el correo
     if (!claveCorrecta(d.clave, u?.claveHash)) {
       if (u) {
-        const fallos = u.intentosFallidos + 1;
+        // Suma y pausa en una sola operación: intentos en paralelo no pueden saltarse el límite
         await db.update(usuarios).set({
-          intentosFallidos: sql`${usuarios.intentosFallidos} + 1`,
-          ...(fallos >= MAX_FALLOS ? { bloqueadoHasta: new Date(Date.now() + PAUSA_MIN * 60000), intentosFallidos: 0 } : {}),
+          bloqueadoHasta: sql`CASE WHEN ${usuarios.intentosFallidos} + 1 >= ${MAX_FALLOS} THEN now() + make_interval(mins => ${PAUSA_MIN}) ELSE ${usuarios.bloqueadoHasta} END`,
+          intentosFallidos: sql`CASE WHEN ${usuarios.intentosFallidos} + 1 >= ${MAX_FALLOS} THEN 0 ELSE ${usuarios.intentosFallidos} + 1 END`,
         }).where(eq(usuarios.id, u.id));
       }
       throw new ErrorHttp(401, 'Correo o contraseña incorrectos');
