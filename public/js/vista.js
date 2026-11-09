@@ -1,54 +1,80 @@
-// Vista interactiva del camión (estilo holográfico): cabezal + remolque con puntos tocables
-// por componente. Muestra solo datos reales del registro; los sensores (temperatura, presión)
-// quedan marcados para la fase de lectura automática (GPS / ESP32 / J1939).
+// Vista interactiva del camión: panel de control con modelo 3D holográfico (Three.js),
+// puntos por componente, paneles flotantes unidos con líneas y sensores.
+// Los datos de sensores son SIMULADOS (con aviso visible) hasta la fase de lectura automática.
 import { miles } from './textos.js';
 import * as V from './validaciones.js';
 import { plantilla } from './plantillas.js';
+import { db } from './store.js';
 import {
-  esc, unidad, pareja, acopleActivo, compartimentosDe, componentesDe, lecturasKm, conductorDe, nombreUnidad, intervalosDe,
+  esc, unidad, activas, pareja, acopleActivo, compartimentosDe, componentesDe, lecturasKm, conductorDe, nombreUnidad, intervalosDe,
 } from './consultas.js';
 
-// Zonas de la escena (coordenadas del dibujo, viewBox 1000 × 420)
-const ZONA = {
-  todo: { x: 8, y: 52, w: 984, h: 330 },
-  cab: { x: 8, y: 52, w: 396, h: 320 },
-  rem: { x: 284, y: 88, w: 708, h: 290 },
-};
-const TANQUE = { x0: 304, x1: 972, y0: 152, y1: 280 };
-const RUEDAS_CAB = [90, 300, 366];
-const RUEDAS_REM = [820, 884, 948];
+const CIAN = 0x38e1ff;
+const CIAN_CLARO = 0xbff6ff;
+const ACTIVO = 0xeaffff;
 
-// Posición del punto de cada componente y nombre corto de su grupo en el dibujo.
+// Geometría base (metros). X hacia el frente del camión, Y arriba, Z hacia el lado del conductor.
+const TANQUE = { xFrente: -2.05, xFondo: -12.65, y: 2.35, r: 1.0 };
+const EJES_CAB = [3.0, -1.5, -2.85];
+const EJES_REM = [-10.1, -11.35, -12.6];
+
+// Encuadres de cámara: objetivo y posición relativa
+const ENCUADRES = {
+  todo: { objetivo: [-4.4, 1.7, 0], radio: 27, azimut: 0.95, polar: 1.2, estrecho: 1 },
+  cab: { objetivo: [0.9, 1.7, 0], radio: 12.5, azimut: 1.08, polar: 1.25, estrecho: 0.5 },
+  rem: { objetivo: [-7.3, 2.0, 0], radio: 17.5, azimut: 0.72, polar: 1.18, estrecho: 1 },
+};
+
 const PUNTOS_CAB = {
-  Motor: [100, 252, 'motor'],
-  'Transmisión': [171, 280, 'transmision'],
-  'Quinta rueda': [335, 276, 'quinta'],
-  Llantas: [90, 334, 'llantas'],
-  Frenos: [300, 334, 'frenos'],
-  Ejes: [366, 334, 'ejes'],
+  Motor: ['motor', [3.05, 1.6, 0.95]],
+  'Transmisión': ['transmision', [1.95, 1.0, 0.75]],
+  'Quinta rueda': ['quinta', [-2.2, 1.3, 0.75]],
+  Llantas: ['llantas', [3.0, 0.52, 1.28]],
+  Frenos: ['frenos', [-1.5, 0.52, 1.42]],
+  Ejes: ['ejes', [-2.85, 0.52, 1.42]],
 };
 const PUNTOS_REM = {
-  'Quinta rueda': [343, 300, 'quinta'],
-  Ejes: [820, 334, 'ejes'],
-  Frenos: [884, 334, 'frenos'],
-  Llantas: [948, 334, 'llantas'],
-  Tanque: [640, 120, 'tanque'],
-  'Válvulas': [630, 306, 'valvulas'],
-  Piso: [640, 268, 'piso'],
-  'Twist locks': [334, 252, 'twist'],
-  Puertas: [962, 196, 'puertas'],
-  'Equipo de frío': [296, 160, 'frio'],
-};
-const CON_SENSORES = {
-  Motor: ['Temperatura', 'Presión de aceite'],
-  Llantas: ['Presión', 'Temperatura'],
-  Frenos: ['Temperatura'],
+  'Quinta rueda': ['quinta', [-2.25, 1.32, 0.7]],
+  Tanque: ['tanque', [-7.35, 3.45, 0.2]],
+  'Válvulas': ['valvulas', [-6.4, 1.15, 0.85]],
+  Ejes: ['ejes', [EJES_REM[0], 0.5, 1.42]],
+  Frenos: ['frenos', [EJES_REM[1], 0.5, 1.42]],
+  Llantas: ['llantas', [EJES_REM[2], 0.5, 1.42]],
+  Piso: ['piso', [-7.3, 1.62, 1.25]],
+  'Twist locks': ['twist', [-2.3, 1.72, 1.15]],
+  Puertas: ['puertas', [-13.0, 2.7, 0.6]],
+  'Equipo de frío': ['frio', [-1.5, 3.5, 0.5]],
 };
 
+// Sensores simulados: valor inicial, rango y variación por segundo.
+const SENSORES = {
+  motor_temp: { v: 85, min: 79, max: 94, paso: 0.9, unidad: '°C', alto: 100 },
+  motor_aceite: { v: 45, min: 39, max: 54, paso: 1.1, unidad: 'PSI', alto: 80 },
+  motor_carga: { v: 50, min: 28, max: 78, paso: 4, unidad: '%', alto: 100 },
+  motor_rend: { v: 70, min: 40, max: 92, paso: 6, unidad: '%', alto: 100 },
+  llanta_presion: { v: 110, min: 104, max: 114, paso: 0.6, unidad: 'PSI', alto: 130 },
+  llanta_temp: { v: 42, min: 36, max: 48, paso: 0.5, unidad: '°C', alto: 80 },
+  llanta_desgaste: { v: 64, min: 63, max: 65, paso: 0.05, unidad: '%', alto: 100 },
+  frenos_temp: { v: 96, min: 70, max: 140, paso: 5, unidad: '°C', alto: 250 },
+  frenos_vida: { v: 72, min: 71, max: 73, paso: 0.05, unidad: '%', alto: 100 },
+  trans_temp: { v: 78, min: 70, max: 92, paso: 0.8, unidad: '°C', alto: 120 },
+};
+const SENSORES_DE = {
+  Motor: ['motor_temp', 'motor_aceite'],
+  Llantas: ['llanta_presion', 'llanta_temp'],
+  Frenos: ['frenos_temp', 'frenos_vida'],
+  'Transmisión': ['trans_temp'],
+};
+const NOMBRE_SENSOR = {
+  motor_temp: 'Temperatura', motor_aceite: 'Presión de aceite', motor_carga: 'Carga', llanta_presion: 'Presión',
+  llanta_temp: 'Temperatura', llanta_desgaste: 'Vida útil', frenos_temp: 'Temperatura', frenos_vida: 'Vida útil', trans_temp: 'Temperatura del aceite',
+};
+
+const PREF_SIM = 'vista-simulacion';
 let estado = null;
 
-// ---------------------------------------------------------------- escena
-function armarEscena(id) {
+// ---------------------------------------------------------------- datos
+function armar(id) {
   const u = unidad(id);
   if (!u) return null;
   const otro = pareja(id);
@@ -56,430 +82,910 @@ function armarEscena(id) {
   const rem = u.rol === 'remolque' ? u : otro?.rol === 'remolque' ? otro : null;
   const puntos = [];
   if (cab && rem) {
-    puntos.push({ id: 'u-cab', grupo: 'todo', x: 186, y: 168, nombre: `Cabezal ${cab.placa}`, ir: 'cab' });
-    puntos.push({ id: 'u-rem', grupo: 'todo', x: 640, y: 214, nombre: `Remolque ${rem.placa}`, ir: 'rem' });
+    puntos.push({ id: 'u-cab', grupo: 'todo', pos: [0.9, 3.95, 1.0], nombre: `Cabezal ${cab.placa}`, ir: 'cab', unidad: cab });
+    puntos.push({ id: 'u-rem', grupo: 'todo', pos: [-7.35, 3.55, 0.6], nombre: `Remolque ${rem.placa}`, ir: 'rem', unidad: rem });
   }
   if (cab) {
     componentesDe(cab.id).forEach((c) => {
       const p = PUNTOS_CAB[c.nombre];
-      if (p) puntos.push({ id: `cab-${p[2]}`, grupo: 'cab', x: p[0], y: p[1], nombre: c.nombre, parte: `p-cab-${p[2]}`, unidad: cab, componente: c.nombre });
+      if (p) puntos.push({ id: `cab-${p[0]}`, grupo: 'cab', pos: p[1], nombre: c.nombre, parte: `cab-${p[0]}`, unidad: cab, componente: c.nombre });
     });
   }
+  let comps = [];
   if (rem) {
     componentesDe(rem.id).forEach((c) => {
       const p = PUNTOS_REM[c.nombre];
-      if (p) puntos.push({ id: `rem-${p[2]}`, grupo: 'rem', x: p[0], y: p[1], nombre: c.nombre, parte: `p-rem-${p[2]}`, unidad: rem, componente: c.nombre });
+      if (p) puntos.push({ id: `rem-${p[0]}`, grupo: 'rem', pos: p[1], nombre: c.nombre, parte: `rem-${p[0]}`, unidad: rem, componente: c.nombre });
     });
     if (plantilla(rem.tipo_unidad_id)?.tanque) {
-      const comps = compartimentosDe(rem.id);
-      partesTanque(comps).forEach((p) => {
-        const c = comps[p.i];
-        puntos.push({ id: `rem-comp-${p.i}`, grupo: 'rem', x: p.x + p.w / 2, y: 216, nombre: `Compartimento ${c.orden}`, parte: `p-rem-comp-${p.i}`, unidad: rem, compartimento: c, comps });
+      comps = compartimentosDe(rem.id);
+      tramosTanque(comps).forEach((t, i) => {
+        puntos.push({ id: `rem-comp-${i}`, grupo: 'rem', pos: [(t.x0 + t.x1) / 2, TANQUE.y + 0.15, 1.03], nombre: `Compartimento ${comps[i].orden}`, parte: `rem-comp-${i}`, unidad: rem, compartimento: comps[i] });
       });
     }
   }
-  return { u, cab, rem, puntos, focoInicial: cab && rem ? 'todo' : cab ? 'cab' : 'rem' };
+  const foco = cab ? 'cab' : 'rem';
+  return { u, cab, rem, comps, puntos, focoInicial: foco };
 }
 
-function partesTanque(comps) {
+function tramosTanque(comps) {
   const gal = comps.map((c) => Number(c.capacidad_galones) || 0);
   const llenos = gal.filter((g) => g > 0);
   const ref = llenos.length ? llenos.reduce((a, b) => a + b, 0) / llenos.length : 1;
   const pesos = gal.map((g) => g || ref);
   const base = pesos.reduce((a, b) => a + b, 0) || 1;
-  const ancho = TANQUE.x1 - TANQUE.x0;
-  let x = TANQUE.x0;
-  return pesos.map((p, i) => {
-    const w = (ancho * p) / base;
-    const parte = { x, w, i, g: gal[i] };
-    x += w;
-    return parte;
+  const largo = TANQUE.xFrente - TANQUE.xFondo;
+  let x = TANQUE.xFrente;
+  return pesos.map((p) => {
+    const x0 = x;
+    x -= (largo * p) / base;
+    return { x0, x1: x };
   });
 }
 
-// ---------------------------------------------------------------- dibujo
-const rueda = (cx, r, cy = 330) => `<circle cx="${cx}" cy="${cy}" r="${r}"/><circle cx="${cx}" cy="${cy}" r="${r - 6}" class="h-fino"/>`;
+const kmCab = (e) => (e.cab ? lecturasKm(e.cab.id)[0]?.km : undefined);
+const totalTanque = (comps) => V.totalCompartimentos(comps.map((c) => ({ galones: c.capacidad_galones })));
 
-function svgPiso() {
-  const vp = { x: 500, y: 250 };
-  const yTop = 364;
-  let s = '';
-  for (let x = -900; x <= 1900; x += 110) {
-    const t = (yTop - vp.y) / (440 - vp.y);
-    s += `<line x1="${vp.x + (x - vp.x) * t}" y1="${yTop}" x2="${x}" y2="440"/>`;
+function simulacionActiva() {
+  try {
+    return localStorage.getItem(PREF_SIM) !== 'no';
+  } catch {
+    return true;
   }
-  [364, 369, 377, 389, 405, 426].forEach((y) => (s += `<line x1="-200" y1="${y}" x2="1200" y2="${y}"/>`));
-  return `<g class="h-piso">${s}</g><ellipse cx="500" cy="366" rx="470" ry="10" class="h-sombra"/>`;
 }
 
-function svgParticulas() {
-  let s = '';
-  let semilla = 7;
-  const azar = () => ((semilla = (semilla * 9301 + 49297) % 233280) / 233280);
-  for (let i = 0; i < 46; i++) {
-    s += `<circle cx="${(azar() * 1000).toFixed(1)}" cy="${(40 + azar() * 300).toFixed(1)}" r="${(0.8 + azar() * 1.8).toFixed(1)}" style="animation-delay:${(azar() * 4).toFixed(2)}s"/>`;
-  }
-  return `<g class="h-particulas">${s}</g>`;
-}
+// ---------------------------------------------------------------- HTML
+const ICONO_NAV = {
+  flota: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 7h11v9H2zM13 10h4l3 3v3h-7z"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>',
+  mantenimiento: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5a4 4 0 0 0-5 5L4 16l4 4 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5z"/><path d="M5 5l4 4M3 7l4-4"/></svg>',
+  diagnostico: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
+  telemetria: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/><circle cx="12" cy="16" r="1.4"/></svg>',
+};
 
-function svgCabezal() {
-  const parrilla = [240, 248, 256].map((y) => `<line x1="42" y1="${y}" x2="54" y2="${y}"/>`).join('');
-  return `<g class="h-unidad" id="u-cab">
-    <g class="h-cuerpo">
-      <path d="M28 300V276q0-6 6-6h10v30z"/>
-      <path d="M40 288V236q2-18 24-22l86-16 6 90z"/>
-      <path d="M150 198l16-70q3-12 16-12h50v180h-78z"/>
-      <path d="M228 108q8-24 56-22l4 22z"/>
-      <rect x="228" y="108" width="60" height="186" rx="6"/>
-      <rect x="140" y="298" width="96" height="28" rx="14"/>
-      <rect x="30" y="292" width="362" height="10" rx="2"/>
-    </g>
-    <g class="h-det">
-      ${parrilla}
-      <rect x="42" y="264" width="14" height="8" rx="2"/>
-      <path d="M156 194l13-60q2-6 9-6h12v66z"/>
-      <rect x="196" y="128" width="30" height="40" rx="4"/>
-      <rect x="194" y="176" width="34" height="106" rx="4"/>
-      <line x1="164" y1="140" x2="150" y2="150"/><rect x="143" y="146" width="8" height="26" rx="2"/>
-      <rect x="221" y="62" width="7" height="64" rx="3"/>
-      <rect x="244" y="150" width="34" height="50" rx="4"/><line x1="236" y1="136" x2="282" y2="136"/>
-      <line x1="70" y1="220" x2="148" y2="206"/>
-      <path d="M52 292q38-44 76 0"/><path d="M262 292q38-44 76 0" class="h-fino"/>
-      <line x1="168" y1="298" x2="168" y2="326"/><line x1="208" y1="298" x2="208" y2="326"/>
-      <rect x="200" y="288" width="24" height="4"/>
-    </g>
-    <g class="h-parte" id="p-cab-motor">
-      <rect x="64" y="230" width="78" height="48" rx="6"/>
-      ${[76, 92, 108, 124].map((x) => `<rect x="${x}" y="236" width="12" height="18" rx="2"/>`).join('')}
-      <line x1="68" y1="264" x2="138" y2="264"/><circle cx="76" cy="270" r="5"/>
-    </g>
-    <g class="h-parte" id="p-cab-transmision"><rect x="144" y="270" width="54" height="18" rx="5"/><line x1="198" y1="279" x2="296" y2="279"/></g>
-    <g class="h-parte" id="p-cab-quinta"><path d="M304 284h62l-5 8h-52z"/><line x1="335" y1="284" x2="335" y2="292"/></g>
-    <g class="h-parte" id="p-cab-llantas">${RUEDAS_CAB.map((x) => rueda(x, 32)).join('')}</g>
-    <g class="h-parte" id="p-cab-frenos">${RUEDAS_CAB.map((x) => `<circle cx="${x}" cy="330" r="17"/>`).join('')}</g>
-    <g class="h-parte" id="p-cab-ejes">${RUEDAS_CAB.map((x) => `<circle cx="${x}" cy="330" r="6"/>`).join('')}<line x1="300" y1="330" x2="366" y2="330"/></g>
-  </g>`;
-}
-
-function svgRemolque(rem, enganchado) {
-  const p = plantilla(rem.tipo_unidad_id);
-  const pata = enganchado ? 330 : 356;
-  let cuerpo = '';
-  if (p?.tanque) {
-    const comps = compartimentosDe(rem.id);
-    const partes = partesTanque(comps);
-    cuerpo = `
-      <defs><clipPath id="h-clip-tanque"><rect x="300" y="150" width="676" height="132" rx="66"/></clipPath></defs>
-      <g clip-path="url(#h-clip-tanque)">
-        ${partes.map((q) => `<g class="h-parte h-comp ${q.g ? '' : 'h-comp-vacio'} ${q.i % 2 ? 'h-comp-b' : ''}" id="p-rem-comp-${q.i}"><rect x="${q.x}" y="150" width="${q.w}" height="132"/></g>`).join('')}
-        ${partes.slice(1).map((q) => `<line x1="${q.x}" y1="150" x2="${q.x}" y2="282" class="h-divisor"/>`).join('')}
-      </g>
-      ${partes.map((q) => `<text x="${q.x + q.w / 2}" y="${q.w > 70 ? 252 : 258}" class="h-txt">${q.w > 70 ? (q.g ? miles(q.g) + ' gal' : '—') : q.i + 1}</text>`).join('')}
-      <g class="h-parte" id="p-rem-tanque">
-        <rect x="300" y="150" width="676" height="132" rx="66" class="h-borde"/>
-        ${partes.map((q) => `<rect x="${q.x + q.w / 2 - 14}" y="138" width="28" height="12" rx="3"/>`).join('')}
-        <line x1="350" y1="132" x2="926" y2="132"/>
-        ${[350, 494, 638, 782, 926].map((x) => `<line x1="${x}" y1="132" x2="${x}" y2="150"/>`).join('')}
-      </g>
-      <g class="h-parte" id="p-rem-valvulas">
-        <line x1="480" y1="300" x2="772" y2="300"/>
-        ${[514, 594, 674, 754].map((x) => `<rect x="${x - 7}" y="292" width="14" height="14" rx="2"/><line x1="${x}" y1="282" x2="${x}" y2="292"/>`).join('')}
-      </g>`;
-  } else if (rem.tipo_unidad_id === 'plataforma') {
-    cuerpo = `
-      <g class="h-parte" id="p-rem-piso"><rect x="300" y="262" width="676" height="20" rx="2"/>${[380, 480, 580, 680, 780, 880].map((x) => `<line x1="${x}" y1="262" x2="${x}" y2="282" class="h-fino"/>`).join('')}</g>
-      <g class="h-parte" id="p-rem-twist"><rect x="326" y="250" width="16" height="12" rx="2"/><rect x="954" y="250" width="16" height="12" rx="2"/><rect x="630" y="250" width="16" height="12" rx="2"/></g>`;
-  } else if (rem.tipo_unidad_id === 'furgon') {
-    cuerpo = `
-      <g class="h-cuerpo"><rect x="300" y="106" width="676" height="176" rx="6"/></g>
-      <g class="h-det">${[380, 460, 540, 620, 700, 780, 860, 940].map((x) => `<line x1="${x}" y1="110" x2="${x}" y2="278"/>`).join('')}</g>
-      <g class="h-parte" id="p-rem-puertas"><rect x="950" y="114" width="22" height="162" rx="3"/><line x1="961" y1="114" x2="961" y2="276"/></g>
-      <g class="h-parte" id="p-rem-frio"><rect x="284" y="126" width="18" height="66" rx="4"/></g>`;
-  } else {
-    cuerpo = `<g class="h-cuerpo h-punteado"><rect x="300" y="140" width="676" height="142" rx="6"/></g>`;
-  }
-  return `<g class="h-unidad" id="u-rem">
-    <g class="h-cuerpo"><rect x="330" y="282" width="646" height="10" rx="2"/><rect x="962" y="300" width="7" height="40" rx="2"/></g>
-    ${cuerpo}
-    <g class="h-det"><rect x="446" y="292" width="8" height="${pata - 292}"/><rect x="436" y="${pata}" width="28" height="6" rx="2"/></g>
-    <g class="h-parte" id="p-rem-quinta"><rect x="318" y="282" width="50" height="8" rx="2"/><rect x="340" y="290" width="6" height="8"/></g>
-    <g class="h-parte" id="p-rem-llantas">${RUEDAS_REM.map((x) => rueda(x, 30)).join('')}</g>
-    <g class="h-parte" id="p-rem-frenos">${RUEDAS_REM.map((x) => `<circle cx="${x}" cy="330" r="16"/>`).join('')}</g>
-    <g class="h-parte" id="p-rem-ejes">${RUEDAS_REM.map((x) => `<circle cx="${x}" cy="330" r="6"/>`).join('')}<line x1="820" y1="330" x2="948" y2="330"/></g>
-  </g>`;
-}
-
-function svgEscena(e) {
-  return `<svg id="holo-svg" class="holo-svg" viewBox="0 0 1000 420" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <defs>
-      <filter id="h-glow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-      <pattern id="h-puntos" width="7" height="7" patternUnits="userSpaceOnUse"><circle cx="3.5" cy="3.5" r=".9" class="h-punto-trama"/></pattern>
-      <linearGradient id="h-scan-grad" x1="0" x2="1"><stop offset="0" stop-color="#38e1ff" stop-opacity="0"/><stop offset=".5" stop-color="#38e1ff" stop-opacity=".22"/><stop offset="1" stop-color="#38e1ff" stop-opacity="0"/></linearGradient>
-    </defs>
-    ${svgPiso()}
-    ${svgParticulas()}
-    <g class="h-modelo" filter="url(#h-glow)">
-      ${e.rem ? svgRemolque(e.rem, !!e.cab) : ''}
-      ${e.cab ? svgCabezal() : ''}
-    </g>
-    <rect class="h-scan" x="-120" y="40" width="120" height="340" fill="url(#h-scan-grad)"/>
-  </svg>`;
+export function htmlVista(id) {
+  if (estado?.detener) estado.detener();
+  const e = armar(id);
+  if (!e) return `<a class="volver" href="#/">‹ Mis unidades</a><h1 tabindex="-1">No se encontró la unidad</h1>`;
+  const usuario = db().usuario;
+  const avisos = activas().filter((u) => !conductorDe(u.id) || (u.rol === 'remolque' && !pareja(u.id))).length;
+  const iniciales = (usuario.nombre || 'Mi cuenta').split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
+  estado = {
+    e, puntos: e.puntos, foco: e.focoInicial, modo: 'telemetria', sim: simulacionActiva(), etiquetas: false, info: true,
+    paneles: { izq: null, der: null }, historial: Array.from({ length: 40 }, (_, i) => 70 + 12 * Math.sin(i / 3)),
+    sensores: JSON.parse(JSON.stringify(SENSORES)),
+  };
+  const vistas = e.cab && e.rem ? [['todo', 'Conjunto'], ['cab', 'Cabezal'], ['rem', 'Remolque']] : [];
+  return `<div class="tos" id="tos">
+  <header class="tos-top">
+    <button type="button" class="tos-icono-btn tos-menu" data-v="menu" aria-label="Mostrar u ocultar el menú lateral">☰</button>
+    <a class="tos-logo" href="#/unidad/${e.u.id}" aria-label="Volver a la ficha de ${esc(e.u.placa)}"><span class="tos-volver" aria-hidden="true">‹</span><b>CAMIONES</b><span>WANG</span></a>
+    <label class="tos-buscar"><span class="sr-only">Buscar una parte</span><span aria-hidden="true">⌕</span><input id="tos-q" type="search" placeholder="Buscar parte" autocomplete="off"></label>
+    ${vistas.length ? `<div class="tos-vistas" role="group" aria-label="Encuadre">${vistas.map(([k, t]) => `<button type="button" class="tos-vista" data-v="foco" data-foco="${k}" title="${t}"><span class="tos-vista-pt" aria-hidden="true"></span><span class="tos-vista-txt">${t}</span></button>`).join('')}</div>` : ''}
+    <span class="tos-espacio"></span>
+    <button type="button" class="tos-control" data-v="sim" aria-pressed="${estado.sim}"><span aria-hidden="true">◉</span> <span class="tos-control-txt">Simulación</span></button>
+    <a class="tos-icono-btn tos-campana" href="#/" aria-label="Avisos: ${avisos}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>${avisos ? '<span class="tos-punto-rojo"></span>' : ''}</a>
+    <a class="tos-usuario" href="#/cuenta"><span class="tos-avatar" aria-hidden="true">${esc(iniciales)}</span><span class="tos-usuario-txt">${esc(usuario.nombre || 'Mi cuenta')}<small>${esc([e.cab?.placa, e.rem?.placa].filter(Boolean).join(' + '))}</small></span></a>
+  </header>
+  <nav class="tos-lateral" aria-label="Secciones">
+    <a class="tos-nav" href="#/">${ICONO_NAV.flota}<span>Flota</span></a>
+    <button type="button" class="tos-nav" data-v="modo" data-modo="mantenimiento">${ICONO_NAV.mantenimiento}<span>Mantenimiento</span></button>
+    <button type="button" class="tos-nav" data-v="modo" data-modo="diagnostico">${ICONO_NAV.diagnostico}<span>Diagnóstico</span></button>
+    <button type="button" class="tos-nav" data-v="modo" data-modo="telemetria">${ICONO_NAV.telemetria}<span>Telemetría</span></button>
+  </nav>
+  <main class="tos-main">
+    <div class="tos-zona" id="tos-zona">
+      <div class="tos-escena" id="tos-escena">
+        <canvas id="tos-canvas" aria-hidden="true"></canvas>
+        <svg class="tos-lineas" id="tos-lineas" aria-hidden="true"></svg>
+        <div class="tos-puntos" id="tos-puntos">
+          ${e.puntos.map((p) => `<button type="button" class="tos-pt ${p.ir ? 'tos-pt-unidad' : ''}" data-v="punto" data-id="${p.id}" aria-label="${esc(p.nombre)}" hidden><span class="tos-pt-anillo" aria-hidden="true"></span><span class="tos-pt-txt">${esc(p.nombre)}</span></button>`).join('')}
+        </div>
+        <div class="tos-herr">
+          <button type="button" class="tos-chip" data-v="etiquetas" aria-pressed="false"><span aria-hidden="true">☰</span> Etiquetas</button>
+          <button type="button" class="tos-chip" data-v="info" aria-pressed="true"><span aria-hidden="true">ⓘ</span> Información</button>
+        </div>
+        <p class="tos-sim-aviso" id="tos-sim-aviso">SIMULADO · los sensores llegan en la fase 2</p>
+        <p class="tos-ayuda" aria-hidden="true">Arrastre para girar · pellizque para acercar</p>
+        <p class="tos-sin3d" id="tos-sin3d" hidden>Este teléfono no puede mostrar el modelo 3D. Use la lista de partes.</p>
+      </div>
+      <div class="tos-paneles" id="tos-paneles" aria-live="polite">
+        <aside class="tos-panel" id="tos-izq" hidden></aside>
+        <aside class="tos-panel tos-panel-der" id="tos-der" hidden></aside>
+      </div>
+    </div>
+    <div class="tos-partes" id="tos-partes" role="group" aria-label="Partes"></div>
+  </main>
+</div>`;
 }
 
 // ---------------------------------------------------------------- paneles
-const fila = (k, v) => (v === '' || v === undefined || v === null ? '' : `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`);
-const kmCabezal = (e) => (e.cab ? lecturasKm(e.cab.id)[0]?.km : undefined);
+const fila = (k, v, cls = '') => (v === '' || v === undefined || v === null ? '' : `<div class="${cls}"><dt>${k}</dt><dd>${esc(v)}</dd></div>`);
 
-function textoIntervalo(x) {
-  const partes = [];
-  if (x.cada_km) partes.push(`${miles(x.cada_km)} km`);
-  if (x.cada_meses) partes.push(`${x.cada_meses} ${x.cada_meses === 1 ? 'mes' : 'meses'}`);
-  return partes.join(' o ');
+function valorSensor(k) {
+  const s = estado.sensores[k];
+  return estado.sim ? `${Math.round(s.v)} ${s.unidad}` : '—';
 }
 
-function cabeceraPanel(titulo, sub) {
-  return `<div class="hp-cab"><h2 class="hp-titulo">${esc(titulo)}</h2>${sub ? `<p class="hp-sub">${sub}</p>` : ''}</div>`;
+function filaSensor(k) {
+  return `<div><dt>${NOMBRE_SENSOR[k]}</dt><dd data-s="${k}" data-f="texto" class="tos-sensor">${valorSensor(k)}</dd></div>`;
 }
 
-function panelResumen(e, foco) {
-  const km = kmCabezal(e);
-  const unidadFoco = foco === 'cab' ? e.cab : foco === 'rem' ? e.rem : null;
-  const visibles = estado.puntos.filter((p) => p.grupo === foco).length;
-  if (unidadFoco) return panelUnidad(e, unidadFoco, visibles);
-  return `${cabeceraPanel('Conjunto', `${esc(e.cab.placa)} + ${esc(e.rem.placa)}`)}
-    <p class="hp-ayuda">Toque el <strong>cabezal</strong> o el <strong>remolque</strong> para ver sus partes.</p>
-    <dl class="hp-datos">
-      ${fila('Kilometraje', km !== undefined ? `${miles(km)} km` : 'Sin registrar')}
-      ${fila('Cabezal', nombreUnidad(e.cab))}
-      ${fila('Remolque', `${plantilla(e.rem.tipo_unidad_id)?.nombre} · ${nombreUnidad(e.rem)}`)}
-      ${fila('Conductor', conductorDe(e.cab.id)?.nombre || conductorDe(e.rem.id)?.nombre || 'Sin asignar')}
-    </dl>`;
+function barraSensor(k, etiqueta, color) {
+  const s = estado.sensores[k];
+  const pct = estado.sim ? Math.round(((s.v - 0) / s.alto) * 100) : 0;
+  return `<div class="tos-barra-fila"><span>${etiqueta}</span><span data-s="${k}" data-f="texto" class="tos-sensor">${valorSensor(k)}</span>
+    <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="${k}" data-f="barra" style="width:${pct}%;--c:${color}"></span></span></div>`;
 }
 
-function panelUnidad(e, u, visibles) {
-  const p = plantilla(u.tipo_unidad_id);
-  const km = u.rol === 'cabezal' ? lecturasKm(u.id)[0]?.km : kmCabezal(e);
-  const comps = p?.tanque ? compartimentosDe(u.id) : [];
-  return `${cabeceraPanel(u.rol === 'cabezal' ? 'Cabezal' : p?.nombre || 'Remolque', esc(u.placa))}
-    <p class="hp-ayuda">${visibles ? `Toque un punto brillante del dibujo o una parte de la lista para ver su información.` : 'Este tipo de unidad no tiene partes marcadas en el dibujo.'}</p>
-    <dl class="hp-datos">
-      ${fila('Unidad', nombreUnidad(u))}
-      ${fila('Kilometraje', km !== undefined ? `${miles(km)} km` : u.rol === 'remolque' && !e.cab ? 'Sin cabezal' : 'Sin registrar')}
-      ${p?.tanque ? fila('Capacidad', `${miles(V.totalCompartimentos(comps.map((c) => ({ galones: c.capacidad_galones }))))} gal`) : ''}
-      ${fila('Conductor', conductorDe(u.id)?.nombre || 'Sin asignar')}
-    </dl>
-    <a class="hp-enlace" href="#/unidad/${u.id}">Abrir ficha de ${esc(u.placa)} ›</a>`;
+function grafico() {
+  return `<div class="tos-grafico"><span class="tos-graf-ej" aria-hidden="true"><span>100%</span><span>50%</span><span>0%</span></span>
+    <svg viewBox="0 0 200 60" preserveAspectRatio="none" aria-hidden="true"><line x1="0" y1="30" x2="200" y2="30" class="tos-graf-media"/><polyline id="tos-graf" points="${puntosGrafico()}"/><circle id="tos-graf-pt" r="3" cx="${200 * 0.8}" cy="30"/></svg></div>`;
 }
 
-function bloqueMantenimiento(u, componente) {
-  if (u.rol !== 'cabezal') return `<h3 class="hp-sec">Mantenimiento</h3><p class="hp-nota">Sin intervalos definidos todavía.</p>`;
+function puntosGrafico() {
+  if (!estado.sim) return '0,58 200,58';
+  const h = estado.historial;
+  return h.map((v, i) => `${((i / (h.length - 1)) * 200).toFixed(1)},${(60 - (v / 100) * 56).toFixed(1)}`).join(' ');
+}
+
+function etiquetaSim() {
+  return estado.sim ? '<span class="tos-sim">SIMULADO</span>' : '<span class="tos-sim tos-sim-off">SIN SENSOR</span>';
+}
+
+function estadoComponente(nombre) {
+  if (!estado.sim || !SENSORES_DE[nombre]) return { texto: 'Sin datos', cls: '' };
+  const fuera = SENSORES_DE[nombre].some((k) => estado.sensores[k].v > estado.sensores[k].max * 0.98);
+  return fuera ? { texto: 'Revisar', cls: 'tos-aviso' } : { texto: 'Óptimo', cls: 'tos-ok' };
+}
+
+function intervalosHTML(u, componente, limite = 3) {
+  if (u.rol !== 'cabezal') return '<p class="tos-nota">Sin intervalos definidos todavía.</p>';
   const lista = intervalosDe(u.id).filter((x) => x.componente === componente);
-  if (!lista.length) return `<h3 class="hp-sec">Mantenimiento</h3><p class="hp-nota">Sin intervalos para esta parte.</p>`;
-  return `<h3 class="hp-sec">Mantenimiento</h3>
-    <ul class="hp-lista">${lista.map((x) => `<li><span>${esc(x.tarea)}</span><strong>cada ${textoIntervalo(x)}</strong></li>`).join('')}</ul>
-    <p class="hp-nota">Último servicio: sin registrar.</p>`;
+  if (!lista.length) return '<p class="tos-nota">Sin intervalos para esta parte.</p>';
+  const txt = (x) => [x.cada_km ? `${miles(x.cada_km)} km` : '', x.cada_meses ? `${x.cada_meses} meses` : ''].filter(Boolean).join(' o ');
+  return `<ul class="tos-lista">${lista.slice(0, limite).map((x) => `<li><span>${esc(x.tarea)}</span><strong>cada ${txt(x)}</strong></li>`).join('')}</ul>`;
 }
 
-function bloqueSensores(componente) {
-  const s = CON_SENSORES[componente];
-  if (!s) return '';
-  return `<h3 class="hp-sec">Sensores</h3>
-    <dl class="hp-datos hp-sensores">${s.map((n) => `<div><dt>${n}</dt><dd>—</dd></div>`).join('')}</dl>
-    <p class="hp-nota">Sin sensor conectado. Se activará con la lectura automática del camión (fase 2).</p>`;
-}
-
-function panelComponente(e, punto) {
-  const u = punto.unidad;
-  const a = u.atributos || {};
-  const n = punto.componente;
-  const par = acopleActivo(u.id);
-  const otro = pareja(u.id);
-  let datos = '';
-  if (n === 'Motor') datos = fila('Motor', a.motor) + fila('Vehículo', nombreUnidad(u)) + fila('Kilometraje', kmCabezal(e) !== undefined ? `${miles(kmCabezal(e))} km` : 'Sin registrar');
-  if (n === 'Transmisión') datos = fila('Tipo', a.transmision || 'Sin registrar');
-  if (n === 'Llantas') datos = fila('Número de llantas', u.num_llantas);
-  if (n === 'Ejes') datos = fila('Número de ejes', u.num_ejes);
-  if (n === 'Frenos') datos = fila('Ejes con freno', u.num_ejes);
-  if (n === 'Quinta rueda') datos = otro ? fila('Enganchado con', otro.placa) + fila('Desde', par.desde) : fila('Estado', 'Sin enganchar');
-  if (n === 'Piso') datos = fila('Largo', a.largo_pies ? `${a.largo_pies} pies` : '');
-  if (n === 'Twist locks') datos = fila('Tiene twist locks', a.twist_locks === 'si' ? 'Sí' : a.twist_locks === 'no' ? 'No' : 'Sin registrar');
-  if (n === 'Puertas') datos = fila('Número de puertas', a.puertas);
-  if (n === 'Equipo de frío') datos = fila('Refrigerado', a.refrigerado === 'si' ? 'Sí' : a.refrigerado === 'no' ? 'No' : 'Sin registrar');
-  let extra = '';
-  if (n === 'Tanque' || n === 'Válvulas') {
-    const comps = compartimentosDe(u.id);
-    const total = V.totalCompartimentos(comps.map((c) => ({ galones: c.capacidad_galones })));
-    if (n === 'Tanque') {
-      datos = fila('Material', a.material) + fila('Transporta', a.producto) + fila('Placa del tanque', a.placa_tanque) + fila('Compartimentos', comps.length);
-      extra = `<p class="hp-grande">${miles(total)} <small>gal</small></p>
-        <ul class="hp-barras">${comps.map((c) => barraCompartimento(c, total)).join('')}</ul>`;
-    } else {
-      datos = fila('Compartimentos', comps.length);
-    }
-  }
-  return `${cabeceraPanel(n, `${u.rol === 'cabezal' ? 'Cabezal' : 'Remolque'} · ${esc(u.placa)}`)}
-    ${extra}
-    ${datos ? `<dl class="hp-datos">${datos}</dl>` : ''}
-    ${bloqueMantenimiento(u, n)}
-    ${bloqueSensores(n)}`;
-}
-
-function barraCompartimento(c, total) {
-  const pct = total ? Math.round((Number(c.capacidad_galones) / total) * 100) : 0;
-  return `<li><span>${c.orden}${c.nombre ? ` · ${esc(c.nombre)}` : ''}</span><span class="hp-barra"><span style="width:${pct}%"></span></span><strong>${miles(c.capacidad_galones)}</strong></li>`;
-}
-
-function panelCompartimento(punto) {
-  const c = punto.compartimento;
-  const total = V.totalCompartimentos(punto.comps.map((x) => ({ galones: x.capacidad_galones })));
-  const pct = total ? Math.round((Number(c.capacidad_galones) / total) * 100) : 0;
-  return `${cabeceraPanel(`Compartimento ${c.orden}`, `${c.nombre ? esc(c.nombre) + ' · ' : ''}${esc(punto.unidad.placa)}`)}
-    <p class="hp-grande">${miles(c.capacidad_galones)} <small>gal</small></p>
-    <div class="hp-medidor"><span class="hp-barra hp-barra-grande"><span style="width:${pct}%"></span></span><span>${pct} % del tanque</span></div>
-    <dl class="hp-datos">${fila('Capacidad total del tanque', `${miles(total)} gal`)}${fila('Posición', c.orden === 1 ? 'Adelante, junto al cabezal' : `${c.orden} de ${punto.comps.length}`)}</dl>
-    <h3 class="hp-sec">Mantenimiento</h3><p class="hp-nota">Sin registros todavía.</p>`;
-}
-
-// ---------------------------------------------------------------- HTML de la vista
-export function htmlVista(id) {
-  const e = armarEscena(id);
-  if (!e) return `<a class="volver" href="#/">‹ Mis unidades</a><h1 tabindex="-1">No se encontró la unidad</h1>`;
-  estado = { e, puntos: e.puntos, foco: e.focoInicial, sel: null, vb: { ...ZONA[e.focoInicial] }, raf: 0 };
-  const km = kmCabezal(e);
-  const comps = e.rem && plantilla(e.rem.tipo_unidad_id)?.tanque ? compartimentosDe(e.rem.id) : null;
-  const pestanas = e.cab && e.rem
-    ? `<div class="holo-tabs" role="group" aria-label="Qué mostrar">
-        <button type="button" data-v="foco" data-foco="todo">Conjunto</button>
-        <button type="button" data-v="foco" data-foco="cab">Cabezal</button>
-        <button type="button" data-v="foco" data-foco="rem">Remolque</button>
-      </div>`
-    : '';
-  return `<a class="volver holo-volver" href="#/unidad/${e.u.id}">‹ ${esc(e.u.placa)}</a>
-  <div class="holo">
-    <div class="holo-cabecera">
-      <h1 tabindex="-1">Vista del camión</h1>
-      <dl class="holo-hud">
-        ${e.cab ? `<div><dt>Kilometraje</dt><dd>${km !== undefined ? miles(km) + ' km' : '—'}</dd></div>` : ''}
-        ${comps ? `<div><dt>Carga total</dt><dd>${miles(V.totalCompartimentos(comps.map((c) => ({ galones: c.capacidad_galones }))))} gal</dd></div>` : ''}
-        <div><dt>Placas</dt><dd>${[e.cab?.placa, e.rem?.placa].filter(Boolean).map(esc).join(' + ')}</dd></div>
-      </dl>
-    </div>
-    ${pestanas}
-    <div class="holo-grid">
-      <div class="holo-escena" id="holo-escena">
-        ${svgEscena(e)}
-        <div class="holo-puntos" id="holo-puntos">
-          ${e.puntos.map((p) => `<button type="button" class="h-pt ${p.ir ? 'h-pt-unidad' : ''}" data-v="punto" data-id="${p.id}" aria-label="${esc(p.nombre)}" hidden><span class="h-anillo" aria-hidden="true"></span><span class="h-etiqueta">${esc(p.nombre)}</span></button>`).join('')}
-        </div>
-        <button type="button" class="holo-todo" data-v="foco" data-foco="${e.focoInicial}" aria-label="Ver todo">⤢ Ver todo</button>
-      </div>
-      <aside class="holo-panel" id="holo-panel" aria-live="polite"></aside>
-    </div>
-    <h2 class="holo-lista-titulo">Partes</h2>
-    <div class="holo-lista" id="holo-lista"></div>
+function cabecera(titulo, sub, id) {
+  return `<div class="tos-p-cab">
+    <button type="button" class="tos-p-titulo" data-v="plegar" data-panel="${id}" aria-expanded="true"><span>${esc(titulo)}</span>${sub ? `<small>/ ${esc(sub)}</small>` : ''}<span class="tos-p-flecha" aria-hidden="true">⌄</span></button>
+    <button type="button" class="tos-p-cerrar" data-v="cerrar" data-panel="${id}" aria-label="Cerrar panel">×</button>
   </div>`;
 }
 
-// ---------------------------------------------------------------- interacción
-function ajustar(z) {
-  const caja = document.getElementById('holo-escena').getBoundingClientRect();
-  const A = caja.width / Math.max(caja.height, 1);
-  const w = Math.max(z.w, z.h * A);
-  const h = w / A;
-  return { x: z.x - (w - z.w) / 2, y: z.y - (h - z.h) / 2, w, h };
-}
-
-function aplicarVB() {
-  const { vb } = estado;
-  const svg = document.getElementById('holo-svg');
-  if (!svg) return;
-  svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
-  document.querySelectorAll('#holo-puntos .h-pt').forEach((b) => {
-    const p = estado.puntos.find((x) => x.id === b.dataset.id);
-    b.style.left = `${((p.x - vb.x) / vb.w) * 100}%`;
-    b.style.top = `${((p.y - vb.y) / vb.h) * 100}%`;
-  });
-}
-
-function animarA(destino) {
-  cancelAnimationFrame(estado.raf);
-  const inicio = { ...estado.vb };
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    estado.vb = destino;
-    return aplicarVB();
+function contenidoPanel(p, lado) {
+  const e = estado.e;
+  if (p.ir) {
+    const u = p.unidad;
+    const pl = plantilla(u.tipo_unidad_id);
+    const km = kmCab(e);
+    return `${cabecera(u.rol === 'cabezal' ? 'Cabezal' : pl?.nombre || 'Remolque', u.placa, lado)}
+      <div class="tos-p-cuerpo"><dl class="tos-datos">
+        ${fila('Unidad', nombreUnidad(u))}
+        ${fila('Kilometraje', km !== undefined ? `${miles(km)} km` : 'Sin registrar')}
+        ${pl?.tanque ? fila('Capacidad', `${miles(totalTanque(e.comps))} gal`) : ''}
+        ${fila('Conductor', conductorDe(u.id)?.nombre || 'Sin asignar')}
+      </dl>
+      <button type="button" class="tos-p-accion" data-v="foco" data-foco="${p.ir}">Ver partes ›</button></div>`;
   }
-  const t0 = performance.now();
-  const dur = 550;
-  const paso = (t) => {
-    const k = Math.min(1, (t - t0) / dur);
-    const f = 1 - Math.pow(1 - k, 3);
-    estado.vb = {
-      x: inicio.x + (destino.x - inicio.x) * f,
-      y: inicio.y + (destino.y - inicio.y) * f,
-      w: inicio.w + (destino.w - inicio.w) * f,
-      h: inicio.h + (destino.h - inicio.h) * f,
-    };
-    aplicarVB();
-    if (k < 1) estado.raf = requestAnimationFrame(paso);
+  if (p.compartimento) {
+    const c = p.compartimento;
+    const total = totalTanque(e.comps);
+    const pct = total ? Math.round((Number(c.capacidad_galones) / total) * 100) : 0;
+    return `${cabecera(`Compartimento ${c.orden}`, c.nombre || p.unidad.placa, lado)}
+      <div class="tos-p-cuerpo">
+        <p class="tos-grande">${miles(c.capacidad_galones)}<small> gal</small></p>
+        <div class="tos-barra-fila"><span>Del tanque</span><span>${pct} %</span><span class="tos-barra"><span style="width:${pct}%;--c:#38e1ff"></span></span></div>
+        <dl class="tos-datos">${fila('Capacidad total', `${miles(total)} gal`)}${fila('Posición', c.orden === 1 ? 'Adelante' : `${c.orden} de ${e.comps.length}`)}</dl>
+        <p class="tos-nota">Mantenimientos: sin registros todavía.</p>
+      </div>`;
+  }
+  const n = p.componente;
+  const u = p.unidad;
+  const a = u.atributos || {};
+  const est = estadoComponente(n);
+  let cuerpo = '';
+  if (estado.modo === 'mantenimiento') {
+    cuerpo = `<dl class="tos-datos">${fila('Kilometraje', kmCab(e) !== undefined ? `${miles(kmCab(e))} km` : 'Sin registrar')}${fila('Último servicio', 'Sin registrar')}</dl>
+      <h3 class="tos-p-sec">Intervalos</h3>${intervalosHTML(u, n, 8)}`;
+  } else if (estado.modo === 'diagnostico') {
+    cuerpo = `<dl class="tos-datos">
+        <div><dt>Estado</dt><dd class="${est.cls}" data-estado="${esc(n)}">${est.texto}</dd></div>
+        ${fila('Alertas', estado.sim ? 'Ninguna' : 'Sin datos')}
+        ${(SENSORES_DE[n] || []).map(filaSensor).join('')}
+      </dl>${SENSORES_DE[n] ? etiquetaSim() : ''}`;
+  } else if (n === 'Motor') {
+    cuerpo = `<dl class="tos-datos">
+        <div><dt>Estado</dt><dd class="${est.cls}" data-estado="Motor">${est.texto}</dd></div>
+        ${filaSensor('motor_temp')}${filaSensor('motor_aceite')}
+      </dl>
+      <h3 class="tos-p-sec">Estado de rendimiento ${etiquetaSim()}</h3>
+      ${grafico()}
+      ${barraSensor('motor_temp', 'Temperatura', '#38e1ff')}
+      ${barraSensor('motor_carga', 'Carga', '#ff9f43')}
+      ${barraSensor('motor_aceite', 'Aceite', '#ff6b5a')}
+      <dl class="tos-datos tos-datos-reales">${fila('Motor', a.motor)}${fila('Kilometraje', kmCab(e) !== undefined ? `${miles(kmCab(e))} km` : '')}</dl>`;
+  } else if (n === 'Llantas') {
+    const s = estado.sensores;
+    const pctP = estado.sim ? Math.round((s.llanta_presion.v / s.llanta_presion.alto) * 100) : 0;
+    const pctT = estado.sim ? Math.round((s.llanta_temp.v / s.llanta_temp.alto) * 100) : 0;
+    cuerpo = `<p class="tos-linea-top">Presión: <strong class="tos-ok" data-s="llanta_presion" data-f="texto">${valorSensor('llanta_presion')}</strong> ${etiquetaSim()}</p>
+      <div class="tos-dos">
+        <div><span class="tos-mini">Presión:</span><span class="tos-grande tos-verde" data-s="llanta_presion" data-f="texto">${valorSensor('llanta_presion')}</span>
+          <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="llanta_presion" data-f="barra" style="width:${pctP}%;--c:#5cf2a0"></span></span></div>
+        <div><span class="tos-mini">Temperatura:</span><span class="tos-grande tos-amarillo" data-s="llanta_temp" data-f="texto">${valorSensor('llanta_temp')}</span>
+          <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="llanta_temp" data-f="barra" style="width:${pctT}%;--c:#ffd166"></span></span></div>
+      </div>
+      ${barraSensor('llanta_desgaste', 'Vida útil', '#a8f05c')}
+      <dl class="tos-datos tos-datos-reales">${fila('Número de llantas', u.num_llantas)}</dl>`;
+  } else {
+    let datos = '';
+    if (n === 'Transmisión') datos = fila('Tipo', a.transmision || 'Sin registrar');
+    if (n === 'Ejes') datos = fila('Número de ejes', u.num_ejes);
+    if (n === 'Frenos') datos = fila('Ejes con freno', u.num_ejes);
+    if (n === 'Quinta rueda') {
+      const otro = pareja(u.id);
+      datos = otro ? fila('Enganchado con', otro.placa) + fila('Desde', acopleActivo(u.id)?.desde) : fila('Estado', 'Sin enganchar');
+    }
+    if (n === 'Tanque') {
+      const total = totalTanque(e.comps);
+      datos = fila('Material', a.material) + fila('Transporta', a.producto) + fila('Placa del tanque', a.placa_tanque);
+      cuerpo = `<p class="tos-grande">${miles(total)}<small> gal</small></p>
+        <ul class="tos-comps">${e.comps.map((c) => {
+          const pct = total ? Math.round((Number(c.capacidad_galones) / total) * 100) : 0;
+          return `<li><span>${c.orden}${c.nombre ? ` · ${esc(c.nombre)}` : ''}</span><span class="tos-barra"><span style="width:${pct}%;--c:#38e1ff"></span></span><strong>${miles(c.capacidad_galones)}</strong></li>`;
+        }).join('')}</ul>`;
+    }
+    if (n === 'Válvulas') datos = fila('Compartimentos', e.comps.length);
+    if (n === 'Piso') datos = fila('Largo', a.largo_pies ? `${a.largo_pies} pies` : '');
+    if (n === 'Twist locks') datos = fila('Twist locks', a.twist_locks === 'si' ? 'Sí' : a.twist_locks === 'no' ? 'No' : '');
+    if (n === 'Puertas') datos = fila('Número de puertas', a.puertas);
+    if (n === 'Equipo de frío') datos = fila('Refrigerado', a.refrigerado === 'si' ? 'Sí' : a.refrigerado === 'no' ? 'No' : '');
+    const sens = SENSORES_DE[n];
+    cuerpo += `${sens ? `<dl class="tos-datos"><div><dt>Estado</dt><dd class="${est.cls}" data-estado="${esc(n)}">${est.texto}</dd></div>${sens.map(filaSensor).join('')}</dl>${etiquetaSim()}` : ''}
+      ${datos ? `<dl class="tos-datos tos-datos-reales">${datos}</dl>` : ''}
+      <h3 class="tos-p-sec">Mantenimiento</h3>${intervalosHTML(u, n)}`;
+  }
+  const sub = n === 'Motor' && a.motor ? a.motor : `${u.rol === 'cabezal' ? 'Cabezal' : 'Remolque'} ${u.placa}`;
+  return `${cabecera(n === 'Llantas' ? 'Neumáticos' : n, sub, lado)}<div class="tos-p-cuerpo">${cuerpo}</div>`;
+}
+
+function pintarPaneles() {
+  ['izq', 'der'].forEach((lado) => {
+    const el = document.getElementById(`tos-${lado}`);
+    const id = estado.paneles[lado];
+    const p = estado.puntos.find((x) => x.id === id);
+    el.hidden = !p || !estado.info;
+    if (p) {
+      const plegado = el.classList.contains('plegado') && el.dataset.id === id;
+      el.dataset.id = id;
+      el.innerHTML = contenidoPanel(p, lado);
+      el.classList.toggle('plegado', plegado);
+      el.querySelector('.tos-p-titulo')?.setAttribute('aria-expanded', String(!plegado));
+    }
+  });
+  document.querySelectorAll('#tos-puntos .tos-pt').forEach((b) => b.classList.toggle('sel', Object.values(estado.paneles).includes(b.dataset.id)));
+  document.querySelectorAll('#tos-partes .tos-parte').forEach((b) => b.setAttribute('aria-pressed', String(Object.values(estado.paneles).includes(b.dataset.id))));
+  resaltarPartes();
+}
+
+// ---------------------------------------------------------------- sensores simulados
+function tickSensores() {
+  if (!document.getElementById('tos')) return;
+  if (estado.sim) {
+    Object.values(estado.sensores).forEach((s) => {
+      s.v = Math.min(s.max, Math.max(s.min, s.v + (Math.random() - 0.5) * 2 * s.paso));
+    });
+    estado.historial.push(estado.sensores.motor_rend.v);
+    estado.historial.shift();
+  }
+  document.querySelectorAll('#tos [data-s]').forEach((el) => {
+    const k = el.dataset.s;
+    const s = estado.sensores[k];
+    if (el.dataset.f === 'texto') el.textContent = valorSensor(k);
+    if (el.dataset.f === 'barra') el.style.width = `${estado.sim ? Math.round((s.v / s.alto) * 100) : 0}%`;
+  });
+  document.querySelectorAll('#tos [data-estado]').forEach((el) => {
+    const est = estadoComponente(el.dataset.estado);
+    el.textContent = est.texto;
+    el.className = est.cls;
+  });
+  const g = document.getElementById('tos-graf');
+  if (g) {
+    g.setAttribute('points', puntosGrafico());
+    const pt = document.getElementById('tos-graf-pt');
+    const v = estado.historial[Math.round(0.8 * (estado.historial.length - 1))];
+    pt.setAttribute('cy', estado.sim ? (60 - (v / 100) * 56).toFixed(1) : 58);
+  }
+}
+
+// ---------------------------------------------------------------- 3D
+let T = null;
+
+function texturaPunto() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const r = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  r.addColorStop(0, 'rgba(255,255,255,1)');
+  r.addColorStop(0.35, 'rgba(190,246,255,.8)');
+  r.addColorStop(1, 'rgba(56,225,255,0)');
+  g.fillStyle = r;
+  g.fillRect(0, 0, 32, 32);
+  return new T.CanvasTexture(c);
+}
+
+function muestrear(geo, densidad) {
+  const g = geo.index ? geo.toNonIndexed() : geo;
+  const pos = g.attributes.position;
+  const tri = [];
+  let total = 0;
+  const a = new T.Vector3(), b = new T.Vector3(), c = new T.Vector3();
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+    const area = new T.Vector3().subVectors(b, a).cross(new T.Vector3().subVectors(c, a)).length() / 2;
+    total += area;
+    tri.push(total);
+  }
+  const n = Math.min(1400, Math.max(12, Math.round(total * densidad)));
+  const out = new Float32Array(n * 3);
+  for (let k = 0; k < n; k++) {
+    const r = Math.random() * total;
+    let lo = 0, hi = tri.length - 1;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (tri[m] < r) lo = m + 1; else hi = m; }
+    const i = lo * 3;
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+    let u = Math.random(), v = Math.random();
+    if (u + v > 1) { u = 1 - u; v = 1 - v; }
+    out[k * 3] = a.x + (b.x - a.x) * u + (c.x - a.x) * v;
+    out[k * 3 + 1] = a.y + (b.y - a.y) * u + (c.y - a.y) * v;
+    out[k * 3 + 2] = a.z + (b.z - a.z) * u + (c.z - a.z) * v;
+  }
+  const res = new T.BufferGeometry();
+  res.setAttribute('position', new T.BufferAttribute(out, 3));
+  return res;
+}
+
+function crearFabrica(sprite) {
+  const base = {
+    linea: new T.LineBasicMaterial({ color: CIAN, transparent: true, opacity: 0.85, blending: T.AdditiveBlending, depthWrite: false }),
+    puntos: new T.PointsMaterial({ color: CIAN_CLARO, size: 0.055, map: sprite, transparent: true, opacity: 0.75, blending: T.AdditiveBlending, depthWrite: false }),
+    relleno: new T.MeshBasicMaterial({ color: 0x1a8fd6, transparent: true, opacity: 0.07, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }),
   };
-  estado.raf = requestAnimationFrame(paso);
+  const partes = {};
+  const unidades = {};
+  // Añade una pieza holográfica (relleno tenue + aristas + nube de puntos) a una parte.
+  const pieza = (clave, geo, { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, densidad = 70, umbral = 25, sinPuntos = false, opacidad = 1 } = {}) => {
+    const grupo = partes[clave];
+    const obj = new T.Group();
+    obj.position.set(x, y, z);
+    obj.rotation.set(rx, ry, rz);
+    const relleno = new T.Mesh(geo, base.relleno.clone());
+    relleno.userData.tipo = 'relleno';
+    const aristas = new T.LineSegments(new T.EdgesGeometry(geo, umbral), base.linea.clone());
+    aristas.material.opacity *= opacidad;
+    aristas.userData.tipo = 'linea';
+    obj.add(relleno, aristas);
+    if (!sinPuntos) {
+      const pts = new T.Points(muestrear(geo, densidad), base.puntos.clone());
+      pts.userData.tipo = 'puntos';
+      obj.add(pts);
+    }
+    grupo.add(obj);
+    return obj;
+  };
+  const linea = (clave, puntos, cerrada = false) => {
+    const geo = new T.BufferGeometry().setFromPoints(puntos.map((p) => new T.Vector3(...p)));
+    const l = new (cerrada ? T.LineLoop : T.Line)(geo, base.linea.clone());
+    l.userData.tipo = 'linea';
+    partes[clave].add(l);
+  };
+  const parte = (clave, unidadClave) => {
+    const g = new T.Group();
+    g.userData.clave = clave;
+    partes[clave] = g;
+    unidades[unidadClave].add(g);
+  };
+  const unidadGrupo = (clave, raiz) => {
+    const g = new T.Group();
+    unidades[clave] = g;
+    raiz.add(g);
+  };
+  return { pieza, linea, parte, partes, unidades, unidadGrupo };
 }
 
-function ponerFoco(foco, { animar = true } = {}) {
-  estado.foco = foco;
-  estado.sel = null;
-  const svg = document.getElementById('holo-svg');
-  svg.classList.toggle('foco-cab', foco === 'cab' && !!estado.e.rem);
-  svg.classList.toggle('foco-rem', foco === 'rem' && !!estado.e.cab);
-  document.querySelectorAll('.holo-tabs [data-foco]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.foco === foco)));
-  const visibles = estado.puntos.filter((p) => p.grupo === foco);
-  document.querySelectorAll('#holo-puntos .h-pt').forEach((b) => {
-    b.hidden = !visibles.some((p) => p.id === b.dataset.id);
-    b.classList.remove('sel');
+const caja = (w, h, d) => new T.BoxGeometry(w, h, d);
+const cilX = (r, largo, seg = 20) => new T.CylinderGeometry(r, r, largo, seg).rotateZ(Math.PI / 2);
+const cilZ = (r, ancho, seg = 24) => new T.CylinderGeometry(r, r, ancho, seg).rotateX(Math.PI / 2);
+function extruir(puntos, prof, bisel = 0.05) {
+  const s = new T.Shape();
+  s.moveTo(...puntos[0]);
+  puntos.slice(1).forEach((p) => (p.length === 4 ? s.quadraticCurveTo(...p) : s.lineTo(...p)));
+  s.closePath();
+  return new T.ExtrudeGeometry(s, { depth: prof, bevelEnabled: bisel > 0, bevelThickness: bisel, bevelSize: bisel, bevelSegments: 2, curveSegments: 10 }).translate(0, 0, -prof / 2);
+}
+
+function ruedas(f, clave, x, z0, dual, r = 0.52) {
+  const lados = dual ? [z0 - 0.3, z0] : [z0];
+  [1, -1].forEach((sig) =>
+    lados.forEach((z) => {
+      f.pieza(`${clave}-llantas`, cilZ(r, 0.27, 28), { x, y: r, z: sig * z, densidad: 55, umbral: 30 });
+      f.pieza(`${clave}-llantas`, cilZ(r * 0.6, 0.29, 20), { x, y: r, z: sig * z, sinPuntos: true, opacidad: 0.6 });
+    }),
+  );
+  [1, -1].forEach((sig) => f.pieza(`${clave}-frenos`, cilZ(r * 0.45, 0.18, 18), { x, y: r, z: sig * (z0 - (dual ? 0.5 : 0.25)), densidad: 40 }));
+  f.pieza(`${clave}-ejes`, cilZ(0.07, z0 * 2, 10), { x, y: r, densidad: 20 });
+  [1, -1].forEach((sig) => f.pieza(`${clave}-ejes`, cilZ(0.14, 0.12, 12), { x, y: r, z: sig * (z0 + 0.12), sinPuntos: true }));
+}
+
+function construirCabezal(f) {
+  ['cab-cuerpo', 'cab-motor', 'cab-transmision', 'cab-quinta', 'cab-llantas', 'cab-frenos', 'cab-ejes'].forEach((k) => f.parte(k, 'cab'));
+  // cabina con dormitorio (perfil lateral extruido)
+  f.pieza('cab-cuerpo', extruir([[2.15, 1.15], [2.15, 2.2], [1.55, 3.05], [1.45, 3.17, 1.28, 3.17], [-0.25, 3.2], [-0.55, 3.78, -1.15, 3.8], [-1.15, 1.15]], 2.3, 0.06), { densidad: 45, umbral: 20 });
+  // capó
+  f.pieza('cab-cuerpo', extruir([[3.95, 1.0], [3.95, 1.78], [3.88, 2.02, 3.5, 2.05], [2.15, 2.22], [2.15, 1.0]], 1.9, 0.08), { densidad: 45, umbral: 20 });
+  // parrilla, paragolpes, faros
+  f.pieza('cab-cuerpo', caja(0.08, 0.72, 1.12), { x: 4.0, y: 1.42, densidad: 50 });
+  for (let i = -4; i <= 4; i++) f.linea('cab-cuerpo', [[4.05, 1.1, i * 0.12], [4.05, 1.74, i * 0.12]]);
+  f.pieza('cab-cuerpo', caja(0.28, 0.34, 2.42), { x: 4.05, y: 0.84, densidad: 40 });
+  [1, -1].forEach((s) => f.pieza('cab-cuerpo', caja(0.16, 0.18, 0.36), { x: 3.93, y: 1.28, z: s * 0.86, densidad: 60 }));
+  // parabrisas, ventanas y puertas
+  f.linea('cab-cuerpo', [[2.13, 2.28, -1.02], [2.13, 2.28, 1.02], [1.6, 3.0, 1.02], [1.6, 3.0, -1.02]], true);
+  [1, -1].forEach((s) => {
+    const z = s * 1.17;
+    f.linea('cab-cuerpo', [[1.98, 2.35, z], [1.52, 2.98, z], [0.62, 2.98, z], [0.62, 2.35, z]], true);
+    f.linea('cab-cuerpo', [[2.02, 1.28, z], [2.02, 2.28, z], [0.56, 2.28, z], [0.56, 1.28, z]], true);
+    f.linea('cab-cuerpo', [[-0.15, 2.3, z], [-0.15, 2.85, z], [-0.85, 2.85, z], [-0.85, 2.3, z]], true);
+    f.pieza('cab-cuerpo', caja(0.08, 0.5, 0.18), { x: 2.25, y: 2.45, z: s * 1.42, densidad: 60 });
+    f.linea('cab-cuerpo', [[2.2, 2.2, s * 1.16], [2.25, 2.25, s * 1.38]]);
+    // guardafango delantero y tanque de combustible
+    f.pieza('cab-cuerpo', new T.TorusGeometry(0.66, 0.05, 6, 22, Math.PI), { x: EJES_CAB[0], y: 0.52, z: s * 1.13, densidad: 30 });
+    f.pieza('cab-cuerpo', cilX(0.34, 1.15), { x: 0.95, y: 0.78, z: s * 1.02, densidad: 50 });
+    f.pieza('cab-cuerpo', caja(0.5, 0.06, 0.32), { x: 1.75, y: 0.7, z: s * 1.02, sinPuntos: true });
   });
-  document.querySelectorAll('#holo-svg .h-parte.activo').forEach((g) => g.classList.remove('activo'));
-  document.getElementById('holo-lista').innerHTML = visibles
-    .map((p) => `<button type="button" class="holo-chip ${p.ir ? 'holo-chip-unidad' : ''}" data-v="punto" data-id="${p.id}">${esc(p.nombre)}</button>`)
-    .join('');
-  document.querySelector('.holo-lista-titulo').textContent = foco === 'todo' ? 'Unidades' : 'Partes';
-  document.querySelector('.holo-todo').dataset.foco = estado.e.cab && estado.e.rem ? 'todo' : foco;
-  document.querySelector('.holo-todo').hidden = foco === 'todo' || !(estado.e.cab && estado.e.rem);
-  document.getElementById('holo-panel').innerHTML = panelResumen(estado.e, foco);
-  const destino = ajustar(ZONA[foco]);
-  if (animar) animarA(destino);
-  else {
-    estado.vb = destino;
-    aplicarVB();
+  // chasis y escape
+  [1, -1].forEach((s) => f.pieza('cab-cuerpo', caja(7.1, 0.26, 0.12), { x: 0.4, y: 0.98, z: s * 0.48, densidad: 25 }));
+  f.pieza('cab-cuerpo', cilZ(0.07, 2.6, 8).rotateX(Math.PI / 2), { x: -1.25, y: 2.45, z: 1.0, densidad: 30 });
+  // motor bajo el capó
+  f.pieza('cab-motor', caja(1.25, 0.72, 0.9), { x: 3.05, y: 1.45, densidad: 80 });
+  for (let i = 0; i < 6; i++) f.pieza('cab-motor', caja(0.16, 0.12, 0.5), { x: 2.55 + i * 0.2, y: 1.9, sinPuntos: true });
+  f.pieza('cab-motor', cilX(0.36, 0.06, 24), { x: 3.75, y: 1.45, sinPuntos: true });
+  // transmisión y cardán
+  f.pieza('cab-transmision', cilX(0.21, 0.95), { x: 1.95, y: 1.0, densidad: 80 });
+  f.pieza('cab-transmision', cilX(0.06, 3.0, 8), { x: 0.05, y: 0.82, densidad: 25 });
+  // quinta rueda
+  f.pieza('cab-quinta', new T.CylinderGeometry(0.55, 0.55, 0.1, 28), { x: -2.2, y: 1.17, densidad: 90 });
+  f.pieza('cab-quinta', caja(0.9, 0.08, 1.2), { x: -2.2, y: 1.08, sinPuntos: true });
+  // ruedas, frenos y ejes
+  ruedas(f, 'cab', EJES_CAB[0], 1.1, false);
+  ruedas(f, 'cab', EJES_CAB[1], 1.25, true);
+  ruedas(f, 'cab', EJES_CAB[2], 1.25, true);
+}
+
+function construirRemolque(f, rem, comps, enganchado) {
+  const p = plantilla(rem.tipo_unidad_id);
+  ['rem-cuerpo', 'rem-tanque', 'rem-valvulas', 'rem-quinta', 'rem-llantas', 'rem-frenos', 'rem-ejes', 'rem-piso', 'rem-twist', 'rem-puertas', 'rem-frio'].forEach((k) => f.parte(k, 'rem'));
+  // bastidor, patas de apoyo y parachoques
+  [1, -1].forEach((s) => f.pieza('rem-cuerpo', caja(11.3, 0.22, 0.12), { x: -7.4, y: 1.22, z: s * 0.5, densidad: 20 }));
+  const pata = enganchado ? 0.75 : 1.05;
+  [1, -1].forEach((s) => f.pieza('rem-cuerpo', caja(0.12, pata, 0.12), { x: -3.6, y: 1.12 - pata / 2, z: s * 0.85, densidad: 40 }));
+  f.pieza('rem-cuerpo', caja(0.2, 0.18, 2.4), { x: -13.05, y: 0.82, densidad: 30 });
+  [1, -1].forEach((s) => f.pieza('rem-cuerpo', caja(0.05, 0.6, 0.5), { x: -12.95, y: 0.62, z: s * 1.0, sinPuntos: true }));
+  f.pieza('rem-quinta', caja(0.9, 0.08, 1.4), { x: -2.25, y: 1.3, densidad: 70 });
+  f.pieza('rem-quinta', cilZ(0.06, 0.2, 8).rotateX(Math.PI / 2), { x: -2.2, y: 1.18, sinPuntos: true });
+
+  if (p?.tanque) {
+    const { xFrente, xFondo, y, r } = TANQUE;
+    const largo = xFrente - xFondo;
+    const perfil = [];
+    const a = 0.45;
+    for (let i = 0; i <= 10; i++) { const t = (i / 10) * (Math.PI / 2); perfil.push(new T.Vector2(r * Math.sin(t), -largo / 2 - a * Math.cos(t))); }
+    for (let i = 10; i >= 0; i--) { const t = (i / 10) * (Math.PI / 2); perfil.push(new T.Vector2(r * Math.sin(t), largo / 2 + a * Math.cos(t))); }
+    const geoT = new T.LatheGeometry(perfil, 36).rotateZ(Math.PI / 2);
+    f.pieza('rem-tanque', geoT, { x: (xFrente + xFondo) / 2, y, densidad: 26, umbral: 40 });
+    // anillos de refuerzo, pasarela y bocas
+    for (let i = 0; i <= 8; i++) {
+      const x = xFrente - (largo * i) / 8;
+      const anillo = [];
+      for (let k = 0; k <= 36; k++) { const t = (k / 36) * Math.PI * 2; anillo.push([x, y + r * Math.cos(t), r * Math.sin(t)]); }
+      f.linea('rem-tanque', anillo);
+    }
+    f.linea('rem-tanque', [[xFrente - 0.3, y + r + 0.32, 0.45], [xFondo + 0.3, y + r + 0.32, 0.45]]);
+    f.linea('rem-tanque', [[xFrente - 0.3, y + r + 0.32, -0.45], [xFondo + 0.3, y + r + 0.32, -0.45]]);
+    // compartimentos proporcionales a los galones
+    tramosTanque(comps).forEach((t, i) => {
+      const clave = `rem-comp-${i}`;
+      f.parte(clave, 'rem');
+      const l = t.x0 - t.x1;
+      const vacio = !(Number(comps[i].capacidad_galones) > 0);
+      f.pieza(clave, cilX(r * 1.012, l, 36).deleteAttribute('normal'), { x: (t.x0 + t.x1) / 2, y, densidad: vacio ? 6 : 14, umbral: 80, opacidad: vacio ? 0.4 : 1 });
+      f.pieza(clave, new T.CylinderGeometry(0.26, 0.26, 0.16, 18), { x: (t.x0 + t.x1) / 2, y: y + r + 0.06, densidad: 60 });
+      if (i > 0) {
+        const anillo = [];
+        for (let k = 0; k <= 40; k++) { const a2 = (k / 40) * Math.PI * 2; anillo.push([t.x0, y + r * 1.02 * Math.cos(a2), r * 1.02 * Math.sin(a2)]); }
+        f.linea(clave, anillo);
+      }
+    });
+    // válvulas de descarga
+    f.pieza('rem-valvulas', cilX(0.07, 5.2, 10), { x: -6.5, y: 1.08, z: 0.62, densidad: 30 });
+    [-4.6, -5.9, -7.2, -8.5].forEach((x) => f.pieza('rem-valvulas', caja(0.2, 0.22, 0.2), { x, y: 1.18, z: 0.62, densidad: 80 }));
+  } else if (rem.tipo_unidad_id === 'plataforma') {
+    f.pieza('rem-piso', caja(11.4, 0.2, 2.5), { x: -7.35, y: 1.45, densidad: 18 });
+    [-2.3, -7.35, -12.6].forEach((x) => [1, -1].forEach((s) => f.pieza('rem-twist', caja(0.18, 0.12, 0.18), { x, y: 1.6, z: s * 1.1, densidad: 90 })));
+  } else if (rem.tipo_unidad_id === 'furgon') {
+    f.pieza('rem-cuerpo', caja(11.4, 2.6, 2.5), { x: -7.35, y: 2.65, densidad: 12 });
+    for (let i = 1; i < 12; i++) f.linea('rem-cuerpo', [[-1.65 - i * 0.95, 1.36, 1.26], [-1.65 - i * 0.95, 3.94, 1.26]]);
+    f.pieza('rem-puertas', caja(0.06, 2.5, 2.4), { x: -13.08, y: 2.65, densidad: 30 });
+    f.pieza('rem-frio', caja(0.35, 0.8, 1.6), { x: -1.48, y: 3.3, densidad: 60 });
+  } else {
+    f.pieza('rem-cuerpo', caja(11.4, 2.2, 2.5), { x: -7.35, y: 2.45, densidad: 6, opacidad: 0.6 });
   }
+  EJES_REM.forEach((x) => ruedas(f, 'rem', x, 1.25, true, 0.5));
+}
+
+function construirEntorno(escena, sprite) {
+  // piso con rejilla que se desvanece
+  const rejilla = new T.GridHelper(80, 80, CIAN, CIAN);
+  rejilla.material.transparent = true;
+  rejilla.material.opacity = 0.12;
+  rejilla.material.depthWrite = false;
+  rejilla.position.set(-5, 0, 0);
+  escena.add(rejilla);
+  const halo = new T.Mesh(new T.CircleGeometry(9, 48).rotateX(-Math.PI / 2), new T.MeshBasicMaterial({ color: CIAN, transparent: true, opacity: 0.05, blending: T.AdditiveBlending, depthWrite: false }));
+  halo.scale.set(1.6, 1, 0.5);
+  halo.position.set(-4.5, 0.01, 0);
+  escena.add(halo);
+  // partículas flotantes
+  const n = 420;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = -18 + Math.random() * 28;
+    pos[i * 3 + 1] = Math.random() * 7;
+    pos[i * 3 + 2] = -6 + Math.random() * 12;
+  }
+  const geo = new T.BufferGeometry();
+  geo.setAttribute('position', new T.BufferAttribute(pos, 3));
+  const part = new T.Points(geo, new T.PointsMaterial({ color: 0x8ff3ff, size: 0.07, map: sprite, transparent: true, opacity: 0.55, blending: T.AdditiveBlending, depthWrite: false }));
+  escena.add(part);
+  return part;
+}
+
+function colorearParte(grupo, modo) {
+  grupo.traverse((o) => {
+    if (!o.material || !o.userData.tipo) return;
+    o.userData.base ??= { color: o.material.color.getHex(), opacity: o.material.opacity };
+    const b = o.userData.base;
+    if (modo === 'activo') {
+      o.material.color.setHex(o.userData.tipo === 'relleno' ? CIAN : ACTIVO);
+      o.material.opacity = o.userData.tipo === 'relleno' ? 0.2 : 1;
+    } else {
+      o.material.color.setHex(b.color);
+      o.material.opacity = b.opacity * (modo === 'tenue' ? 0.1 : 1);
+    }
+  });
+}
+
+function resaltarPartes() {
+  if (!estado.tres) return;
+  const { partes } = estado.tres.fabrica;
+  const activas = new Set(Object.values(estado.paneles).map((id) => estado.puntos.find((p) => p.id === id)?.parte).filter(Boolean));
+  Object.entries(partes).forEach(([clave, g]) => {
+    const deUnidad = clave.startsWith('cab') ? 'cab' : 'rem';
+    const tenue = estado.foco !== 'todo' && deUnidad !== estado.foco;
+    colorearParte(g, activas.has(clave) ? 'activo' : tenue ? 'tenue' : 'normal');
+  });
+}
+
+async function iniciar3D() {
+  const canvas = document.getElementById('tos-canvas');
+  try {
+    T = T || (await import('../vendor/three.module.min.js'));
+  } catch {
+    document.getElementById('tos-sin3d').hidden = false;
+    return null;
+  }
+  let renderer;
+  try {
+    renderer = new T.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  } catch {
+    document.getElementById('tos-sin3d').hidden = false;
+    return null;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const escena = new T.Scene();
+  escena.fog = new T.FogExp2(0x050c14, 0.028);
+  const camara = new T.PerspectiveCamera(32, 1, 0.1, 200);
+  const sprite = texturaPunto();
+  const fabrica = crearFabrica(sprite);
+  const raiz = new T.Group();
+  escena.add(raiz);
+  fabrica.unidadGrupo('cab', raiz);
+  fabrica.unidadGrupo('rem', raiz);
+  const e = estado.e;
+  if (e.cab) construirCabezal(fabrica);
+  if (e.rem) construirRemolque(fabrica, e.rem, e.comps, !!e.cab);
+  const particulas = construirEntorno(escena, sprite);
+
+  const orb = { ...ENCUADRES[estado.foco], objetivo: new T.Vector3(...ENCUADRES[estado.foco].objetivo) };
+  const tres = { renderer, escena, camara, fabrica, particulas, orb, anim: null, ultimoToque: 0, raf: 0, vivo: true };
+  estado.tres = tres;
+
+  const tamano = () => {
+    const r = canvas.parentElement.getBoundingClientRect();
+    renderer.setSize(r.width, r.height, false);
+    camara.aspect = r.width / Math.max(r.height, 1);
+    camara.updateProjectionMatrix();
+  };
+  tamano();
+  tres.tamano = tamano;
+
+  // girar arrastrando, acercar con rueda o pellizco
+  const punteros = new Map();
+  let distInicial = 0, radioInicial = 0;
+  canvas.addEventListener('pointerdown', (ev) => {
+    canvas.setPointerCapture(ev.pointerId);
+    punteros.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    tres.anim = null;
+    if (punteros.size === 2) {
+      const [a, b] = [...punteros.values()];
+      distInicial = Math.hypot(a.x - b.x, a.y - b.y);
+      radioInicial = orb.radio;
+    }
+  });
+  canvas.addEventListener('pointermove', (ev) => {
+    if (!punteros.has(ev.pointerId)) return;
+    const prev = punteros.get(ev.pointerId);
+    punteros.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    tres.ultimoToque = performance.now();
+    if (punteros.size === 1) {
+      orb.azimut -= (ev.clientX - prev.x) * 0.006;
+      orb.polar = Math.min(1.45, Math.max(0.55, orb.polar - (ev.clientY - prev.y) * 0.004));
+    } else if (punteros.size === 2) {
+      const [a, b] = [...punteros.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const base = ENCUADRES[estado.foco].radio;
+      orb.radio = Math.min(base * 1.6, Math.max(base * 0.55, (radioInicial * distInicial) / Math.max(d, 1)));
+    }
+  });
+  const soltar = (ev) => punteros.delete(ev.pointerId);
+  canvas.addEventListener('pointerup', soltar);
+  canvas.addEventListener('pointercancel', soltar);
+  canvas.addEventListener('wheel', (ev) => {
+    ev.preventDefault();
+    const base = ENCUADRES[estado.foco].radio;
+    orb.radio = Math.min(base * 1.6, Math.max(base * 0.55, orb.radio * (1 + Math.sign(ev.deltaY) * 0.08)));
+    tres.ultimoToque = performance.now();
+  }, { passive: false });
+
+  const vec = new T.Vector3();
+  const reducir = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const cuadro = (t) => {
+    if (!tres.vivo) return;
+    if (!document.getElementById('tos-canvas')) return detener();
+    if (tres.anim) {
+      const k = Math.min(1, (t - tres.anim.t0) / 900);
+      const f = 1 - Math.pow(1 - k, 3);
+      const { de, a } = tres.anim;
+      orb.objetivo.lerpVectors(de.objetivo, a.objetivo, f);
+      orb.radio = de.radio + (a.radio - de.radio) * f;
+      orb.azimut = de.azimut + (a.azimut - de.azimut) * f;
+      orb.polar = de.polar + (a.polar - de.polar) * f;
+      if (k >= 1) tres.anim = null;
+    }
+    const balanceo = !reducir && t - tres.ultimoToque > 4000 && !tres.anim ? Math.sin(t / 4000) * 0.07 : 0;
+    const az = orb.azimut + balanceo;
+    const radio = orb.radio * Math.pow(Math.max(1, 1.45 / camara.aspect), ENCUADRES[estado.foco].estrecho);
+    camara.position.set(
+      orb.objetivo.x + radio * Math.sin(orb.polar) * Math.sin(az),
+      orb.objetivo.y + radio * Math.cos(orb.polar),
+      orb.objetivo.z + radio * Math.sin(orb.polar) * Math.cos(az),
+    );
+    camara.lookAt(orb.objetivo);
+    if (!reducir) {
+      const p = particulas.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        let y = p.getY(i) + 0.004;
+        if (y > 7) y = 0;
+        p.setY(i, y);
+      }
+      p.needsUpdate = true;
+    }
+    renderer.render(escena, camara);
+    // puntos HTML proyectados desde 3D y líneas hacia los paneles
+    const ancho = canvas.clientWidth, alto = canvas.clientHeight;
+    estado.pantalla = {};
+    document.querySelectorAll('#tos-puntos .tos-pt').forEach((b) => {
+      const pto = estado.puntos.find((x) => x.id === b.dataset.id);
+      vec.set(...pto.pos).project(camara);
+      const sx = (vec.x * 0.5 + 0.5) * ancho;
+      const sy = (-vec.y * 0.5 + 0.5) * alto;
+      estado.pantalla[pto.id] = [sx, sy];
+      b.style.transform = `translate(${sx}px, ${sy}px)`;
+    });
+    const { izq, der } = estado.paneles;
+    const pi = estado.pantalla[izq], pd = estado.pantalla[der];
+    if (pi && pd && pi[0] > pd[0] + 60) {
+      estado.paneles = { izq: der, der: izq };
+      pintarPaneles();
+    }
+    dibujarLineas();
+    tres.raf = requestAnimationFrame(cuadro);
+  };
+  tres.raf = requestAnimationFrame(cuadro);
+  resaltarPartes();
+  return tres;
+}
+
+function encuadrar(foco) {
+  const t = estado.tres;
+  if (!t) return;
+  const destino = ENCUADRES[foco];
+  t.anim = {
+    t0: performance.now(),
+    de: { objetivo: t.orb.objetivo.clone(), radio: t.orb.radio, azimut: t.orb.azimut, polar: t.orb.polar },
+    a: { objetivo: new T.Vector3(...destino.objetivo), radio: destino.radio, azimut: destino.azimut, polar: destino.polar },
+  };
+}
+
+function dibujarLineas() {
+  const svg = document.getElementById('tos-lineas');
+  if (!svg) return;
+  if (!estado.info || !matchMedia('(min-width: 900px)').matches) {
+    svg.innerHTML = '';
+    return;
+  }
+  const escena = document.getElementById('tos-escena').getBoundingClientRect();
+  let s = '';
+  ['izq', 'der'].forEach((lado) => {
+    const id = estado.paneles[lado];
+    const panel = document.getElementById(`tos-${lado}`);
+    const pt = estado.pantalla?.[id];
+    if (!id || !pt || panel.hidden) return;
+    const r = panel.getBoundingClientRect();
+    const ax = lado === 'izq' ? r.right - escena.left : r.left - escena.left;
+    const ay = r.top - escena.top + Math.min(64, r.height / 2);
+    const codo = lado === 'izq' ? ax + 26 : ax - 26;
+    const pts = `${ax},${ay} ${codo},${ay} ${pt[0]},${pt[1]}`;
+    s += `<polyline class="tos-linea-fondo" points="${pts}"/><polyline points="${pts}"/><circle cx="${ax}" cy="${ay}" r="3.5"/><circle cx="${pt[0]}" cy="${pt[1]}" r="2.5"/>`;
+  });
+  svg.innerHTML = s;
+}
+
+function detener() {
+  if (!estado) return;
+  clearInterval(estado.reloj);
+  if (estado.tres) {
+    estado.tres.vivo = false;
+    cancelAnimationFrame(estado.tres.raf);
+    estado.tres.renderer.dispose();
+    estado.tres = null;
+  }
+  window.removeEventListener('resize', estado.alRedimensionar);
+}
+
+// ---------------------------------------------------------------- interacción
+function ponerFoco(foco) {
+  estado.foco = foco;
+  const visibles = estado.puntos.filter((p) => p.grupo === foco);
+  document.querySelectorAll('#tos-puntos .tos-pt').forEach((b) => (b.hidden = !visibles.some((p) => p.id === b.dataset.id)));
+  document.querySelectorAll('.tos-vista').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.foco === foco)));
+  document.getElementById('tos-partes').innerHTML = visibles
+    .map((p) => `<button type="button" class="tos-parte ${p.ir ? 'tos-parte-unidad' : ''}" data-v="punto" data-id="${p.id}">${esc(p.nombre)}</button>`)
+    .join('');
+  // paneles por defecto, como en un tablero: uno a cada lado
+  const id = (x) => (visibles.some((p) => p.id === x) ? x : null);
+  if (foco === 'todo') estado.paneles = { izq: id('u-cab'), der: id('u-rem') };
+  else if (foco === 'cab') estado.paneles = { izq: id('cab-motor'), der: id('cab-llantas') };
+  else estado.paneles = { izq: id('rem-tanque') || visibles[0]?.id || null, der: id('rem-llantas') };
+  pintarPaneles();
+  encuadrar(foco);
 }
 
 function seleccionar(id) {
   const p = estado.puntos.find((x) => x.id === id);
   if (!p) return;
-  if (p.ir) return ponerFoco(p.ir);
-  estado.sel = id;
-  document.querySelectorAll('#holo-puntos .h-pt').forEach((b) => b.classList.toggle('sel', b.dataset.id === id));
-  document.querySelectorAll('.holo-chip').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
-  document.querySelectorAll('#holo-svg .h-parte').forEach((g) => g.classList.toggle('activo', g.id === p.parte));
-  document.getElementById('holo-panel').innerHTML = p.compartimento ? panelCompartimento(p) : panelComponente(estado.e, p);
-  if (matchMedia('(max-width: 899px)').matches) document.getElementById('holo-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (p.grupo !== estado.foco) ponerFoco(p.grupo);
+  if (Object.values(estado.paneles).includes(id)) return enfocarPanel(id);
+  const pos = estado.pantalla?.[id];
+  const ancho = document.getElementById('tos-escena').clientWidth;
+  const lado = pos ? (pos[0] < ancho / 2 ? 'izq' : 'der') : estado.paneles.izq ? 'der' : 'izq';
+  estado.paneles[lado] = id;
+  estado.info = true;
+  document.querySelector('[data-v="info"]').setAttribute('aria-pressed', 'true');
+  pintarPaneles();
+  enfocarPanel(id);
 }
 
-let alRedimensionar = null;
-export function montarVista() {
-  if (!estado || !document.getElementById('holo-escena')) return;
-  document.querySelector('.holo').addEventListener('click', (ev) => {
+function enfocarPanel(id) {
+  const lado = estado.paneles.izq === id ? 'izq' : 'der';
+  const el = document.getElementById(`tos-${lado}`);
+  el.classList.remove('destello');
+  void el.offsetWidth;
+  el.classList.add('destello');
+  if (!matchMedia('(min-width: 900px)').matches) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function ponerModo(modo) {
+  estado.modo = modo;
+  document.querySelectorAll('.tos-nav[data-modo]').forEach((b) => b.setAttribute('aria-current', b.dataset.modo === modo ? 'true' : 'false'));
+  document.getElementById('tos').dataset.modo = modo;
+  pintarPaneles();
+}
+
+function ponerSim(activa) {
+  estado.sim = activa;
+  try {
+    localStorage.setItem(PREF_SIM, activa ? 'si' : 'no');
+  } catch {}
+  document.querySelector('[data-v="sim"]').setAttribute('aria-pressed', String(activa));
+  document.getElementById('tos-sim-aviso').hidden = !activa;
+  pintarPaneles();
+}
+
+function buscar(texto) {
+  const q = texto.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const coincide = (p) => p.nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q);
+  document.querySelectorAll('#tos-puntos .tos-pt').forEach((b) => {
+    const p = estado.puntos.find((x) => x.id === b.dataset.id);
+    b.classList.toggle('atenuado', !!q && !coincide(p));
+  });
+  return q ? estado.puntos.filter((p) => !p.ir && coincide(p)) : [];
+}
+
+export async function montarVista() {
+  const raiz = document.getElementById('tos');
+  if (!estado || !raiz) return;
+  raiz.dataset.modo = estado.modo;
+  document.getElementById('tos-sim-aviso').hidden = !estado.sim;
+  raiz.addEventListener('click', (ev) => {
     const el = ev.target.closest('[data-v]');
     if (!el) return;
-    if (el.dataset.v === 'foco') ponerFoco(el.dataset.foco);
-    if (el.dataset.v === 'punto') seleccionar(el.dataset.id);
+    const v = el.dataset.v;
+    if (v === 'foco') ponerFoco(el.dataset.foco);
+    if (v === 'punto') seleccionar(el.dataset.id);
+    if (v === 'modo') ponerModo(el.dataset.modo);
+    if (v === 'sim') ponerSim(!estado.sim);
+    if (v === 'menu') raiz.classList.toggle('sin-lateral');
+    if (v === 'etiquetas') {
+      estado.etiquetas = !estado.etiquetas;
+      el.setAttribute('aria-pressed', String(estado.etiquetas));
+      raiz.classList.toggle('con-etiquetas', estado.etiquetas);
+    }
+    if (v === 'info') {
+      estado.info = !estado.info;
+      el.setAttribute('aria-pressed', String(estado.info));
+      pintarPaneles();
+    }
+    if (v === 'cerrar') {
+      estado.paneles[el.dataset.panel] = null;
+      pintarPaneles();
+    }
+    if (v === 'plegar') {
+      const panel = document.getElementById(`tos-${el.dataset.panel}`);
+      const plegado = panel.classList.toggle('plegado');
+      el.setAttribute('aria-expanded', String(!plegado));
+    }
   });
-  if (alRedimensionar) window.removeEventListener('resize', alRedimensionar);
-  alRedimensionar = () => {
-    if (!document.getElementById('holo-escena')) return window.removeEventListener('resize', alRedimensionar);
-    estado.vb = ajustar(ZONA[estado.foco]);
-    aplicarVB();
-  };
-  window.addEventListener('resize', alRedimensionar);
-  ponerFoco(estado.foco, { animar: false });
+  const q = document.getElementById('tos-q');
+  q.addEventListener('input', () => buscar(q.value));
+  q.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    const r = buscar(q.value);
+    if (r[0]) seleccionar(r[0].id);
+  });
+  ponerModo('telemetria');
+  ponerFoco(estado.foco);
+  estado.reloj = setInterval(tickSensores, 1000);
+  estado.detener = detener;
+  estado.alRedimensionar = () => estado.tres?.tamano();
+  window.addEventListener('resize', estado.alRedimensionar);
+  await iniciar3D();
+  if (estado?.tres) {
+    // arrancar sin animación en el encuadre inicial
+    const d = ENCUADRES[estado.foco];
+    Object.assign(estado.tres.orb, { radio: d.radio, azimut: d.azimut, polar: d.polar });
+    estado.tres.orb.objetivo.set(...d.objetivo);
+    estado.tres.anim = null;
+  }
 }

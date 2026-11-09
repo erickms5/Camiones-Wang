@@ -19,7 +19,8 @@ public/               ← todo lo que se publica
   js/config.js        decisiones abiertas D1–D5
   js/store.js         almacenamiento local
   js/consultas.js     consultas de datos (unidades, acoples, km, intervalos)
-  js/vista.js         vista interactiva del camión (holográfica)
+  js/vista.js         panel de control con el camión en 3D (sensores simulados con aviso)
+  vendor/             Three.js 0.160 (licencia MIT), guardado localmente para funcionar sin internet
   sw.js               funcionamiento sin conexión
 tests/                pruebas de validaciones
 wrangler.jsonc        configuración de Cloudflare Workers
