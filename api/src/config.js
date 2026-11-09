@@ -13,7 +13,7 @@ export function leerConfig(entorno = process.env) {
     proxies: Number(entorno.TRUST_PROXY ?? 1),
     baseDatos: entorno.DATABASE_URL || '',
     // Orígenes permitidos para el frontend (separados por coma)
-    origenes: (entorno.CORS_ORIGENES || 'http://localhost:8790,https://app.camiones-wang.workers.dev').split(',').map((s) => s.trim()),
+    origenes: (entorno.CORS_ORIGENES || 'http://localhost:8790,http://127.0.0.1:8790,https://app.camiones-wang.workers.dev').split(',').map((s) => s.trim()),
     // Clave de 32 bytes en base64 para cifrar cédulas; en desarrollo se usa una fija
     claveCedula: prod ? requerida('CEDULA_CLAVE') : entorno.CEDULA_CLAVE || Buffer.alloc(32, 7).toString('base64'),
     pimienta: prod ? requerida('PIMIENTA') : entorno.PIMIENTA || 'desarrollo',

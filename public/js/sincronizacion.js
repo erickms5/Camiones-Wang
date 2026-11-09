@@ -342,7 +342,8 @@ function pantallaIngreso(app) {
         enviarPendientes(app);
       }
     } catch (err) {
-      error(err instanceof ErrorApi || err.message ? err.message : 'Sin conexión. Intenta de nuevo cuando tengas señal.');
+      // Error de red (servidor apagado, sin señal o dirección no permitida): mensaje claro en vez de «Failed to fetch»
+      error(err instanceof ErrorApi ? err.message : err instanceof TypeError ? 'No se pudo conectar con el servidor. Revisa tu señal o intenta en un momento.' : err.message);
     } finally {
       $('ing-boton').disabled = false;
     }
