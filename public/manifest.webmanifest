@@ -1,0 +1,14 @@
+{
+  "name": "Registro de unidades",
+  "short_name": "Mi tráiler",
+  "description": "Registro de cabezal, tanquero y conductor para el control de mantenimientos.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f1ec",
+  "theme_color": "#0f2a44",
+  "icons": [
+    { "src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

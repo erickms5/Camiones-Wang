@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Registro de Unidades</title>
+  <meta name="description" content="Registro de cabezal, tanquero y conductor para el control de mantenimientos.">
+  <meta name="theme-color" content="#0f2a44">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icono.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icono.svg">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="app-header">
+    <a href="#/" class="marca-app" aria-label="Ir a Mis unidades">
+      <img src="icono.svg" alt="" width="36" height="36">
+      <span>Registro<br><small>de unidades</small></span>
+    </a>
+    <p id="estado" class="estado" role="status"></p>
+  </header>
+  <main id="app" class="contenedor"></main>
+  <footer class="pie">Prototipo · MSlabs · v0.1</footer>
+  <dialog id="dialogo" aria-labelledby="dlg-titulo"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <noscript><p class="contenedor">Esta aplicación necesita JavaScript activado.</p></noscript>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
