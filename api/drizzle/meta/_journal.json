@@ -15,6 +15,13 @@
       "when": 1794208203338,
       "tag": "0001_contrasenas",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794208409406,
+      "tag": "0002_intentos",
+      "breakpoints": true
     }
   ]
 }

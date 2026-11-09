@@ -2,7 +2,7 @@
 // con una contraseña que les entrega (y que puede cambiar si la olvidan).
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
 import { cuentas, sesiones, usuarios } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
@@ -11,6 +11,8 @@ import { mascaraCedula, hashClave, claveCorrecta } from '../seguridad.js';
 const email = z.string().trim().toLowerCase().email('Escribe un correo válido');
 export const clave = z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').max(100);
 const DIAS_SESION = 30;
+const MAX_FALLOS = 8; // intentos fallidos seguidos antes de pausar la cuenta
+const PAUSA_MIN = 15;
 
 export const usuarioPublico = (u, seguridad) => ({
   id: u.id, nombre: u.nombre, email: u.email, rol: u.rol, telefono: u.telefono, cuentaId: u.cuentaId,
@@ -48,8 +50,22 @@ export function rutasAuth({ db, seguridad, autenticado, config }) {
   r.post('/entrar', porCorreo, async (req, res) => {
     const d = z.object({ email, clave: z.string().min(1, 'Escribe tu contraseña').max(100) }).parse(req.body);
     const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
+    // Contador por cuenta (no depende de la IP): tras varios fallos seguidos la cuenta se pausa unos minutos
+    if (u?.bloqueadoHasta && u.bloqueadoHasta > new Date()) {
+      throw new ErrorHttp(429, `Demasiados intentos fallidos. Espera ${PAUSA_MIN} minutos o pide al dueño una contraseña nueva.`);
+    }
     // Mismo mensaje y mismo tiempo exista o no el correo
-    if (!claveCorrecta(d.clave, u?.claveHash)) throw new ErrorHttp(401, 'Correo o contraseña incorrectos');
+    if (!claveCorrecta(d.clave, u?.claveHash)) {
+      if (u) {
+        const fallos = u.intentosFallidos + 1;
+        await db.update(usuarios).set({
+          intentosFallidos: sql`${usuarios.intentosFallidos} + 1`,
+          ...(fallos >= MAX_FALLOS ? { bloqueadoHasta: new Date(Date.now() + PAUSA_MIN * 60000), intentosFallidos: 0 } : {}),
+        }).where(eq(usuarios.id, u.id));
+      }
+      throw new ErrorHttp(401, 'Correo o contraseña incorrectos');
+    }
+    if (u.intentosFallidos || u.bloqueadoHasta) await db.update(usuarios).set({ intentosFallidos: 0, bloqueadoHasta: null }).where(eq(usuarios.id, u.id));
     res.json(await abrirSesion(u));
   });
 
@@ -60,6 +76,9 @@ export function rutasAuth({ db, seguridad, autenticado, config }) {
     const d = z.object({ actual: z.string().min(1).max(100), nueva: clave }).parse(req.body);
     if (!claveCorrecta(d.actual, req.usuario.claveHash)) throw new ErrorHttp(401, 'La contraseña actual no es correcta');
     await db.update(usuarios).set({ claveHash: hashClave(d.nueva) }).where(eq(usuarios.id, req.usuario.id));
+    // Se cierran las demás sesiones (otros teléfonos); la actual sigue abierta
+    const actual = seguridad.hashToken(req.get('authorization').slice(7));
+    await db.delete(sesiones).where(and(eq(sesiones.usuarioId, req.usuario.id), ne(sesiones.tokenHash, actual)));
     res.json({ ok: true });
   });
 

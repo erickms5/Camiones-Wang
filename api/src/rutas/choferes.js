@@ -57,7 +57,7 @@ export function rutasChoferes({ db, seguridad, soloDueno }) {
     const d = z.object({ activo: z.boolean().optional(), clave: clave.optional() }).refine((x) => x.activo !== undefined || x.clave, 'Nada que cambiar').parse(req.body);
     const cambios = {};
     if (d.activo !== undefined) cambios.activo = d.activo;
-    if (d.clave) cambios.claveHash = hashClave(d.clave);
+    if (d.clave) Object.assign(cambios, { claveHash: hashClave(d.clave), intentosFallidos: 0, bloqueadoHasta: null });
     const [u] = await db.update(usuarios).set(cambios)
       .where(and(eq(usuarios.id, req.params.id), eq(usuarios.cuentaId, req.usuario.cuentaId), eq(usuarios.rol, 'chofer'))).returning();
     if (!u) throw new ErrorHttp(404, 'Chofer no encontrado');

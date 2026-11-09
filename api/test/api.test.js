@@ -171,3 +171,21 @@ test('el dueño pone una contraseña nueva al chofer que la olvidó y se cierran
   await t.chofer.post('/auth/clave', { actual: 'nueva456', nueva: 'mia789' }).expect(200);
   await entrar('chofer@ejemplo.com', 'mia789');
 });
+
+test('tras varios intentos fallidos la cuenta se pausa aunque cambie la IP, y el dueño la libera', async () => {
+  for (let i = 0; i < 8; i++) {
+    await request(app).post('/auth/entrar').set('X-Forwarded-For', `10.0.0.${i}`).send({ email: 'chofer@ejemplo.com', clave: 'equivocada' }).expect(401);
+  }
+  const r = await request(app).post('/auth/entrar').send({ email: 'chofer@ejemplo.com', clave: 'mia789' }).expect(429);
+  assert.match(r.body.error, /Espera/);
+  await t.dueno.patch(`/choferes/${t.choferId}`, { clave: 'liberada1' }).expect(200);
+  await entrar('chofer@ejemplo.com', 'liberada1');
+});
+
+test('al cambiar su contraseña se cierran sus otras sesiones', async () => {
+  const s1 = como(await entrar('chofer@ejemplo.com', 'liberada1'));
+  const s2 = como(await entrar('chofer@ejemplo.com', 'liberada1'));
+  await s1.post('/auth/clave', { actual: 'liberada1', nueva: 'otra2026' }).expect(200);
+  await s1.get('/unidades').expect(200);
+  await s2.get('/unidades').expect(401);
+});
