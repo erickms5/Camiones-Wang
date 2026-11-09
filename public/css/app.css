@@ -523,7 +523,7 @@ body.modo-holo #app { max-width: none; padding: 0; }
 .tos-embebido .tos-top { position: static; height: auto; flex-wrap: wrap; padding: .4rem; gap: .4rem; background: none; border: none; }
 .tos-embebido .tos-menu, .tos-embebido .tos-logo, .tos-embebido .tos-buscar, .tos-embebido .tos-campana, .tos-embebido .tos-usuario { display: none; }
 .tos-embebido .tos-vistas { position: static; flex: 1; }
-.tos-embebido .tos-lateral { position: static !important; visibility: visible !important; flex-direction: row; padding: 0 .4rem .4rem; gap: .3rem; background: none; border: none; }
+.tos-embebido .tos-lateral { display: none !important; position: static !important; visibility: visible !important; flex-direction: row; padding: 0 .4rem .4rem; gap: .3rem; background: none; border: none; }
 .tos-embebido .tos-lateral .tos-nav:first-child { display: none; }
 .tos-embebido .tos-nav { flex: 1; flex-direction: row; justify-content: center; min-height: 44px; padding: 0 .4rem; border: 1px solid rgb(56 225 255 / .2) !important; border-radius: 8px; font-size: .62rem; }
 .tos-embebido .tos-nav svg { width: 20px; height: 20px; }

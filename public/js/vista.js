@@ -162,8 +162,6 @@ function simulacionActiva() {
 const ICONO_NAV = {
   flota: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 7h11v9H2zM13 10h4l3 3v3h-7z"/><circle cx="6" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/></svg>',
   mantenimiento: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5a4 4 0 0 0-5 5L4 16l4 4 5.5-5.5a4 4 0 0 0 5-5l-2.5 2.5-2.5-.5-.5-2.5z"/><path d="M5 5l4 4M3 7l4-4"/></svg>',
-  diagnostico: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
-  telemetria: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/><circle cx="12" cy="16" r="1.4"/></svg>',
 };
 
 // opciones.inicio: página principal; opciones.ultimoServicio(unidad, componente, compartimento) → texto o null
@@ -189,15 +187,12 @@ export function htmlVista(id, opciones = {}) {
     <label class="tos-buscar"><span class="sr-only">Buscar una parte</span><span aria-hidden="true">⌕</span><input id="tos-q" type="search" placeholder="Buscar parte" autocomplete="off"></label>
     ${vistas.length ? `<div class="tos-vistas" role="group" aria-label="Encuadre">${vistas.map(([k, t]) => `<button type="button" class="tos-vista" data-v="foco" data-foco="${k}" title="${t}"><span class="tos-vista-pt" aria-hidden="true"></span><span class="tos-vista-txt">${t}</span></button>`).join('')}</div>` : ''}
     <span class="tos-espacio"></span>
-    <button type="button" class="tos-control" data-v="sim" aria-pressed="${estado.sim}"><span aria-hidden="true">◉</span> <span class="tos-control-txt">Simulación</span></button>
     <a class="tos-icono-btn tos-campana" href="${inicio}" aria-label="Avisos: ${avisos}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>${avisos ? '<span class="tos-punto-rojo"></span>' : ''}</a>
     <a class="tos-usuario" href="${opciones.cuenta || '#/cuenta'}"><span class="tos-avatar" aria-hidden="true">${esc(iniciales)}</span><span class="tos-usuario-txt">${esc(usuario.nombre || 'Mi cuenta')}<small>${esc([e.cab?.placa, e.rem?.placa].filter(Boolean).join(' + '))}</small></span></a>
   </header>
   <nav class="tos-lateral" aria-label="Secciones">
     <a class="tos-nav" href="${inicio}">${ICONO_NAV.flota}<span>Flota</span></a>
     <button type="button" class="tos-nav" data-v="modo" data-modo="mantenimiento">${ICONO_NAV.mantenimiento}<span>Mantenimiento</span></button>
-    <button type="button" class="tos-nav" data-v="modo" data-modo="diagnostico">${ICONO_NAV.diagnostico}<span>Diagnóstico</span></button>
-    <button type="button" class="tos-nav" data-v="modo" data-modo="telemetria">${ICONO_NAV.telemetria}<span>Telemetría</span></button>
   </nav>
   <main class="tos-main">
     <div class="tos-zona" id="tos-zona">
@@ -211,7 +206,6 @@ export function htmlVista(id, opciones = {}) {
           <button type="button" class="tos-chip" data-v="etiquetas" aria-pressed="false"><span aria-hidden="true">☰</span> Etiquetas</button>
           <button type="button" class="tos-chip" data-v="info" aria-pressed="true"><span aria-hidden="true">ⓘ</span> Información</button>
         </div>
-        <p class="tos-sim-aviso" id="tos-sim-aviso">SIMULADO · los sensores llegan en la fase 2</p>
         <p class="tos-ayuda" aria-hidden="true">Arrastre para girar · pellizque para acercar</p>
         <p class="tos-sin3d" id="tos-sin3d" hidden>Este teléfono no puede mostrar el modelo 3D. Use la lista de partes.</p>
       </div>
@@ -330,93 +324,46 @@ function contenidoPanel(p, lado) {
   const n = p.componente;
   const u = p.unidad;
   const a = u.atributos || {};
-  const claves = clavesDe(p);
-  const est = estadoComponente(claves);
-  const attrEstado = esc((claves || []).join(','));
-  let cuerpo = '';
-  if (estado.modo === 'mantenimiento') {
-    cuerpo = `<dl class="tos-datos">${fila('Kilometraje', kmCab(e) !== undefined ? `${miles(kmCab(e))} km` : 'Sin registrar')}${fila('Último servicio', estado.ultimoServicio?.(u, n) || 'Sin registrar')}</dl>
-      <h3 class="tos-p-sec">Intervalos</h3>${intervalosHTML(u, esEje(p) ? ['Llantas', 'Frenos', 'Ejes'] : n, 8)}`;
-  } else if (estado.modo === 'diagnostico') {
-    cuerpo = `<dl class="tos-datos">
-        <div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div>
-        ${fila('Alertas', estado.sim ? 'Ninguna' : 'Sin datos')}
-        ${(claves || []).map(filaSensor).join('')}
-      </dl>${claves ? etiquetaSim() : ''}`;
-  } else if (esEje(p)) {
-    const [kp, kt, kf, kv] = clavesEje(p.id);
-    const s = estado.sensores;
-    const pct = (k) => (estado.sim ? Math.round((s[k].v / s[k].alto) * 100) : 0);
-    const delantero = n === 'Eje delantero';
-    cuerpo = `<dl class="tos-datos"><div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div></dl>
-      <div class="tos-dos">
-        <div><span class="tos-mini">Presión:</span><span class="tos-grande tos-verde" data-s="${kp}" data-f="texto">${valorSensor(kp)}</span>
-          <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="${kp}" data-f="barra" style="width:${pct(kp)}%;--c:#5cf2a0"></span></span></div>
-        <div><span class="tos-mini">Temperatura:</span><span class="tos-grande tos-amarillo" data-s="${kt}" data-f="texto">${valorSensor(kt)}</span>
-          <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="${kt}" data-f="barra" style="width:${pct(kt)}%;--c:#ffd166"></span></span></div>
-      </div>
-      ${barraSensor(kf, 'Temperatura de frenos', '#ff9f43')}
-      ${barraSensor(kv, 'Vida útil de frenos', '#a8f05c')}
-      ${etiquetaSim()}
-      <dl class="tos-datos tos-datos-reales">
-        ${fila('Llantas en este eje', delantero ? '2 (sencillas)' : '4 (dobles)')}
-        ${fila('Último servicio', estado.ultimoServicio?.(u, n) || 'Sin registrar')}
-      </dl>
-      ${listaDetallesEje(p.id, delantero)}
-      <h3 class="tos-p-sec">Mantenimiento</h3>${intervalosHTML(u, ['Llantas', 'Frenos', 'Ejes'], 4)}`;
-    if (estado.detalle?.eje === p.id) cuerpo = formularioDetalle(estado.detalle) + cuerpo;
-  } else if (n === 'Motor') {
-    cuerpo = `<dl class="tos-datos">
-        <div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div>
-        ${filaSensor('motor_temp')}${filaSensor('motor_aceite')}
-      </dl>
-      <h3 class="tos-p-sec">Estado de rendimiento ${etiquetaSim()}</h3>
-      ${grafico()}
-      ${barraSensor('motor_temp', 'Temperatura', '#38e1ff')}
-      ${barraSensor('motor_carga', 'Carga', '#ff9f43')}
-      ${barraSensor('motor_aceite', 'Aceite', '#ff6b5a')}
-      <dl class="tos-datos tos-datos-reales">${fila('Motor', a.motor)}${fila('Kilometraje', kmCab(e) !== undefined ? `${miles(kmCab(e))} km` : '')}</dl>`;
-  } else if (n === 'Llantas') {
-    const s = estado.sensores;
-    const pctP = estado.sim ? Math.round((s.llanta_presion.v / s.llanta_presion.alto) * 100) : 0;
-    const pctT = estado.sim ? Math.round((s.llanta_temp.v / s.llanta_temp.alto) * 100) : 0;
-    cuerpo = `<p class="tos-linea-top">Presión: <strong class="tos-ok" data-s="llanta_presion" data-f="texto">${valorSensor('llanta_presion')}</strong> ${etiquetaSim()}</p>
-      <div class="tos-dos">
-        <div><span class="tos-mini">Presión:</span><span class="tos-grande tos-verde" data-s="llanta_presion" data-f="texto">${valorSensor('llanta_presion')}</span>
-          <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="llanta_presion" data-f="barra" style="width:${pctP}%;--c:#5cf2a0"></span></span></div>
-        <div><span class="tos-mini">Temperatura:</span><span class="tos-grande tos-amarillo" data-s="llanta_temp" data-f="texto">${valorSensor('llanta_temp')}</span>
-          <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="llanta_temp" data-f="barra" style="width:${pctT}%;--c:#ffd166"></span></span></div>
-      </div>
-      ${barraSensor('llanta_desgaste', 'Vida útil', '#a8f05c')}
-      <dl class="tos-datos tos-datos-reales">${fila('Número de llantas', u.num_llantas)}</dl>`;
-  } else {
-    let datos = '';
-    if (n === 'Transmisión') datos = fila('Tipo', a.transmision || 'Sin registrar');
-    if (n === 'Ejes') datos = fila('Número de ejes', u.num_ejes);
-    if (n === 'Frenos') datos = fila('Ejes con freno', u.num_ejes);
-    if (n === 'Quinta rueda') {
-      const otro = pareja(u.id);
-      datos = otro ? fila('Enganchado con', otro.placa) + fila('Desde', acopleActivo(u.id)?.desde) : fila('Estado', 'Sin enganchar');
-    }
-    if (n === 'Tanque') {
-      const total = totalTanque(e.comps);
-      datos = fila('Material', a.material) + fila('Transporta', a.producto) + fila('Placa del tanque', a.placa_tanque);
-      cuerpo = `<p class="tos-grande">${miles(total)}<small> gal</small></p>
-        <ul class="tos-comps">${e.comps.map((c) => {
-          const pct = total ? Math.round((Number(c.capacidad_galones) / total) * 100) : 0;
-          return `<li><span>${c.orden}${c.nombre ? ` · ${esc(c.nombre)}` : ''}</span><span class="tos-barra"><span style="width:${pct}%;--c:#38e1ff"></span></span><strong>${miles(c.capacidad_galones)}</strong></li>`;
-        }).join('')}</ul>`;
-    }
-    if (n === 'Válvulas') datos = fila('Compartimentos', e.comps.length);
-    if (n === 'Piso') datos = fila('Largo', a.largo_pies ? `${a.largo_pies} pies` : '');
-    if (n === 'Twist locks') datos = fila('Twist locks', a.twist_locks === 'si' ? 'Sí' : a.twist_locks === 'no' ? 'No' : '');
-    if (n === 'Puertas') datos = fila('Número de puertas', a.puertas);
-    if (n === 'Equipo de frío') datos = fila('Refrigerado', a.refrigerado === 'si' ? 'Sí' : a.refrigerado === 'no' ? 'No' : '');
-    const sens = claves;
-    cuerpo += `${sens ? `<dl class="tos-datos"><div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div>${sens.map(filaSensor).join('')}</dl>${etiquetaSim()}` : ''}
-      ${datos ? `<dl class="tos-datos tos-datos-reales">${datos}</dl>` : ''}
-      <h3 class="tos-p-sec">Mantenimiento</h3>${intervalosHTML(u, n)}`;
+  // Solo datos reales del registro y mantenimiento (sin telemetría ni diagnóstico)
+  const km = kmCab(e) !== undefined ? `${miles(kmCab(e))} km` : 'Sin registrar';
+  const servicio = fila('Último servicio', estado.ultimoServicio?.(u, n) || 'Sin registrar');
+  let datos = '';
+  let extra = '';
+  let partesIntervalo = n;
+  if (n === 'Motor') datos = fila('Motor', a.motor) + fila('Kilometraje', km);
+  if (n === 'Transmisión') datos = fila('Tipo', a.transmision || 'Sin registrar');
+  if (n === 'Llantas') datos = fila('Número de llantas', u.num_llantas);
+  if (n === 'Ejes') datos = fila('Número de ejes', u.num_ejes);
+  if (n === 'Frenos') datos = fila('Ejes con freno', u.num_ejes);
+  if (n === 'Quinta rueda') {
+    const otro = pareja(u.id);
+    datos = otro ? fila('Enganchado con', otro.placa) + fila('Desde', acopleActivo(u.id)?.desde) : fila('Estado', 'Sin enganchar');
   }
+  if (n === 'Tanque') {
+    const total = totalTanque(e.comps);
+    datos = fila('Material', a.material) + fila('Transporta', a.producto) + fila('Placa del tanque', a.placa_tanque);
+    extra = `<p class="tos-grande">${miles(total)}<small> gal</small></p>
+      <ul class="tos-comps">${e.comps.map((c) => {
+        const pct = total ? Math.round((Number(c.capacidad_galones) / total) * 100) : 0;
+        return `<li><span>${c.orden}${c.nombre ? ` · ${esc(c.nombre)}` : ''}</span><span class="tos-barra"><span style="width:${pct}%;--c:#38e1ff"></span></span><strong>${miles(c.capacidad_galones)}</strong></li>`;
+      }).join('')}</ul>`;
+  }
+  if (n === 'Válvulas') datos = fila('Compartimentos', e.comps.length);
+  if (n === 'Piso') datos = fila('Largo', a.largo_pies ? `${a.largo_pies} pies` : '');
+  if (n === 'Twist locks') datos = fila('Twist locks', a.twist_locks === 'si' ? 'Sí' : a.twist_locks === 'no' ? 'No' : '');
+  if (n === 'Puertas') datos = fila('Número de puertas', a.puertas);
+  if (n === 'Equipo de frío') datos = fila('Refrigerado', a.refrigerado === 'si' ? 'Sí' : a.refrigerado === 'no' ? 'No' : '');
+  if (esEje(p)) {
+    const delantero = n === 'Eje delantero';
+    datos = fila('Llantas en este eje', delantero ? '2 (sencillas)' : '4 (dobles)') + fila('Kilometraje', km);
+    extra = listaDetallesEje(p.id, delantero);
+    partesIntervalo = ['Llantas', 'Frenos', 'Ejes'];
+  }
+  let cuerpo = `${extra && !esEje(p) ? extra : ''}
+    <dl class="tos-datos">${datos}${servicio}</dl>
+    ${esEje(p) ? extra : ''}
+    <h3 class="tos-p-sec">Intervalos de mantenimiento</h3>${intervalosHTML(u, partesIntervalo, 8)}`;
+  if (esEje(p) && estado.detalle?.eje === p.id) cuerpo = formularioDetalle(estado.detalle) + cuerpo;
   const sub = n === 'Motor' && a.motor ? a.motor : `${u.rol === 'cabezal' ? 'Cabezal' : 'Remolque'} ${u.placa}`;
   return `${cabecera(n === 'Llantas' ? 'Neumáticos' : n, sub, lado)}<div class="tos-p-cuerpo">${cuerpo}</div>`;
 }
@@ -1083,15 +1030,6 @@ function ponerModo(modo) {
   pintarPaneles();
 }
 
-function ponerSim(activa) {
-  estado.sim = activa;
-  try {
-    localStorage.setItem(PREF_SIM, activa ? 'si' : 'no');
-  } catch {}
-  document.querySelector('[data-v="sim"]').setAttribute('aria-pressed', String(activa));
-  document.getElementById('tos-sim-aviso').hidden = !activa;
-  pintarPaneles();
-}
 
 function buscar(texto) {
   const q = texto.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -1111,7 +1049,6 @@ export async function montarVista() {
   const raiz = document.getElementById('tos');
   if (!estado || !raiz) return;
   raiz.dataset.modo = estado.modo;
-  document.getElementById('tos-sim-aviso').hidden = !estado.sim;
   raiz.addEventListener('click', (ev) => {
     const el = ev.target.closest('[data-v]');
     if (!el) return;
@@ -1119,7 +1056,6 @@ export async function montarVista() {
     if (v === 'foco') ponerFoco(el.dataset.foco);
     if (v === 'punto') seleccionar(el.dataset.id);
     if (v === 'modo') ponerModo(el.dataset.modo);
-    if (v === 'sim') ponerSim(!estado.sim);
     if (v === 'menu') raiz.classList.toggle('sin-lateral');
     if (v === 'etiquetas') {
       estado.etiquetas = !estado.etiquetas;
@@ -1159,9 +1095,8 @@ export async function montarVista() {
     const r = buscar(q.value);
     if (r[0]) seleccionar(r[0].id);
   });
-  ponerModo('telemetria');
+  ponerModo('mantenimiento');
   ponerFoco(estado.foco);
-  estado.reloj = setInterval(tickSensores, 1000);
   estado.detener = detener;
   estado.alRedimensionar = () => estado.tres?.tamano();
   window.addEventListener('resize', estado.alRedimensionar);
