@@ -207,4 +207,9 @@ test('cabezal sin km: el dueño lo pone después y lo corrige con motivo; el cho
   await t.dueno.patch(`/choferes/${t.choferId}`, { clave: 'kmchofer1' }).expect(200);
   const chofer = como(await entrar('chofer@ejemplo.com', 'kmchofer1'));
   await chofer.post(`/unidades/${t.cabezal}/km`, { km: 1, motivo: 'intento' }).expect(403);
+  // Con km pendiente, un mantenimiento del chofer no fija el punto de partida
+  const sinKm = (await t.dueno.post('/unidades', { rol: 'cabezal', tipo: 'tracto', placa: 'ZZZ-8888', marca: 'Freightliner', modelo: 'Columbia', numEjes: 3, numLlantas: 10 }).expect(201)).body.unidad.id;
+  await t.dueno.post(`/unidades/${sinKm}/asignar`, { choferId: t.choferId }).expect(201);
+  await chofer.post('/mantenimientos', { unidadId: sinKm, fecha: hoy, km: 4_000_000, parte: 'Motor', trabajo: 'Aceite' }).expect(201);
+  assert.equal((await t.dueno.get(`/unidades/${sinKm}`)).body.km, null);
 });

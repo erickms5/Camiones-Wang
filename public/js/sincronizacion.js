@@ -158,7 +158,7 @@ export async function enviarPendientes(app) {
       try {
         if (t.tipo === 'mantenimiento' && m) {
           await api('/mantenimientos', { metodo: 'POST', cuerpo: datosMantenimiento(m, s) });
-          if (m.km > (s.servidor.km || 0)) s.servidor.km = m.km; // el servidor sube el km con el mantenimiento
+          if (s.servidor.km && m.km > s.servidor.km) s.servidor.km = m.km; // el servidor sube el km (si el dueño ya lo puso)
           evidenciasDe(m).forEach((ev) => encolar({ tipo: 'evidencia', id: m.id, evidencia: ev.id }));
         }
         if (t.tipo === 'evidencia' && m) {

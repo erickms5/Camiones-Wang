@@ -60,7 +60,8 @@ async function cabezalDe(db, usuario, unidadId) {
 }
 
 async function actualizarKm(db, usuario, cab, km, mantenimientoId) {
-  if (!cab || (cab.kmActual !== null && km <= cab.kmActual)) return;
+  // Con km pendiente no se toma el de un mantenimiento como punto de partida: eso lo pone solo el dueño
+  if (!cab || cab.kmActual === null || km <= cab.kmActual) return;
   await db.insert(odometro).values({ unidadId: cab.cabezalId, km, fuente: `mantenimiento:${mantenimientoId}`, registradoPor: usuario.id });
 }
 
