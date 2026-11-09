@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test tests/",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "dev": "npm --prefix api run dev",
+    "app": "python3 -m http.server 8790 -d public",
+    "test": "node --test tests/ && npm --prefix api test",
+    "deploy": "npx wrangler@4 deploy"
   }
 }

@@ -25,18 +25,19 @@ wrangler.jsonc        configuración de Cloudflare Workers
 
 ## Trabajar en local
 
-No necesita instalar dependencias.
+Desde la carpeta principal del proyecto, en dos terminales:
 
 ```bash
-python3 -m http.server 8790 -d public
+npm run dev   # servidor (API + PostgreSQL) en http://localhost:3000
+npm run app   # la app en http://localhost:8790
 ```
 
-Abrir http://localhost:8790
+La primera vez: `bash api/scripts/instalar-postgres.sh`, `cp api/.env.example api/.env` y `npm --prefix api install`.
 
-Pruebas:
+Pruebas de todo:
 
 ```bash
-node --test tests/
+npm test
 ```
 
 ## Cómo colaboramos
