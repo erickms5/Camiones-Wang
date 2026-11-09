@@ -55,6 +55,11 @@ export const Evidencias = {
     await operar('readwrite', (st) => st.put({ ...meta, blob }));
     return meta;
   },
+  // Contenido del archivo (para enviarlo al servidor)
+  async obtener(id) {
+    const reg = await operar('readonly', (st) => st.get(id));
+    return reg?.blob || null;
+  },
   async url(id) {
     if (urls.has(id)) return urls.get(id);
     const reg = await operar('readonly', (st) => st.get(id));

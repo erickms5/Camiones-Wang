@@ -180,3 +180,14 @@ test('el límite de códigos responde igual exista o no la cuenta', async () => 
   assert.deepEqual(sinCuenta.slice(-2), [429, 429]);
   assert.deepEqual(conCuenta.slice(-2), [429, 429]);
 });
+
+test('el km parte del registro y solo sube con los mantenimientos (no se edita a mano)', async () => {
+  const kmDe = async () => (await t.dueno.get(`/unidades/${t.cabezal}`).expect(200)).body.km;
+  assert.equal(await kmDe(), 185000); // subió con el mantenimiento del remolque enganchado (184.520 → 185.000)
+  await t.dueno.post(`/unidades/${t.cabezal}/odometro`, { km: 1 }).expect(404);
+  const base = { unidadId: t.cabezal, fecha: hoy, parte: 'Motor Detroit', trabajo: 'Cambio de Aceite y Filtros' };
+  await t.chofer.post('/mantenimientos', { ...base, km: 190000 }).expect(201);
+  assert.equal(await kmDe(), 190000);
+  await t.chofer.post('/mantenimientos', { ...base, km: 150000 }).expect(201); // trabajo atrasado: no baja el km
+  assert.equal(await kmDe(), 190000);
+});

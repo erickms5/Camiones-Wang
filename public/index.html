@@ -161,6 +161,22 @@
             <p class="text-xs text-slate-400 mt-1">Placa oficial ecuatoriana (única por cabezal).</p>
           </div>
 
+          <!-- Kilometraje de partida -->
+          <div>
+            <label class="block text-slate-300 font-bold text-lg mb-1" for="login-km">
+              Kilometraje actual del cabezal <span class="text-emerald-400">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 text-lg">
+                <i class="fa-solid fa-gauge-high"></i>
+              </span>
+              <input type="number" id="login-km" required min="0" max="5000000" inputmode="numeric" placeholder="Mira el tablero del camión"
+                     class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 pl-12 pr-16 text-xl font-mono text-emerald-400 font-bold focus:outline-none">
+              <span class="absolute right-4 top-4 text-xs text-slate-400 font-bold">KM</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Es el punto de partida. Después el kilometraje solo cambia al registrar mantenimientos.</p>
+          </div>
+
           <!-- Chofer -->
           <div>
             <label class="block text-slate-300 font-bold text-lg mb-1" for="login-nombre">
@@ -835,6 +851,8 @@
 
   <!-- Evidencias guardadas en el teléfono (IndexedDB) -->
   <script type="module" src="./js/evidencias.js"></script>
+  <!-- Conexión con el servidor: ingreso por email, envío de datos y cola sin conexión -->
+  <script type="module" src="./js/sincronizacion.js"></script>
 
   <!-- JAVASCRIPT APPLICATION CORE -->
   <script>
@@ -1180,6 +1198,11 @@
       handleLogin(e) {
         e.preventDefault();
         const placa = document.getElementById('login-placa').value.trim();
+        const kmInicial = parseInt(document.getElementById('login-km').value, 10);
+        if (!Number.isInteger(kmInicial) || kmInicial < 0) {
+          this.showToast('Escribe el kilometraje actual del cabezal', 'warning');
+          return;
+        }
         const nombre = document.getElementById('login-nombre').value.trim();
         const cedula = document.getElementById('login-cedula').value.trim();
         const email = document.getElementById('login-email').value.trim();
@@ -1196,7 +1219,7 @@
           email,
           trailerModel: "Freightliner Columbia 2020",
           engine: "Detroit Diesel DD15",
-          odometro: 184500
+          odometro: kmInicial
         };
 
         this.saveStorage();
@@ -1405,7 +1428,7 @@
         }
 
         const newMaintenance = {
-          id: 'm-' + Date.now(),
+          id: (window.crypto?.randomUUID ? crypto.randomUUID() : 'm-' + Date.now()),
           fecha: date,
           km: km,
           parte: part,
@@ -1985,6 +2008,7 @@
     let app;
     window.addEventListener('DOMContentLoaded', () => {
       app = new TrailerApp();
+      window.app = app; // para js/sincronizacion.js
 
       // Camión 3D incrustado: lo tocado en el 3D selecciona la parte; cada guardado actualiza el 3D
       const frame3d = document.getElementById('frame-3d');

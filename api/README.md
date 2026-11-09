@@ -33,13 +33,17 @@ Usan PostgreSQL en memoria (PGlite): no necesitan la base instalada.
 - **Dueño**: crea su cuenta (`POST /auth/registro`), registra choferes y unidades, ve los reportes de todos sus choferes.
 - **Chofer**: lo registra el dueño; entra con un código a su email; ve sus unidades asignadas, registra mantenimientos y genera sus reportes.
 
+## Kilometraje
+
+Se pide al registrar el cabezal (punto de partida) y después **solo sube con el km de cada mantenimiento**; no hay forma de editarlo a mano. Los trabajos del remolque cuentan para el cabezal enganchado.
+
 ## Rutas principales
 
 | Método | Ruta | Quién |
 |---|---|---|
 | POST | `/auth/registro`, `/auth/codigo`, `/auth/verificar`, `/auth/salir` · GET `/auth/yo` | todos |
 | GET/POST/PATCH | `/choferes` | dueño |
-| GET/POST | `/unidades` · GET `/unidades/:id` · POST `/unidades/:id/odometro` | ambos |
+| GET/POST | `/unidades` · GET `/unidades/:id` | ambos |
 | POST | `/unidades/:id/acoplar`, `/unidades/:id/asignar` | dueño |
 | PATCH | `/unidades/componentes/:id` (ficha de llanta o freno) | ambos |
 | GET/POST | `/mantenimientos` · GET `/mantenimientos/:id` | ambos (el chofer ve los suyos) |

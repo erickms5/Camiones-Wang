@@ -1,8 +1,8 @@
 // Mantenimientos y sus evidencias (fotos o PDF de facturas con fecha y hora de subida).
 import express, { Router } from 'express';
 import { z } from 'zod';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
-import { auditoria, evidencias, mantenimientos } from '../db/esquema.js';
+import { and, desc, eq, gte, isNull, lte } from 'drizzle-orm';
+import { acoplamientos, auditoria, evidencias, mantenimientos, odometro, unidades } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
 import { sha256 } from '../seguridad.js';
 import { unidadAccesible } from './unidades.js';
@@ -37,6 +37,22 @@ async function mantenimientoVisible(db, usuario, id) {
   return m;
 }
 
+// El kilometraje no se edita a mano: parte del valor del registro y solo sube con el km de cada mantenimiento.
+// Si el trabajo es del remolque, cuenta el km del cabezal enganchado (el odómetro está en el cabezal).
+async function actualizarKm(db, usuario, unidadId, km, mantenimientoId) {
+  if (!unidadId) return;
+  const [u] = await db.select().from(unidades).where(eq(unidades.id, unidadId));
+  let cabezalId = u?.rol === 'cabezal' ? u.id : null;
+  if (u?.rol === 'remolque') {
+    const [a] = await db.select().from(acoplamientos).where(and(eq(acoplamientos.remolqueId, u.id), isNull(acoplamientos.hasta)));
+    cabezalId = a?.cabezalId || null;
+  }
+  if (!cabezalId) return;
+  const [ultimo] = await db.select().from(odometro).where(eq(odometro.unidadId, cabezalId)).orderBy(desc(odometro.registradoEn)).limit(1);
+  if (ultimo && km <= ultimo.km) return;
+  await db.insert(odometro).values({ unidadId: cabezalId, km, fuente: `mantenimiento:${mantenimientoId}`, registradoPor: usuario.id });
+}
+
 export function rutasMantenimientos({ db, almacen }) {
   const r = Router();
 
@@ -55,6 +71,7 @@ export function rutasMantenimientos({ db, almacen }) {
       ...d, costoTaller: d.costoTaller.toFixed(2), costoRepuestos: d.costoRepuestos.toFixed(2),
       cuentaId: req.usuario.cuentaId, creadoPor: req.usuario.id,
     }).returning();
+    await actualizarKm(db, req.usuario, d.unidadId, d.km, m.id);
     await db.insert(auditoria).values({ cuentaId: req.usuario.cuentaId, usuarioId: req.usuario.id, entidad: 'mantenimiento', entidadId: m.id, accion: 'crear' });
     res.status(201).json({ mantenimiento: m });
   });

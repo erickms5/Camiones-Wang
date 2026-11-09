@@ -39,7 +39,7 @@ if (!sesion?.placa) {
     atributos: { motor: (sesion.engine || '').replace('Detroit Diesel', 'Detroit'), transmision: 'Eaton Fuller', km_inicial: km },
   };
   const rem = {
-    id: 'cisterna', rol: 'remolque', tipo_unidad_id: 'tanquero', activa: true, placa: 'Cisterna',
+    id: 'cisterna', rol: 'remolque', tipo_unidad_id: 'tanquero', activa: true, placa: sesion.servidor?.remolquePlaca || 'Cisterna',
     marca: 'Cisterna', modelo: 'de combustible', anio: null, num_ejes: 3, num_llantas: 12,
     atributos: { material: 'Acero', producto: 'Combustible', capacidad_galones: 10000 },
   };
@@ -53,7 +53,7 @@ if (!sesion?.placa) {
     PARTES_3D[u.id].forEach((nombre, i) => componentes.push({ id: `${u.id}-${i}`, unidad_id: u.id, tipo: 'general', nombre, orden: i + 1, activo: true })),
   );
   // Compartimento 1 (junto al cabezal) 3.000, 2 y 3 de 2.000, 4 de 3.000
-  [3000, 2000, 2000, 3000].forEach((g, i) =>
+  (Array.isArray(sesion.compartimentos) && sesion.compartimentos.length ? sesion.compartimentos : [3000, 2000, 2000, 3000]).forEach((g, i) =>
     componentes.push({ id: `comp-${i + 1}`, unidad_id: rem.id, tipo: 'compartimento', nombre: '', orden: i + 1, capacidad_galones: g, activo: true }),
   );
   const cat = buscarModelo(cab.marca, cab.modelo, cab.anio);

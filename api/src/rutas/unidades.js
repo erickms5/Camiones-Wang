@@ -75,7 +75,8 @@ const esquemaUnidad = z.object({
   numLlantas: z.number().int().min(2).max(40),
   atributos: z.record(z.any()).default({}),
   compartimentos: z.array(z.number().int().positive('Ingresa los galones de cada compartimento').max(50000)).min(1).max(10).optional(),
-  kmInicial: z.number().int().min(0).optional(),
+  // Punto de partida del kilometraje: solo se escribe al registrar; luego sube con los mantenimientos
+  kmInicial: z.number().int().min(0).max(5_000_000).optional(),
 }).superRefine((d, ctx) => {
   if (d.tipo === 'tanquero' && !d.compartimentos) ctx.addIssue({ code: 'custom', path: ['compartimentos'], message: 'Agrega al menos un compartimento' });
   if (d.rol === 'cabezal' && d.kmInicial === undefined) ctx.addIssue({ code: 'custom', path: ['kmInicial'], message: 'Escribe el kilometraje del cabezal' });
@@ -100,7 +101,7 @@ export function rutasUnidades({ db, soloDueno }) {
       }).returning();
       await tx.insert(componentes).values(arbolComponentes(nueva, d.compartimentos));
       if (d.rol === 'cabezal') {
-        await tx.insert(odometro).values({ unidadId: nueva.id, km: d.kmInicial, registradoPor: req.usuario.id });
+        await tx.insert(odometro).values({ unidadId: nueva.id, km: d.kmInicial, fuente: 'registro', registradoPor: req.usuario.id });
         const cat = buscarModelo(d.marca, d.modelo, d.anio);
         await tx.insert(intervalos).values((cat ? cat.intervalos : INTERVALOS_GENERICOS).map((x) => ({
           unidadId: nueva.id, tarea: x.tarea, componente: x.componente, cadaKm: x.cada_km, cadaMeses: x.cada_meses, origen: cat ? cat.id : 'generico',
@@ -123,14 +124,6 @@ export function rutasUnidades({ db, soloDueno }) {
       db.select().from(acoplamientos).where(and(or(eq(acoplamientos.cabezalId, u.id), eq(acoplamientos.remolqueId, u.id)), isNull(acoplamientos.hasta))),
     ]);
     res.json({ unidad: u, componentes: partes, km: km[0]?.km ?? null, intervalos: ints, acople: acople[0] || null });
-  });
-
-  r.post('/:id/odometro', async (req, res) => {
-    const u = await unidadAccesible(db, req.usuario, req.params.id);
-    if (u.rol !== 'cabezal') throw new ErrorHttp(400, 'El kilometraje se registra en el cabezal');
-    const d = z.object({ km: z.number().int().min(0) }).parse(req.body);
-    const [l] = await db.insert(odometro).values({ unidadId: u.id, km: d.km, registradoPor: req.usuario.id }).returning();
-    res.status(201).json({ lectura: l });
   });
 
   r.post('/:id/acoplar', soloDueno, async (req, res) => {
