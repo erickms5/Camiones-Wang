@@ -29,17 +29,17 @@ const PUNTOS_CAB = {
   Motor: ['motor', [3.05, 1.6, 0.95]],
   'Transmisión': ['transmision', [1.95, 1.0, 0.75]],
   'Quinta rueda': ['quinta', [-2.2, 1.3, 0.75]],
-  Llantas: ['llantas', [3.0, 0.52, 1.28]],
-  Frenos: ['frenos', [-1.5, 0.52, 1.42]],
-  Ejes: ['ejes', [-2.85, 0.52, 1.42]],
+  'Eje delantero': ['eje-0', [EJES_CAB[0], 0.52, 1.28]],
+  'Eje trasero 1': ['eje-1', [EJES_CAB[1], 0.52, 1.42]],
+  'Eje trasero 2': ['eje-2', [EJES_CAB[2], 0.52, 1.42]],
 };
 const PUNTOS_REM = {
   'Quinta rueda': ['quinta', [-2.25, 1.32, 0.7]],
   Tanque: ['tanque', [-7.35, 3.45, 0.2]],
   'Válvulas': ['valvulas', [-6.4, 1.15, 0.85]],
-  Ejes: ['ejes', [EJES_REM[0], 0.5, 1.42]],
-  Frenos: ['frenos', [EJES_REM[1], 0.5, 1.42]],
-  Llantas: ['llantas', [EJES_REM[2], 0.5, 1.42]],
+  'Eje 1': ['eje-0', [EJES_REM[0], 0.5, 1.42]],
+  'Eje 2': ['eje-1', [EJES_REM[1], 0.5, 1.42]],
+  'Eje 3': ['eje-2', [EJES_REM[2], 0.5, 1.42]],
   Piso: ['piso', [-7.3, 1.62, 1.25]],
   'Twist locks': ['twist', [-2.3, 1.72, 1.15]],
   Puertas: ['puertas', [-13.0, 2.7, 0.6]],
@@ -48,16 +48,16 @@ const PUNTOS_REM = {
 
 // Sensores simulados: valor inicial, rango y variación por segundo.
 const SENSORES = {
-  motor_temp: { v: 85, min: 79, max: 94, paso: 0.9, unidad: '°C', alto: 100 },
+  motor_temp: { v: 85, min: 79, max: 94, paso: 0.9, unidad: '°C', alto: 100, alerta: 93 },
   motor_aceite: { v: 45, min: 39, max: 54, paso: 1.1, unidad: 'PSI', alto: 80 },
   motor_carga: { v: 50, min: 28, max: 78, paso: 4, unidad: '%', alto: 100 },
   motor_rend: { v: 70, min: 40, max: 92, paso: 6, unidad: '%', alto: 100 },
   llanta_presion: { v: 110, min: 104, max: 114, paso: 0.6, unidad: 'PSI', alto: 130 },
-  llanta_temp: { v: 42, min: 36, max: 48, paso: 0.5, unidad: '°C', alto: 80 },
+  llanta_temp: { v: 42, min: 36, max: 48, paso: 0.5, unidad: '°C', alto: 80, alerta: 47.5 },
   llanta_desgaste: { v: 64, min: 63, max: 65, paso: 0.05, unidad: '%', alto: 100 },
-  frenos_temp: { v: 96, min: 70, max: 140, paso: 5, unidad: '°C', alto: 250 },
+  frenos_temp: { v: 96, min: 70, max: 140, paso: 5, unidad: '°C', alto: 250, alerta: 136 },
   frenos_vida: { v: 72, min: 71, max: 73, paso: 0.05, unidad: '%', alto: 100 },
-  trans_temp: { v: 78, min: 70, max: 92, paso: 0.8, unidad: '°C', alto: 120 },
+  trans_temp: { v: 78, min: 70, max: 92, paso: 0.8, unidad: '°C', alto: 120, alerta: 91 },
 };
 const SENSORES_DE = {
   Motor: ['motor_temp', 'motor_aceite'],
@@ -156,6 +156,7 @@ export function htmlVista(id, opciones = {}) {
     paneles: { izq: null, der: null }, historial: Array.from({ length: 40 }, (_, i) => 70 + 12 * Math.sin(i / 3)),
     sensores: JSON.parse(JSON.stringify(SENSORES)),
   };
+  crearSensoresEjes(e.puntos, estado.sensores);
   const vistas = e.cab && e.rem ? [['todo', 'Conjunto'], ['cab', 'Cabezal'], ['rem', 'Remolque']] : [];
   return `<div class="tos" id="tos">
   <header class="tos-top">
@@ -209,7 +210,7 @@ function valorSensor(k) {
 }
 
 function filaSensor(k) {
-  return `<div><dt>${NOMBRE_SENSOR[k]}</dt><dd data-s="${k}" data-f="texto" class="tos-sensor">${valorSensor(k)}</dd></div>`;
+  return `<div><dt>${nombreSensor(k)}</dt><dd data-s="${k}" data-f="texto" class="tos-sensor">${valorSensor(k)}</dd></div>`;
 }
 
 function barraSensor(k, etiqueta, color) {
@@ -234,15 +235,35 @@ function etiquetaSim() {
   return estado.sim ? '<span class="tos-sim">SIMULADO</span>' : '<span class="tos-sim tos-sim-off">SIN SENSOR</span>';
 }
 
-function estadoComponente(nombre) {
-  if (!estado.sim || !SENSORES_DE[nombre]) return { texto: 'Sin datos', cls: '' };
-  const fuera = SENSORES_DE[nombre].some((k) => estado.sensores[k].v > estado.sensores[k].max * 0.98);
+const esEje = (p) => /^(cab|rem)-eje-\d$/.test(p?.id || '');
+const clavesEje = (id) => [`${id}-presion`, `${id}-temp`, `${id}-freno`, `${id}-vida`];
+const NOMBRE_EJE = { presion: 'Presión de llantas', temp: 'Temperatura de llantas', freno: 'Temperatura de frenos', vida: 'Vida útil de frenos' };
+const nombreSensor = (k) => NOMBRE_SENSOR[k] || NOMBRE_EJE[k.split('-').pop()] || k;
+function clavesDe(p) {
+  return esEje(p) ? clavesEje(p.id) : SENSORES_DE[p?.componente] || null;
+}
+function crearSensoresEjes(puntos, sensores) {
+  puntos.filter(esEje).forEach((p) => {
+    const r = Math.random();
+    const vida = 55 + Math.round(r * 35);
+    sensores[`${p.id}-presion`] = { ...SENSORES.llanta_presion, v: 106 + r * 6 };
+    sensores[`${p.id}-temp`] = { ...SENSORES.llanta_temp, v: 38 + r * 7 };
+    sensores[`${p.id}-freno`] = { ...SENSORES.frenos_temp, v: 80 + r * 40 };
+    sensores[`${p.id}-vida`] = { ...SENSORES.frenos_vida, v: vida, min: vida - 1, max: vida + 1 };
+  });
+}
+
+function estadoComponente(claves) {
+  if (typeof claves === 'string') claves = claves ? claves.split(',') : null;
+  if (!estado.sim || !claves?.length) return { texto: 'Sin datos', cls: '' };
+  const fuera = claves.some((k) => estado.sensores[k].v > (estado.sensores[k].alerta ?? Infinity));
   return fuera ? { texto: 'Revisar', cls: 'tos-aviso' } : { texto: 'Óptimo', cls: 'tos-ok' };
 }
 
 function intervalosHTML(u, componente, limite = 3) {
   if (u.rol !== 'cabezal') return '<p class="tos-nota">Sin intervalos definidos todavía.</p>';
-  const lista = intervalosDe(u.id).filter((x) => x.componente === componente);
+  const nombres = [].concat(componente);
+  const lista = intervalosDe(u.id).filter((x) => nombres.includes(x.componente));
   if (!lista.length) return '<p class="tos-nota">Sin intervalos para esta parte.</p>';
   const txt = (x) => [x.cada_km ? `${miles(x.cada_km)} km` : '', x.cada_meses ? `${x.cada_meses} meses` : ''].filter(Boolean).join(' o ');
   return `<ul class="tos-lista">${lista.slice(0, limite).map((x) => `<li><span>${esc(x.tarea)}</span><strong>cada ${txt(x)}</strong></li>`).join('')}</ul>`;
@@ -285,20 +306,42 @@ function contenidoPanel(p, lado) {
   const n = p.componente;
   const u = p.unidad;
   const a = u.atributos || {};
-  const est = estadoComponente(n);
+  const claves = clavesDe(p);
+  const est = estadoComponente(claves);
+  const attrEstado = esc((claves || []).join(','));
   let cuerpo = '';
   if (estado.modo === 'mantenimiento') {
     cuerpo = `<dl class="tos-datos">${fila('Kilometraje', kmCab(e) !== undefined ? `${miles(kmCab(e))} km` : 'Sin registrar')}${fila('Último servicio', estado.ultimoServicio?.(u, n) || 'Sin registrar')}</dl>
-      <h3 class="tos-p-sec">Intervalos</h3>${intervalosHTML(u, n, 8)}`;
+      <h3 class="tos-p-sec">Intervalos</h3>${intervalosHTML(u, esEje(p) ? ['Llantas', 'Frenos', 'Ejes'] : n, 8)}`;
   } else if (estado.modo === 'diagnostico') {
     cuerpo = `<dl class="tos-datos">
-        <div><dt>Estado</dt><dd class="${est.cls}" data-estado="${esc(n)}">${est.texto}</dd></div>
+        <div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div>
         ${fila('Alertas', estado.sim ? 'Ninguna' : 'Sin datos')}
-        ${(SENSORES_DE[n] || []).map(filaSensor).join('')}
-      </dl>${SENSORES_DE[n] ? etiquetaSim() : ''}`;
+        ${(claves || []).map(filaSensor).join('')}
+      </dl>${claves ? etiquetaSim() : ''}`;
+  } else if (esEje(p)) {
+    const [kp, kt, kf, kv] = clavesEje(p.id);
+    const s = estado.sensores;
+    const pct = (k) => (estado.sim ? Math.round((s[k].v / s[k].alto) * 100) : 0);
+    const delantero = n === 'Eje delantero';
+    cuerpo = `<dl class="tos-datos"><div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div></dl>
+      <div class="tos-dos">
+        <div><span class="tos-mini">Presión:</span><span class="tos-grande tos-verde" data-s="${kp}" data-f="texto">${valorSensor(kp)}</span>
+          <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="${kp}" data-f="barra" style="width:${pct(kp)}%;--c:#5cf2a0"></span></span></div>
+        <div><span class="tos-mini">Temperatura:</span><span class="tos-grande tos-amarillo" data-s="${kt}" data-f="texto">${valorSensor(kt)}</span>
+          <span class="tos-barra ${estado.sim ? '' : 'tos-barra-vacia'}"><span data-s="${kt}" data-f="barra" style="width:${pct(kt)}%;--c:#ffd166"></span></span></div>
+      </div>
+      ${barraSensor(kf, 'Temperatura de frenos', '#ff9f43')}
+      ${barraSensor(kv, 'Vida útil de frenos', '#a8f05c')}
+      ${etiquetaSim()}
+      <dl class="tos-datos tos-datos-reales">
+        ${fila('Llantas en este eje', delantero ? '2 (sencillas)' : '4 (dobles)')}
+        ${fila('Último servicio', estado.ultimoServicio?.(u, n) || 'Sin registrar')}
+      </dl>
+      <h3 class="tos-p-sec">Mantenimiento</h3>${intervalosHTML(u, ['Llantas', 'Frenos', 'Ejes'], 4)}`;
   } else if (n === 'Motor') {
     cuerpo = `<dl class="tos-datos">
-        <div><dt>Estado</dt><dd class="${est.cls}" data-estado="Motor">${est.texto}</dd></div>
+        <div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div>
         ${filaSensor('motor_temp')}${filaSensor('motor_aceite')}
       </dl>
       <h3 class="tos-p-sec">Estado de rendimiento ${etiquetaSim()}</h3>
@@ -343,8 +386,8 @@ function contenidoPanel(p, lado) {
     if (n === 'Twist locks') datos = fila('Twist locks', a.twist_locks === 'si' ? 'Sí' : a.twist_locks === 'no' ? 'No' : '');
     if (n === 'Puertas') datos = fila('Número de puertas', a.puertas);
     if (n === 'Equipo de frío') datos = fila('Refrigerado', a.refrigerado === 'si' ? 'Sí' : a.refrigerado === 'no' ? 'No' : '');
-    const sens = SENSORES_DE[n];
-    cuerpo += `${sens ? `<dl class="tos-datos"><div><dt>Estado</dt><dd class="${est.cls}" data-estado="${esc(n)}">${est.texto}</dd></div>${sens.map(filaSensor).join('')}</dl>${etiquetaSim()}` : ''}
+    const sens = claves;
+    cuerpo += `${sens ? `<dl class="tos-datos"><div><dt>Estado</dt><dd class="${est.cls}" data-estado="${attrEstado}">${est.texto}</dd></div>${sens.map(filaSensor).join('')}</dl>${etiquetaSim()}` : ''}
       ${datos ? `<dl class="tos-datos tos-datos-reales">${datos}</dl>` : ''}
       <h3 class="tos-p-sec">Mantenimiento</h3>${intervalosHTML(u, n)}`;
   }
@@ -508,20 +551,21 @@ function extruir(puntos, prof, bisel = 0.05) {
 }
 
 function ruedas(f, clave, x, z0, dual, r = 0.52) {
+  // clave = parte del eje, p. ej. 'cab-eje-0'
   const lados = dual ? [z0 - 0.3, z0] : [z0];
   [1, -1].forEach((sig) =>
     lados.forEach((z) => {
-      f.pieza(`${clave}-llantas`, cilZ(r, 0.27, 28), { x, y: r, z: sig * z, densidad: 55, umbral: 30 });
-      f.pieza(`${clave}-llantas`, cilZ(r * 0.6, 0.29, 20), { x, y: r, z: sig * z, sinPuntos: true, opacidad: 0.6 });
+      f.pieza(clave, cilZ(r, 0.27, 28), { x, y: r, z: sig * z, densidad: 55, umbral: 30 });
+      f.pieza(clave, cilZ(r * 0.6, 0.29, 20), { x, y: r, z: sig * z, sinPuntos: true, opacidad: 0.6 });
     }),
   );
-  [1, -1].forEach((sig) => f.pieza(`${clave}-frenos`, cilZ(r * 0.45, 0.18, 18), { x, y: r, z: sig * (z0 - (dual ? 0.5 : 0.25)), densidad: 40 }));
-  f.pieza(`${clave}-ejes`, cilZ(0.07, z0 * 2, 10), { x, y: r, densidad: 20 });
-  [1, -1].forEach((sig) => f.pieza(`${clave}-ejes`, cilZ(0.14, 0.12, 12), { x, y: r, z: sig * (z0 + 0.12), sinPuntos: true }));
+  [1, -1].forEach((sig) => f.pieza(clave, cilZ(r * 0.45, 0.18, 18), { x, y: r, z: sig * (z0 - (dual ? 0.5 : 0.25)), densidad: 40 }));
+  f.pieza(clave, cilZ(0.07, z0 * 2, 10), { x, y: r, densidad: 20 });
+  [1, -1].forEach((sig) => f.pieza(clave, cilZ(0.14, 0.12, 12), { x, y: r, z: sig * (z0 + 0.12), sinPuntos: true }));
 }
 
 function construirCabezal(f) {
-  ['cab-cuerpo', 'cab-motor', 'cab-transmision', 'cab-quinta', 'cab-llantas', 'cab-frenos', 'cab-ejes'].forEach((k) => f.parte(k, 'cab'));
+  ['cab-cuerpo', 'cab-motor', 'cab-transmision', 'cab-quinta', 'cab-eje-0', 'cab-eje-1', 'cab-eje-2'].forEach((k) => f.parte(k, 'cab'));
   // cabina con dormitorio (perfil lateral extruido)
   f.pieza('cab-cuerpo', extruir([[2.15, 1.15], [2.15, 2.2], [1.55, 3.05], [1.45, 3.17, 1.28, 3.17], [-0.25, 3.2], [-0.55, 3.78, -1.15, 3.8], [-1.15, 1.15]], 2.3, 0.06), { densidad: 45, umbral: 20 });
   // capó
@@ -559,14 +603,14 @@ function construirCabezal(f) {
   f.pieza('cab-quinta', new T.CylinderGeometry(0.55, 0.55, 0.1, 28), { x: -2.2, y: 1.17, densidad: 90 });
   f.pieza('cab-quinta', caja(0.9, 0.08, 1.2), { x: -2.2, y: 1.08, sinPuntos: true });
   // ruedas, frenos y ejes
-  ruedas(f, 'cab', EJES_CAB[0], 1.1, false);
-  ruedas(f, 'cab', EJES_CAB[1], 1.25, true);
-  ruedas(f, 'cab', EJES_CAB[2], 1.25, true);
+  ruedas(f, 'cab-eje-0', EJES_CAB[0], 1.1, false);
+  ruedas(f, 'cab-eje-1', EJES_CAB[1], 1.25, true);
+  ruedas(f, 'cab-eje-2', EJES_CAB[2], 1.25, true);
 }
 
 function construirRemolque(f, rem, comps, enganchado) {
   const p = plantilla(rem.tipo_unidad_id);
-  ['rem-cuerpo', 'rem-tanque', 'rem-valvulas', 'rem-quinta', 'rem-llantas', 'rem-frenos', 'rem-ejes', 'rem-piso', 'rem-twist', 'rem-puertas', 'rem-frio'].forEach((k) => f.parte(k, 'rem'));
+  ['rem-cuerpo', 'rem-tanque', 'rem-valvulas', 'rem-quinta', 'rem-eje-0', 'rem-eje-1', 'rem-eje-2', 'rem-piso', 'rem-twist', 'rem-puertas', 'rem-frio'].forEach((k) => f.parte(k, 'rem'));
   // bastidor, patas de apoyo y parachoques
   [1, -1].forEach((s) => f.pieza('rem-cuerpo', caja(11.3, 0.22, 0.12), { x: -7.4, y: 1.22, z: s * 0.5, densidad: 20 }));
   const pata = enganchado ? 0.75 : 1.05;
@@ -622,7 +666,7 @@ function construirRemolque(f, rem, comps, enganchado) {
   } else {
     f.pieza('rem-cuerpo', caja(11.4, 2.2, 2.5), { x: -7.35, y: 2.45, densidad: 6, opacidad: 0.6 });
   }
-  EJES_REM.forEach((x) => ruedas(f, 'rem', x, 1.25, true, 0.5));
+  EJES_REM.forEach((x, i) => ruedas(f, `rem-eje-${i}`, x, 1.25, true, 0.5));
 }
 
 function construirEntorno(escena, sprite) {
@@ -877,8 +921,8 @@ function ponerFoco(foco) {
   // paneles por defecto, como en un tablero: uno a cada lado
   const id = (x) => (visibles.some((p) => p.id === x) ? x : null);
   if (foco === 'todo') estado.paneles = { izq: id('u-cab'), der: id('u-rem') };
-  else if (foco === 'cab') estado.paneles = { izq: id('cab-motor'), der: id('cab-llantas') };
-  else estado.paneles = { izq: id('rem-tanque') || visibles[0]?.id || null, der: id('rem-llantas') };
+  else if (foco === 'cab') estado.paneles = { izq: id('cab-motor'), der: id('cab-eje-0') || id('cab-llantas') };
+  else estado.paneles = { izq: id('rem-tanque') || visibles[0]?.id || null, der: id('rem-eje-0') || id('rem-llantas') };
   pintarPaneles();
   encuadrar(foco);
 }

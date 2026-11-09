@@ -1,7 +1,6 @@
 // Vista 3D del camión conectada a la demo "Mi Trailer": arma en memoria el cabezal, la cisterna
 // y el conductor a partir de la sesión y los mantenimientos guardados por la demo.
 import { usarDatos } from './store.js';
-import { PLANTILLAS } from './plantillas.js';
 import { buscarModelo, INTERVALOS_GENERICOS } from './catalogo.js';
 import { htmlVista, montarVista } from './vista.js';
 
@@ -30,16 +29,20 @@ if (!sesion?.placa) {
   };
   const rem = {
     id: 'cisterna', rol: 'remolque', tipo_unidad_id: 'tanquero', activa: true, placa: 'Cisterna',
-    marca: 'Cisterna', modelo: 'de combustible', anio: null, num_ejes: 2, num_llantas: 8,
+    marca: 'Cisterna', modelo: 'de combustible', anio: null, num_ejes: 3, num_llantas: 12,
     atributos: { material: 'Acero', producto: 'Combustible', capacidad_galones: 10000 },
   };
+  // Cada eje es una parte propia: se daña y se repara por separado
+  const PARTES_3D = {
+    cabezal: ['Motor', 'Transmisión', 'Quinta rueda', 'Eje delantero', 'Eje trasero 1', 'Eje trasero 2'],
+    cisterna: ['Quinta rueda', 'Tanque', 'Válvulas', 'Eje 1', 'Eje 2', 'Eje 3'],
+  };
   const componentes = [];
-  [[cab, 'tracto'], [rem, 'tanquero']].forEach(([u, tipo]) =>
-    PLANTILLAS.find((p) => p.id === tipo).componentes.forEach((nombre, i) =>
-      componentes.push({ id: `${u.id}-${i}`, unidad_id: u.id, tipo: 'general', nombre, orden: i + 1, activo: true }),
-    ),
+  [cab, rem].forEach((u) =>
+    PARTES_3D[u.id].forEach((nombre, i) => componentes.push({ id: `${u.id}-${i}`, unidad_id: u.id, tipo: 'general', nombre, orden: i + 1, activo: true })),
   );
-  [2000, 2000, 3000, 3000].forEach((g, i) =>
+  // Compartimento 1 (junto al cabezal) 3.000, 2 y 3 de 2.000, 4 de 3.000
+  [3000, 2000, 2000, 3000].forEach((g, i) =>
     componentes.push({ id: `comp-${i + 1}`, unidad_id: rem.id, tipo: 'compartimento', nombre: '', orden: i + 1, capacidad_galones: g, activo: true }),
   );
   const cat = buscarModelo(cab.marca, cab.modelo, cab.anio);
@@ -65,12 +68,18 @@ if (!sesion?.placa) {
 
   // Partes de la demo que corresponden a cada componente del modelo 3D
   const PARTES = {
+    // Los nombres antiguos (antes de separar los ejes) se mantienen para no perder registros previos
     cabezal: {
-      Motor: ['Motor Detroit'], 'Transmisión': ['Caja de Cambios'], Frenos: ['Frenos / Eje Cabezal'], Ejes: ['Frenos / Eje Cabezal'],
-      Llantas: ['Dirección y Llantas Delanteras'], 'Quinta rueda': ['Quinta Rueda'],
+      Motor: ['Motor Detroit'], 'Transmisión': ['Caja de Cambios'], 'Quinta rueda': ['Quinta Rueda'],
+      'Eje delantero': ['Eje Delantero Cabezal', 'Dirección y Llantas Delanteras'],
+      'Eje trasero 1': ['Eje Trasero 1 Cabezal', 'Frenos / Eje Cabezal'],
+      'Eje trasero 2': ['Eje Trasero 2 Cabezal', 'Frenos / Eje Cabezal'],
     },
     cisterna: {
-      Ejes: ['Ejes y Llantas Remolque'], Frenos: ['Ejes y Llantas Remolque'], Llantas: ['Ejes y Llantas Remolque'], 'Quinta rueda': ['Quinta Rueda'],
+      'Quinta rueda': ['Quinta Rueda'],
+      'Eje 1': ['Eje 1 Remolque', 'Ejes y Llantas Remolque'],
+      'Eje 2': ['Eje 2 Remolque', 'Ejes y Llantas Remolque'],
+      'Eje 3': ['Eje 3 Remolque', 'Ejes y Llantas Remolque'],
       Tanque: ['Tanque - Compartimento 1', 'Tanque - Compartimento 2', 'Tanque - Compartimento 3', 'Tanque - Compartimento 4'],
     },
   };
