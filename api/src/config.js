@@ -10,6 +10,7 @@ export function leerConfig(entorno = process.env) {
   return {
     prod,
     puerto: Number(entorno.PORT || 3000),
+    proxies: Number(entorno.TRUST_PROXY ?? 1),
     baseDatos: entorno.DATABASE_URL || '',
     // Orígenes permitidos para el frontend (separados por coma)
     origenes: (entorno.CORS_ORIGENES || 'http://localhost:8790,https://app.camiones-wang.workers.dev').split(',').map((s) => s.trim()),

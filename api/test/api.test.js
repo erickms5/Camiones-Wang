@@ -148,3 +148,22 @@ test('otra cuenta no puede ver datos ajenos', async () => {
   await otro.get(`/mantenimientos/${t.mant}`).expect(404);
   assert.equal((await otro.get('/reportes').expect(200)).body.reportes.length, 0);
 });
+
+test('un código se bloquea tras 5 intentos fallidos, aunque lleguen en paralelo', async () => {
+  const email = 'chofer@ejemplo.com';
+  await request(app).post('/auth/codigo').send({ email }).expect(200);
+  const bueno = codigos.get(email);
+  const malo = bueno === '123456' ? '654321' : '123456';
+  await Promise.all(Array.from({ length: 8 }, () => request(app).post('/auth/verificar').send({ email, codigo: malo })));
+  await request(app).post('/auth/verificar').send({ email, codigo: bueno }).expect(401);
+});
+
+test('un código nuevo anula el anterior', async () => {
+  const email = 'chofer@ejemplo.com';
+  await request(app).post('/auth/codigo').send({ email }).expect(200);
+  const viejo = codigos.get(email);
+  await request(app).post('/auth/codigo').send({ email }).expect(200);
+  const nuevo = codigos.get(email);
+  if (viejo !== nuevo) await request(app).post('/auth/verificar').send({ email, codigo: viejo }).expect(401);
+  await request(app).post('/auth/verificar').send({ email, codigo: nuevo }).expect(200);
+});

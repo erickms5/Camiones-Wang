@@ -23,7 +23,8 @@ export function crearApp(dep) {
   const { db, seguridad, config } = dep;
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  // Número de proxies delante (Render: 1). Así el límite por IP usa la IP real del cliente.
+  app.set('trust proxy', config.proxies);
   app.use(helmet());
   app.use(cors({ origin: config.origenes, allowedHeaders: ['Content-Type', 'Authorization'], methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'] }));
   app.use(express.json({ limit: '1mb' }));

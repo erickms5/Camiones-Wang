@@ -2,23 +2,38 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import crypto from 'node:crypto';
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { and, count, desc, eq, gt, lt, sql } from 'drizzle-orm';
+import { rateLimit } from 'express-rate-limit';
 import { codigosAcceso, cuentas, sesiones, usuarios } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
 import { mascaraCedula } from '../seguridad.js';
 
 const email = z.string().trim().toLowerCase().email('Escribe un correo válido');
 const DIAS_SESION = 30;
+const MAX_INTENTOS = 5;
+const MAX_CODIGOS_HORA = 5;
 
 export const usuarioPublico = (u, seguridad) => ({
   id: u.id, nombre: u.nombre, email: u.email, rol: u.rol, telefono: u.telefono, cuentaId: u.cuentaId,
   cedula: u.cedulaCifrada ? mascaraCedula(seguridad.descifrarCedula(u.cedulaCifrada)) : null,
 });
 
-export function rutasAuth({ db, seguridad, correo, autenticado }) {
+export function rutasAuth({ db, seguridad, correo, autenticado, config }) {
   const r = Router();
+  // Además del límite por IP: límite por correo (frena ataques repartidos entre muchas IP)
+  const porCorreo = rateLimit({
+    windowMs: 15 * 60 * 1000, limit: config?.prod ? 10 : 1000, standardHeaders: 'draft-8', legacyHeaders: false,
+    keyGenerator: (req) => `correo:${String(req.body?.email || '').trim().toLowerCase()}`,
+    message: { error: 'Demasiados intentos. Espera unos minutos.' },
+  });
 
   async function enviarCodigo(correoDestino) {
+    // Máximo de códigos por hora para un mismo correo
+    const [{ n }] = await db.select({ n: count() }).from(codigosAcceso)
+      .where(and(eq(codigosAcceso.email, correoDestino), gt(codigosAcceso.creadoEn, new Date(Date.now() - 3600_000))));
+    if (n >= MAX_CODIGOS_HORA) return;
+    // Un código nuevo anula los anteriores
+    await db.update(codigosAcceso).set({ usado: true }).where(and(eq(codigosAcceso.email, correoDestino), eq(codigosAcceso.usado, false)));
     const codigo = seguridad.nuevoCodigo();
     await db.insert(codigosAcceso).values({ email: correoDestino, codigoHash: seguridad.hashCodigo(correoDestino, codigo), expiraEn: new Date(Date.now() + 10 * 60 * 1000) });
     await correo.enviarCodigo(correoDestino, codigo);
@@ -36,26 +51,31 @@ export function rutasAuth({ db, seguridad, correo, autenticado }) {
   });
 
   // Pedir código. Responde igual exista o no el correo (no revela quién está registrado).
-  r.post('/codigo', async (req, res) => {
+  r.post('/codigo', porCorreo, async (req, res) => {
     const d = z.object({ email }).parse(req.body);
     const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
     if (u) await enviarCodigo(d.email);
     res.json({ ok: true, mensaje: 'Si el correo está registrado, te llegará un código' });
   });
 
-  r.post('/verificar', async (req, res) => {
+  r.post('/verificar', porCorreo, async (req, res) => {
     const d = z.object({ email, codigo: z.string().trim().regex(/^\d{6}$/, 'El código tiene 6 números') }).parse(req.body);
-    const [c] = await db.select().from(codigosAcceso)
+    const [vigente] = await db.select({ id: codigosAcceso.id }).from(codigosAcceso)
       .where(and(eq(codigosAcceso.email, d.email), eq(codigosAcceso.usado, false), gt(codigosAcceso.expiraEn, new Date())))
       .orderBy(desc(codigosAcceso.creadoEn)).limit(1);
-    if (!c || c.intentos >= 5) throw new ErrorHttp(401, 'El código venció o no es válido. Pide uno nuevo.');
+    // El intento se cuenta y se comprueba en una sola operación: intentos en paralelo no pasan del máximo
+    const [c] = vigente
+      ? await db.update(codigosAcceso).set({ intentos: sql`${codigosAcceso.intentos} + 1` })
+        .where(and(eq(codigosAcceso.id, vigente.id), eq(codigosAcceso.usado, false), lt(codigosAcceso.intentos, MAX_INTENTOS))).returning()
+      : [];
+    if (!c) throw new ErrorHttp(401, 'El código venció o no es válido. Pide uno nuevo.');
     const esperado = Buffer.from(c.codigoHash);
     const recibido = Buffer.from(seguridad.hashCodigo(d.email, d.codigo));
-    if (esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) {
-      await db.update(codigosAcceso).set({ intentos: c.intentos + 1 }).where(eq(codigosAcceso.id, c.id));
-      throw new ErrorHttp(401, 'Código incorrecto');
-    }
-    await db.update(codigosAcceso).set({ usado: true }).where(eq(codigosAcceso.id, c.id));
+    if (esperado.length !== recibido.length || !crypto.timingSafeEqual(esperado, recibido)) throw new ErrorHttp(401, 'Código incorrecto');
+    // Se marca usado solo si nadie lo usó antes (dos verificaciones simultáneas no abren dos sesiones)
+    const [marcado] = await db.update(codigosAcceso).set({ usado: true })
+      .where(and(eq(codigosAcceso.id, c.id), eq(codigosAcceso.usado, false))).returning({ id: codigosAcceso.id });
+    if (!marcado) throw new ErrorHttp(401, 'El código ya fue usado. Pide uno nuevo.');
     const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
     if (!u) throw new ErrorHttp(401, 'Cuenta no disponible');
     const token = seguridad.nuevoToken();
