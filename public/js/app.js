@@ -4,38 +4,16 @@ import { plantilla, plantillasPorRol, ICONOS } from './plantillas.js';
 import { buscarModelo, sugerirMarcas, sugerirModelos, INTERVALOS_GENERICOS } from './catalogo.js';
 import * as V from './validaciones.js';
 import { db, guardar, uid, auditar, resetear, ahora } from './store.js';
+import {
+  esc, unidad, activas, conductor, nombreUnidad, acopleActivo, pareja, asignacionActiva, conductorDe,
+  lecturasKm, compartimentosDe, unidadesDeConductor, conductorYo, kmDe,
+} from './consultas.js';
+import { htmlVista, montarVista } from './vista.js';
 
 const app = document.getElementById('app');
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const hoy = () => new Date().toISOString().slice(0, 10);
 const fecha = (iso) => (iso ? new Date(iso.length === 10 ? iso + 'T12:00:00' : iso).toLocaleDateString('es-EC', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 const anioMax = () => new Date().getFullYear() + 1;
-
-// ---------------------------------------------------------------- consultas
-const unidad = (id) => db().unidades.find((u) => u.id === id);
-const activas = () => db().unidades.filter((u) => u.activa);
-const conductor = (id) => db().conductores.find((c) => c.id === id);
-const nombreUnidad = (u) => [u.marca, u.modelo, u.anio].filter(Boolean).join(' ');
-const acopleActivo = (id) => db().acoplamientos.find((a) => !a.hasta && (a.cabezal_id === id || a.remolque_id === id));
-function pareja(id) {
-  const a = acopleActivo(id);
-  return a ? unidad(a.cabezal_id === id ? a.remolque_id : a.cabezal_id) : null;
-}
-const asignacionActiva = (id) => db().asignaciones.find((a) => !a.hasta && a.unidad_id === id);
-const conductorDe = (id) => {
-  const a = asignacionActiva(id);
-  return a ? conductor(a.conductor_id) : null;
-};
-const lecturasKm = (id) => db().odometro.filter((o) => o.unidad_id === id).sort((a, b) => b.registrado_en.localeCompare(a.registrado_en));
-const compartimentosDe = (id) => db().componentes.filter((c) => c.unidad_id === id && c.tipo === 'compartimento' && c.activo).sort((a, b) => a.orden - b.orden);
-const unidadesDeConductor = (cid) => db().asignaciones.filter((a) => !a.hasta && a.conductor_id === cid).map((a) => unidad(a.unidad_id)).filter((u) => u?.activa);
-const conductorYo = () => db().conductores.find((c) => c.esUsuario);
-
-function kmDe(u) {
-  if (u.rol === 'cabezal') return { km: lecturasKm(u.id)[0]?.km, desde: null };
-  const cab = pareja(u.id);
-  return cab ? { km: lecturasKm(cab.id)[0]?.km, desde: cab } : { km: undefined, desde: null };
-}
 
 // ---------------------------------------------------------------- piezas de interfaz
 function placaHTML(p, grande = false) {
@@ -227,7 +205,15 @@ window.addEventListener('hashchange', () => render());
 function render() {
   const { v, id } = ruta();
   document.body.classList.toggle('en-registro', v === 'registro');
+  document.body.classList.toggle('modo-holo', v === 'vista');
   if (v === 'registro') return renderRegistro();
+  if (v === 'vista') {
+    app.innerHTML = htmlVista(id);
+    window.scrollTo(0, 0);
+    montarVista();
+    app.querySelector('h1')?.focus({ preventScroll: true });
+    return;
+  }
   const vistas = { inicio: vistaInicio, unidad: vistaUnidad, intervalos: vistaIntervalos, conductores: vistaConductores, conductor: vistaConductor, cuenta: vistaCuenta };
   app.innerHTML = (vistas[v] || vistaInicio)(id);
   window.scrollTo(0, 0);
@@ -280,6 +266,8 @@ function vistaInicio() {
       <p>Empiece por la placa del cabezal o del remolque.</p>
     </div>`;
   } else {
+    const principal = lista.find((u) => u.rol === 'cabezal' && pareja(u.id)) || lista.find((u) => u.rol === 'cabezal') || lista[0];
+    html += `<a class="btn btn-holo btn-bloque" href="#/vista/${principal.id}"><span aria-hidden="true">◈</span> Ver camión interactivo</a>`;
     html += `<div class="lista">${lista.map(tarjetaUnidad).join('')}</div>`;
     sinConductor.forEach((u) => {
       html += `<p class="recordatorio">La unidad <strong>${esc(u.placa)}</strong> no tiene conductor. <a href="#/unidad/${u.id}">Asignar</a></p>`;
@@ -320,6 +308,7 @@ function vistaUnidad(id) {
     <span class="tu-icono grande">${ICONOS[u.tipo_unidad_id] || ICONOS.otro}</span>
     <div>${placaHTML(u.placa, true)}<h1 tabindex="-1">${esc(nombreUnidad(u))}</h1>${!u.activa ? '<span class="insignia">Dada de baja</span>' : ''}</div>
   </div>
+  ${u.activa ? `<a class="btn btn-holo btn-bloque" href="#/vista/${u.id}"><span aria-hidden="true">◈</span> Ver camión interactivo</a>` : ''}
 
   <section class="tarjeta">
     <h2>Kilometraje</h2>

@@ -18,6 +18,8 @@ public/               ← todo lo que se publica
   js/textos.js        todos los mensajes
   js/config.js        decisiones abiertas D1–D5
   js/store.js         almacenamiento local
+  js/consultas.js     consultas de datos (unidades, acoples, km, intervalos)
+  js/vista.js         vista interactiva del camión (holográfica)
   sw.js               funcionamiento sin conexión
 tests/                pruebas de validaciones
 wrangler.jsonc        configuración de Cloudflare Workers
