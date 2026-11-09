@@ -79,7 +79,6 @@ const esquemaUnidad = z.object({
   kmInicial: z.number().int().min(0).max(5_000_000).optional(),
 }).superRefine((d, ctx) => {
   if (d.tipo === 'tanquero' && !d.compartimentos) ctx.addIssue({ code: 'custom', path: ['compartimentos'], message: 'Agrega al menos un compartimento' });
-  if (d.rol === 'cabezal' && d.kmInicial === undefined) ctx.addIssue({ code: 'custom', path: ['kmInicial'], message: 'Escribe el kilometraje del cabezal' });
 });
 
 export function rutasUnidades({ db, soloDueno }) {
@@ -101,7 +100,8 @@ export function rutasUnidades({ db, soloDueno }) {
       }).returning();
       await tx.insert(componentes).values(arbolComponentes(nueva, d.compartimentos));
       if (d.rol === 'cabezal') {
-        await tx.insert(odometro).values({ unidadId: nueva.id, km: d.kmInicial, fuente: 'registro', registradoPor: req.usuario.id });
+        // El km puede quedar pendiente: el dueño lo pone después
+        if (d.kmInicial !== undefined) await tx.insert(odometro).values({ unidadId: nueva.id, km: d.kmInicial, fuente: 'registro', registradoPor: req.usuario.id });
         const cat = buscarModelo(d.marca, d.modelo, d.anio);
         await tx.insert(intervalos).values((cat ? cat.intervalos : INTERVALOS_GENERICOS).map((x) => ({
           unidadId: nueva.id, tarea: x.tarea, componente: x.componente, cadaKm: x.cada_km, cadaMeses: x.cada_meses, origen: cat ? cat.id : 'generico',
@@ -124,6 +124,17 @@ export function rutasUnidades({ db, soloDueno }) {
       db.select().from(acoplamientos).where(and(or(eq(acoplamientos.cabezalId, u.id), eq(acoplamientos.remolqueId, u.id)), isNull(acoplamientos.hasta))),
     ]);
     res.json({ unidad: u, componentes: partes, km: km[0]?.km ?? null, intervalos: ints, acople: acople[0] || null });
+  });
+
+  // Solo el dueño pone o corrige el km del cabezal (queda registrado con su motivo); el chofer no puede
+  r.post('/:id/km', soloDueno, async (req, res) => {
+    const u = await unidadAccesible(db, req.usuario, req.params.id);
+    if (u.rol !== 'cabezal') throw new ErrorHttp(400, 'El kilometraje se registra en el cabezal');
+    const d = z.object({ km: z.number().int().min(0).max(5_000_000), motivo: z.string().trim().min(3, 'Escribe el motivo del cambio').max(200) }).parse(req.body);
+    const [anterior] = await db.select().from(odometro).where(eq(odometro.unidadId, u.id)).orderBy(desc(odometro.registradoEn)).limit(1);
+    const [l] = await db.insert(odometro).values({ unidadId: u.id, km: d.km, fuente: anterior ? 'correccion_dueno' : 'registro', registradoPor: req.usuario.id }).returning();
+    await db.insert(auditoria).values({ cuentaId: req.usuario.cuentaId, usuarioId: req.usuario.id, entidad: 'unidad', entidadId: u.id, accion: 'corregir_km', datos: { antes: anterior?.km ?? null, despues: d.km, motivo: d.motivo } });
+    res.status(201).json({ lectura: l });
   });
 
   r.post('/:id/acoplar', soloDueno, async (req, res) => {

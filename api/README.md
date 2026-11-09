@@ -35,7 +35,7 @@ Las contraseñas se guardan con scrypt (nunca en texto). Cambiar la contraseña 
 
 ## Kilometraje
 
-Se pide al registrar el cabezal (punto de partida) y después **solo sube con el km de cada mantenimiento**; no hay forma de editarlo a mano. Los trabajos del remolque cuentan para el cabezal enganchado.
+Se pide al registrar el cabezal (puede quedar pendiente) y después **sube solo con el km de cada mantenimiento**. Solo el dueño puede ponerlo o corregirlo (`POST /unidades/:id/km` con motivo, queda en la auditoría); el chofer no. Los trabajos del remolque cuentan para el cabezal enganchado.
 
 ## Rutas principales
 

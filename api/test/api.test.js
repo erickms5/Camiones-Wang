@@ -195,3 +195,16 @@ test('intentos fallidos en paralelo no se saltan la pausa', async () => {
   await Promise.all(Array.from({ length: 12 }, () => request(app).post('/auth/entrar').send({ email: 'chofer@ejemplo.com', clave: 'mal' })));
   await request(app).post('/auth/entrar').send({ email: 'chofer@ejemplo.com', clave: 'paralelo1' }).expect(429);
 });
+
+test('cabezal sin km: el dueño lo pone después y lo corrige con motivo; el chofer no puede', async () => {
+  const r = await t.dueno.post('/unidades', { rol: 'cabezal', tipo: 'tracto', placa: 'ZZZ-9999', marca: 'Freightliner', modelo: 'Columbia', numEjes: 3, numLlantas: 10, atributos: { motor: 'Cummins ISX 500' } }).expect(201);
+  const id = r.body.unidad.id;
+  assert.equal((await t.dueno.get(`/unidades/${id}`)).body.km, null);
+  await t.dueno.post(`/unidades/${id}/km`, { km: 250000 }).expect(400); // falta el motivo
+  await t.dueno.post(`/unidades/${id}/km`, { km: 250000, motivo: 'Lectura del tablero' }).expect(201);
+  await t.dueno.post(`/unidades/${id}/km`, { km: 245000, motivo: 'Corrección: estaba mal leído' }).expect(201);
+  assert.equal((await t.dueno.get(`/unidades/${id}`)).body.km, 245000);
+  await t.dueno.patch(`/choferes/${t.choferId}`, { clave: 'kmchofer1' }).expect(200);
+  const chofer = como(await entrar('chofer@ejemplo.com', 'kmchofer1'));
+  await chofer.post(`/unidades/${t.cabezal}/km`, { km: 1, motivo: 'intento' }).expect(403);
+});

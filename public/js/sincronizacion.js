@@ -109,7 +109,7 @@ export async function iniciarSesionServidor(token) {
     rol: usuario.rol,
     trailerModel: [cabezal.marca, cabezal.modelo, cabezal.anio].filter(Boolean).join(' '),
     engine: cabezal.atributos?.motor || 'Motor',
-    odometro: det.km || 0,
+    odometro: det.km ?? 0, // null = el dueño aún no pone el km
     servidor: {
       cabezalId: cabezal.id,
       remolqueId: detRem?.unidad.id || null,
@@ -355,6 +355,12 @@ function pantallaIngreso(app) {
 
 // ---------------------------------------------------------------- conexión con la app de la demo
 function conectar(app) {
+  // Km real: el del servidor o el mayor de los mantenimientos (sin valores inventados si aún no hay km)
+  const maxKmOriginal = app.getMaxKm.bind(app);
+  app.getMaxKm = () => {
+    if (!app.session?.servidor) return maxKmOriginal();
+    return app.maintenances.reduce((max, m) => Math.max(max, Number(m.km) || 0), app.session.servidor.km || 0);
+  };
   pantallaIngreso(app);
   // Cada vez que se muestra el ingreso, empieza desde el correo (no desde el código anterior)
   const cambiarVista = app.switchView.bind(app);
@@ -386,7 +392,7 @@ function conectar(app) {
     // El km solo sube con los mantenimientos y no se puede corregir: se frena un salto imposible antes de guardar
     const km = parseInt(document.getElementById('maint-km')?.value, 10);
     const actual = app.session?.servidor?.km || 0;
-    if (app.session?.servidor && km > actual + 60000) {
+    if (app.session?.servidor && actual > 0 && km > actual + 60000) {
       e?.preventDefault?.();
       return app.showToast(`El km ${km.toLocaleString('es-EC')} es mucho mayor al actual (${actual.toLocaleString('es-EC')}). Revisa que esté bien escrito.`, 'warning');
     }

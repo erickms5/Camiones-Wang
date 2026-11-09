@@ -56,11 +56,11 @@ async function cabezalDe(db, usuario, unidadId) {
     return null;
   }
   const [ultimo] = await db.select().from(odometro).where(eq(odometro.unidadId, cabezalId)).orderBy(desc(odometro.registradoEn)).limit(1);
-  return { cabezalId, kmActual: ultimo?.km ?? 0 };
+  return { cabezalId, kmActual: ultimo?.km ?? null }; // null: el dueño aún no pone el km
 }
 
 async function actualizarKm(db, usuario, cab, km, mantenimientoId) {
-  if (!cab || km <= cab.kmActual) return;
+  if (!cab || (cab.kmActual !== null && km <= cab.kmActual)) return;
   await db.insert(odometro).values({ unidadId: cab.cabezalId, km, fuente: `mantenimiento:${mantenimientoId}`, registradoPor: usuario.id });
 }
 
@@ -72,7 +72,7 @@ export function rutasMantenimientos({ db, almacen }) {
     if (d.unidadId) await unidadAccesible(db, req.usuario, d.unidadId);
     // El km no se puede editar después: se rechazan saltos imposibles para no dañarlo con un error de tipeo
     const cab = d.unidadId ? await cabezalDe(db, req.usuario, d.unidadId) : null;
-    if (cab && d.km > cab.kmActual + SALTO_MAXIMO_KM) {
+    if (cab && cab.kmActual !== null && d.km > cab.kmActual + SALTO_MAXIMO_KM) {
       throw new ErrorHttp(400, `El kilometraje ${d.km.toLocaleString('es-EC')} es ${(d.km - cab.kmActual).toLocaleString('es-EC')} km mayor al actual (${cab.kmActual.toLocaleString('es-EC')}). Revisa que esté bien escrito.`);
     }
     // Reintento desde el teléfono (mismo id): se devuelve lo ya guardado sin duplicar

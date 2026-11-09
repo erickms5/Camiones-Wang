@@ -181,14 +181,37 @@ $('c-form').onsubmit = async (e) => {
 async function cargarUnidades() {
   const { unidades } = await api('/unidades');
   datos.unidades = unidades;
+  // Km actual de cada cabezal (puede estar pendiente)
+  const km = {};
+  await Promise.all(unidades.filter((u) => u.rol === 'cabezal').map(async (u) => (km[u.id] = (await api(`/unidades/${u.id}`)).km)));
   $('u-lista').innerHTML = unidades.length
     ? unidades.map((u) => `
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
         <span class="font-mono font-black bg-white text-slate-900 px-2 py-0.5 rounded">${esc(u.placa)}</span>
         <p class="text-white font-bold mt-2">${esc(u.rol === 'cabezal' ? 'Cabezal' : `Remolque ${u.tipo}`)} · ${esc(u.marca)} ${esc(u.modelo)} ${esc(u.anio || '')}</p>
+        ${u.atributos?.motor ? `<p class="text-xs text-cyan-300">Motor ${esc(u.atributos.motor)}</p>` : ''}
+        ${u.rol === 'cabezal' ? `<div class="flex items-center justify-between gap-2 mt-2 bg-slate-950 border border-slate-800 rounded-xl p-2">
+          <span class="text-sm ${km[u.id] == null ? 'text-amber-300 font-bold' : 'text-emerald-300 font-mono font-bold'}">${km[u.id] == null ? 'Km pendiente' : `${esc(miles(km[u.id]))} km`}</span>
+          <button data-km="${esc(u.id)}" data-placa="${esc(u.placa)}" data-actual="${km[u.id] ?? ''}" class="px-3 py-1.5 rounded-lg border border-cyan-500/40 text-cyan-300 text-sm font-bold">${km[u.id] == null ? 'Poner km' : 'Corregir km'}</button>
+        </div>` : ''}
         <p class="text-xs text-slate-400">${esc(u.numEjes)} ejes · ${esc(u.numLlantas)} llantas${u.atributos?.capacidad_galones ? ` · ${esc(miles(u.atributos.capacidad_galones))} gal` : ''}</p>
       </div>`).join('')
     : '<p class="text-slate-400 italic">Aún no registras camiones.</p>';
+  // Poner o corregir el km (solo el dueño; queda registrado con el motivo)
+  $('u-lista').querySelectorAll('[data-km]').forEach((b) => (b.onclick = async () => {
+    const valor = prompt(`Kilometraje actual del cabezal ${b.dataset.placa}:`, b.dataset.actual);
+    if (valor === null) return;
+    const kmNuevo = Number(String(valor).replace(/\D/g, ''));
+    const motivo = b.dataset.actual ? prompt('¿Por qué lo corriges? (queda registrado)') : 'Kilometraje inicial';
+    if (!motivo) return;
+    try {
+      await api(`/unidades/${b.dataset.km}/km`, { metodo: 'POST', cuerpo: { km: kmNuevo, motivo } });
+      aviso('Kilometraje guardado');
+      await cargarUnidades();
+    } catch (err) {
+      aviso(err.message, 'error');
+    }
+  }));
   const op = (lista) => lista.map((u) => `<option value="${esc(u.id)}">${esc(u.placa)} · ${esc(u.marca)}</option>`).join('');
   document.querySelector('#a-form [name=cabezal]').innerHTML = op(unidades.filter((u) => u.rol === 'cabezal'));
   document.querySelector('#a-form [name=remolque]').innerHTML = op(unidades.filter((u) => u.rol === 'remolque'));
@@ -199,6 +222,7 @@ const formU = $('u-form');
 formU.tipo.onchange = () => {
   const cabezal = formU.tipo.value === 'tracto';
   $('u-km').classList.toggle('hidden', !cabezal);
+  $('u-motor').classList.toggle('hidden', !cabezal);
   $('u-comps').classList.toggle('hidden', formU.tipo.value !== 'tanquero');
 };
 formU.onsubmit = async (e) => {
@@ -213,6 +237,7 @@ formU.onsubmit = async (e) => {
         rol: cabezal ? 'cabezal' : 'remolque', tipo: f.get('tipo'), placa: f.get('placa'), marca: f.get('marca'), modelo: f.get('modelo'),
         anio: num('anio'), numEjes: num('numEjes'), numLlantas: num('numLlantas'),
         kmInicial: cabezal ? num('kmInicial') : undefined,
+        atributos: cabezal && f.get('motor') ? { motor: String(f.get('motor')).trim() } : {},
         compartimentos: f.get('tipo') === 'tanquero' ? String(f.get('compartimentos')).split(',').map((x) => Number(x.replace(/\D/g, ''))).filter((x) => !Number.isNaN(x)) : undefined,
       },
     });
