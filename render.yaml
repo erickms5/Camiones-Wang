@@ -1,0 +1,38 @@
+# Render Blueprint: crea el servidor (API Node.js) y su base de datos PostgreSQL desde este repositorio.
+# En Render: New → Blueprint → elegir este repositorio → Apply.
+services:
+  - type: web
+    name: mi-trailer-api
+    runtime: node
+    rootDir: api
+    plan: free
+    region: oregon
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /salud
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mi-trailer-db
+          property: connectionString
+      # Claves secretas generadas por Render (no se deben cambiar después: la cédula se cifra con CEDULA_CLAVE)
+      - key: CEDULA_CLAVE
+        generateValue: true
+      - key: PIMIENTA
+        generateValue: true
+      - key: CORS_ORIGENES
+        value: https://app.camiones-wang.workers.dev
+      - key: TRUST_PROXY
+        value: "1"
+
+databases:
+  - name: mi-trailer-db
+    plan: free
+    region: oregon
+    databaseName: mitrailer
+    user: mitrailer

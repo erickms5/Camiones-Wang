@@ -136,7 +136,9 @@ export function rutasMantenimientos({ db, almacen }) {
   r.get('/evidencias/:id/archivo', async (req, res) => {
     const ev = await evidenciaVisible(req);
     if (!ev.claveAlmacen) throw new ErrorHttp(404, 'Archivo aún no subido');
-    res.type(ev.mime).set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(ev.nombreArchivo)}`).send(await almacen.leer(ev.claveAlmacen));
+    const datos = await almacen.leer(ev.claveAlmacen);
+    if (!datos) throw new ErrorHttp(404, 'Archivo no disponible');
+    res.type(ev.mime).set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(ev.nombreArchivo)}`).send(datos);
   });
 
   async function evidenciaVisible(req) {

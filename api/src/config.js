@@ -1,6 +1,6 @@
 // Configuración desde variables de entorno (ver .env.example)
-const requerida = (k, def) => {
-  const v = process.env[k] ?? def;
+const requerida = (entorno, k, def) => {
+  const v = entorno[k] ?? def;
   if (v === undefined) throw new Error(`Falta la variable de entorno ${k}`);
   return v;
 };
@@ -15,8 +15,8 @@ export function leerConfig(entorno = process.env) {
     // Orígenes permitidos para el frontend (separados por coma)
     origenes: (entorno.CORS_ORIGENES || 'http://localhost:8790,http://127.0.0.1:8790,https://app.camiones-wang.workers.dev').split(',').map((s) => s.trim()),
     // Clave de 32 bytes en base64 para cifrar cédulas; en desarrollo se usa una fija
-    claveCedula: prod ? requerida('CEDULA_CLAVE') : entorno.CEDULA_CLAVE || Buffer.alloc(32, 7).toString('base64'),
-    pimienta: prod ? requerida('PIMIENTA') : entorno.PIMIENTA || 'desarrollo',
+    claveCedula: prod ? requerida(entorno, 'CEDULA_CLAVE') : entorno.CEDULA_CLAVE || Buffer.alloc(32, 7).toString('base64'),
+    pimienta: prod ? requerida(entorno, 'PIMIENTA') : entorno.PIMIENTA || 'desarrollo',
     carpetaArchivos: entorno.CARPETA_ARCHIVOS || './archivos',
   };
 }

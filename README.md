@@ -18,6 +18,7 @@ public/
   js/consultas.js, store.js, plantillas.js, validaciones.js, textos.js, config.js
   css/app.css         estilos de la vista 3D
   vendor/             Three.js 0.160 (licencia MIT), guardado localmente
+render.yaml           servidor y base de datos en Render (Blueprint)
   sw.js               funcionamiento sin conexión
 tests/                pruebas de validaciones y catálogo
 wrangler.jsonc        configuración de Cloudflare Workers

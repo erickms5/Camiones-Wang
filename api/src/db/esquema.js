@@ -2,7 +2,7 @@
 // Las migraciones SQL se generan con `npm run db:generar` en la carpeta drizzle/.
 import { sql } from 'drizzle-orm';
 import {
-  pgTable, pgEnum, uuid, text, integer, boolean, timestamp, date, numeric, jsonb, uniqueIndex, index, primaryKey,
+  customType, pgTable, pgEnum, uuid, text, integer, boolean, timestamp, date, numeric, jsonb, uniqueIndex, index, primaryKey,
 } from 'drizzle-orm/pg-core';
 
 const id = () => uuid('id').primaryKey().defaultRandom();
@@ -196,4 +196,12 @@ export const auditoria = pgTable('auditoria', {
   accion: text('accion').notNull(),
   datos: jsonb('datos'),
   en: timestamp('en', { withTimezone: true }).notNull().default(sql`now()`),
+});
+
+// Contenido de las facturas (fotos/PDF). En la base de datos para que no se pierdan en servidores sin disco fijo.
+const bytea = customType({ dataType: () => 'bytea' });
+export const archivos = pgTable('archivos', {
+  clave: text('clave').primaryKey(),
+  datos: bytea('datos').notNull(),
+  creadoEn: creadoEn(),
 });

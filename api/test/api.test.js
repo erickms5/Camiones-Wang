@@ -6,7 +6,7 @@ import { conectarMemoria } from '../src/db/conexion.js';
 import { crearApp } from '../src/app.js';
 import { leerConfig } from '../src/config.js';
 import { crearSeguridad } from '../src/seguridad.js';
-import { crearAlmacenMemoria } from '../src/almacen.js';
+import { crearAlmacenBD } from '../src/almacen.js';
 
 let app, cerrar;
 const hoy = new Date().toISOString().slice(0, 10);
@@ -27,7 +27,7 @@ before(async () => {
   const conexion = await conectarMemoria();
   cerrar = conexion.cerrar;
   const config = leerConfig({ NODE_ENV: 'test' });
-  app = crearApp({ db: conexion.db, config, seguridad: crearSeguridad(config), almacen: crearAlmacenMemoria() });
+  app = crearApp({ db: conexion.db, config, seguridad: crearSeguridad(config), almacen: crearAlmacenBD(conexion.db) });
 });
 after(() => cerrar?.());
 
