@@ -9,7 +9,11 @@ const carpetaMigraciones = fileURLToPath(new URL('../../drizzle', import.meta.ur
 
 export async function conectar(url) {
   if (!url) throw new Error('Falta DATABASE_URL (ej. postgres://mitrailer:mitrailer_dev@localhost:5432/mitrailer)');
-  const pool = new pg.Pool({ connectionString: url, ssl: /sslmode=require/.test(url) ? { rejectUnauthorized: false } : undefined });
+  // Con SSL siempre se verifica el certificado del servidor; PG_CA_CERT permite indicar la CA del proveedor
+  const ssl = /sslmode=(require|verify-ca|verify-full)/.test(url)
+    ? { rejectUnauthorized: true, ...(process.env.PG_CA_CERT ? { ca: process.env.PG_CA_CERT } : {}) }
+    : undefined;
+  const pool = new pg.Pool({ connectionString: url, ssl });
   const db = drizzlePg(pool, { schema: esquema });
   return { db, migrar: () => migrarPg(db, { migrationsFolder: carpetaMigraciones }), cerrar: () => pool.end() };
 }
