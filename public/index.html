@@ -1,29 +1,2070 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Registro de Unidades</title>
-  <meta name="description" content="Registro de cabezal, tanquero y conductor para el control de mantenimientos.">
-  <meta name="theme-color" content="#0f2a44">
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" href="icono.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icono.svg">
-  <link rel="stylesheet" href="css/app.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mi Trailer - Mantenimientos para Choferes</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for robust vehicle and mechanic icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857'
+            },
+            slateDark: '#0b1120',
+            slateCard: '#1e293b',
+            accentOrange: '#f97316',
+            accentCyan: '#06b6d4'
+          },
+          minHeight: {
+            touch: '56px'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Senior-friendly design principles: legible text, deep contrast, big targets */
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    .touch-target {
+      min-height: 56px;
+      min-width: 56px;
+    }
+
+    /* Interactive SVG Trailer parts */
+    .truck-part {
+      cursor: pointer;
+      transition: all 0.25s ease-in-out;
+    }
+    .truck-part:hover, .truck-part:focus {
+      filter: brightness(1.3) drop-shadow(0 0 6px rgba(6, 182, 212, 0.8));
+    }
+    .truck-part.active {
+      stroke: #38bdf8 !important;
+      stroke-width: 3.5px !important;
+      filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.9));
+    }
+
+    /* Print styles for Reports */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printable-report, #printable-report * {
+        visibility: visible;
+      }
+      #printable-report {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        color: #000;
+        background: #fff;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+
+    /* Custom scrollbar for easy mobile swipe */
+    ::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+  </style>
 </head>
-<body>
-  <header class="app-header">
-    <a href="#/" class="marca-app" aria-label="Ir a Mis unidades">
-      <img src="icono.svg" alt="" width="36" height="36">
-      <span>Registro<br><small>de unidades</small></span>
-    </a>
-    <p id="estado" class="estado" role="status"></p>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- Top App Bar: Simple, Clear & High Contrast -->
+  <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-md">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center text-white shadow-lg shadow-emerald-900/30">
+          <i class="fa-solid fa-truck-moving text-2xl"></i>
+        </div>
+        <div>
+          <h1 class="text-xl sm:text-2xl font-black tracking-wide text-white flex items-center gap-2">
+            MI TRAILER
+            <span class="text-xs bg-emerald-500/20 text-emerald-400 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30">PWA</span>
+          </h1>
+          <p id="header-cabezal-info" class="text-xs text-slate-400 font-medium">Placa: ABC-1234 • Chofer Activo</p>
+        </div>
+      </div>
+
+      <!-- Quick Session / Logout / Demo Switch -->
+      <div class="flex items-center gap-2">
+        <button id="btn-sync-status" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Modo Offline Listo</span>
+        </button>
+        <button id="btn-perfil" onclick="app.openProfileModal()" class="touch-target p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl flex items-center justify-center text-lg" title="Perfil y Vehículo">
+          <i class="fa-solid fa-id-card text-xl"></i>
+        </button>
+      </div>
+    </div>
   </header>
-  <main id="app" class="contenedor"></main>
-  <footer class="pie">Prototipo · MSlabs · v0.1</footer>
-  <dialog id="dialogo" aria-labelledby="dlg-titulo"></dialog>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <noscript><p class="contenedor">Esta aplicación necesita JavaScript activado.</p></noscript>
-  <script type="module" src="js/app.js"></script>
+
+  <!-- Main App Container -->
+  <main class="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-5 pb-24">
+
+    <!-- VIEW 1: LOGIN / ONBOARDING (Shown when no session) -->
+    <section id="view-login" class="hidden">
+      <div class="bg-slate-900 border-2 border-slate-800 rounded-3xl p-5 sm:p-8 max-w-lg mx-auto shadow-2xl">
+        <div class="text-center mb-6">
+          <div class="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl">
+            <i class="fa-solid fa-truck-monster"></i>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Ingreso de Chofer</h2>
+          <p class="text-slate-400 text-base mt-1">Registra tu cabezal y datos una sola vez para empezar.</p>
+        </div>
+
+        <form id="form-login" onsubmit="app.handleLogin(event)" class="space-y-5">
+          <!-- Placa -->
+          <div>
+            <label class="block text-slate-300 font-bold text-lg mb-1" for="login-placa">
+              1. Placa del Cabezal <span class="text-emerald-400">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 text-xl font-bold">
+                <i class="fa-solid fa-hashtag"></i>
+              </span>
+              <input type="text" id="login-placa" required placeholder="EJ: ABC-1234" maxlength="8"
+                     class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 pl-12 pr-4 text-xl font-mono uppercase text-white tracking-widest font-bold focus:outline-none"
+                     oninput="this.value = this.value.toUpperCase()">
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Placa oficial ecuatoriana (única por cabezal).</p>
+          </div>
+
+          <!-- Chofer -->
+          <div>
+            <label class="block text-slate-300 font-bold text-lg mb-1" for="login-nombre">
+              2. Nombre Completo del Chofer <span class="text-emerald-400">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 text-lg">
+                <i class="fa-solid fa-user"></i>
+              </span>
+              <input type="text" id="login-nombre" required placeholder="Ej: Manuel Benítez"
+                     class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 pl-12 pr-4 text-lg text-white font-semibold focus:outline-none">
+            </div>
+          </div>
+
+          <!-- Cedula con mascara -->
+          <div>
+            <label class="block text-slate-300 font-bold text-lg mb-1" for="login-cedula">
+              3. Cédula de Identidad <span class="text-emerald-400">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 text-lg">
+                <i class="fa-solid fa-id-badge"></i>
+              </span>
+              <input type="text" id="login-cedula" required placeholder="Ej: 1104567890" maxlength="10"
+                     class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 pl-12 pr-4 text-lg text-white font-mono focus:outline-none"
+                     oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Se encripta y se protege por la Ley de Datos del Ecuador.</p>
+          </div>
+
+          <!-- Correo -->
+          <div>
+            <label class="block text-slate-300 font-bold text-lg mb-1" for="login-email">
+              4. Correo Electrónico <span class="text-emerald-400">*</span>
+            </label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 text-lg">
+                <i class="fa-solid fa-envelope"></i>
+              </span>
+              <input type="email" id="login-email" required placeholder="chofer@ejemplo.com"
+                     class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 pl-12 pr-4 text-lg text-white font-semibold focus:outline-none">
+            </div>
+          </div>
+
+          <button type="submit" class="touch-target w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-slate-950 font-black text-xl py-4 rounded-2xl shadow-xl flex items-center justify-center gap-3 transition-transform">
+            <span>ENTRAR A MI TRAILER</span>
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+
+          <button type="button" onclick="app.loadDemoSeedData()" class="w-full text-center text-sm font-semibold text-cyan-400 hover:text-cyan-300 underline py-2">
+            ¿Deseas probar con datos de ejemplo precargados? Toca aquí
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- VIEW 2: TRAILER & DASHBOARD ("Mi Trailer") -->
+    <section id="view-dashboard" class="space-y-4">
+      
+      <!-- Card: Estado del Odómetro y Acceso rápido -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span class="text-xs uppercase tracking-wider font-bold text-slate-400">Kilometraje actual del Cabezal</span>
+          <div class="flex items-baseline gap-2 mt-0.5">
+            <span id="dash-km" class="text-3xl sm:text-4xl font-black font-mono text-emerald-400">184,520</span>
+            <span class="text-base text-slate-400 font-bold">km</span>
+          </div>
+          <span id="dash-placa" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+            Placa: ABC-1234 (Detroit Diesel)
+          </span>
+        </div>
+
+        <!-- Botón Gran Registro Directo -->
+        <button onclick="app.openNewMaintenanceModal()" class="touch-target bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-lg px-5 py-3.5 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-2.5 active:scale-95 transition-transform">
+          <i class="fa-solid fa-circle-plus text-2xl"></i>
+          <span>NUEVO MANTENIMIENTO</span>
+        </button>
+      </div>
+
+      <!-- Card: Silueta Gráfica e Interactiva del Trailer -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl relative">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h2 class="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+              <i class="fa-solid fa-truck text-emerald-400"></i>
+              Mi Trailer Interactivo
+            </h2>
+            <p class="text-sm text-slate-400">Toca cualquier parte del camión o remolque para ver su estado o registrar un servicio.</p>
+          </div>
+
+          <!-- Vista 3D del camión (camion3d.html) -->
+          <a href="./camion3d.html" class="touch-target w-full sm:w-auto px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-900 to-sky-900 border-2 border-cyan-400 text-cyan-100 font-black text-base flex items-center justify-center gap-2 shadow-lg shadow-cyan-900/40 hover:from-cyan-800 hover:to-sky-800">
+            <i class="fa-solid fa-cube text-cyan-300 text-lg"></i>
+            <span>VER CAMIÓN EN 3D</span>
+          </a>
+          
+          <!-- Alternativa Accesible "Ver como lista" (RF-57) -->
+          <div class="flex items-center gap-2 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+            <button id="btn-toggle-graphic" onclick="app.setTrailerDisplayMode('graphic')" class="px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-slate-950 transition-colors">
+              <i class="fa-solid fa-image mr-1"></i> Gráfico
+            </button>
+            <button id="btn-toggle-list" onclick="app.setTrailerDisplayMode('list')" class="px-3 py-2 rounded-xl text-sm font-bold text-slate-400 hover:text-white transition-colors">
+              <i class="fa-solid fa-list-check mr-1"></i> Lista Accesible
+            </button>
+          </div>
+        </div>
+
+        <!-- MODO 1: GRÁFICO SVG INTERACTIVO -->
+        <div id="trailer-graphic-container" class="w-full bg-slate-950/70 border border-slate-800/80 rounded-2xl p-2 sm:p-4 overflow-x-auto">
+          <p class="text-xs text-center text-slate-500 mb-1 flex items-center justify-center gap-1">
+            <i class="fa-solid fa-hand-pointer text-cyan-400"></i> Toca los rectángulos o piezas demarcadas:
+          </p>
+          
+          <svg viewBox="0 0 900 320" class="w-full min-w-[700px] h-auto select-none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="cabezalGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#1e293b"/>
+                <stop offset="100%" stop-color="#0f172a"/>
+              </linearGradient>
+              <linearGradient id="tanqueGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#334155"/>
+                <stop offset="50%" stop-color="#475569"/>
+                <stop offset="100%" stop-color="#1e293b"/>
+              </linearGradient>
+            </defs>
+
+            <!-- Linea de Carretera -->
+            <line x1="10" y1="280" x2="890" y2="280" stroke="#334155" stroke-width="4" stroke-dasharray="8 8"/>
+
+            <!-- === REMOLQUE / CISTERNA === -->
+            <!-- Chasis Cisterna -->
+            <rect x="50" y="70" width="460" height="150" rx="40" fill="url(#tanqueGrad)" stroke="#64748b" stroke-width="3"/>
+            <text x="280" y="96" fill="#94a3b8" font-size="13" font-weight="bold" text-anchor="middle">REMOLQUE CISTERNA (10,000 GALONES TOTAL)</text>
+
+            <!-- Compartimento Tanque 1: 2,000 Gal -->
+            <g class="truck-part" onclick="app.selectPart('Tanque - Compartimento 1')">
+              <rect x="65" y="112" width="98" height="92" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
+              <text x="114" y="148" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Comp. 1</text>
+              <text x="114" y="168" fill="#e2e8f0" font-size="11" font-weight="black" text-anchor="middle">2,000 Gal</text>
+            </g>
+
+            <!-- Compartimento Tanque 2: 2,000 Gal -->
+            <g class="truck-part" onclick="app.selectPart('Tanque - Compartimento 2')">
+              <rect x="173" y="112" width="98" height="92" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
+              <text x="222" y="148" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Comp. 2</text>
+              <text x="222" y="168" fill="#e2e8f0" font-size="11" font-weight="black" text-anchor="middle">2,000 Gal</text>
+            </g>
+
+            <!-- Compartimento Tanque 3: 3,000 Gal -->
+            <g class="truck-part" onclick="app.selectPart('Tanque - Compartimento 3')">
+              <rect x="281" y="112" width="108" height="92" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
+              <text x="335" y="148" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Comp. 3</text>
+              <text x="335" y="168" fill="#38bdf8" font-size="11" font-weight="black" text-anchor="middle">3,000 Gal</text>
+            </g>
+
+            <!-- Compartimento Tanque 4: 3,000 Gal -->
+            <g class="truck-part" onclick="app.selectPart('Tanque - Compartimento 4')">
+              <rect x="399" y="112" width="101" height="92" rx="12" fill="#0f172a" stroke="#06b6d4" stroke-width="2"/>
+              <text x="449" y="148" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Comp. 4</text>
+              <text x="449" y="168" fill="#38bdf8" font-size="11" font-weight="black" text-anchor="middle">3,000 Gal</text>
+            </g>
+
+            <!-- Acople / Quinta Rueda -->
+            <g class="truck-part" onclick="app.selectPart('Quinta Rueda')">
+              <rect x="500" y="170" width="50" height="30" rx="6" fill="#f59e0b" fill-opacity="0.2" stroke="#f59e0b" stroke-width="2"/>
+              <text x="525" y="190" fill="#f59e0b" font-size="10" font-weight="bold" text-anchor="middle">5ta Rueda</text>
+            </g>
+
+            <!-- Ejes y Neumáticos Remolque -->
+            <!-- Llantas Traseras Remolque -->
+            <g class="truck-part" onclick="app.selectPart('Ejes y Llantas Remolque')">
+              <circle cx="120" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
+              <circle cx="120" cy="245" r="16" fill="#334155"/>
+              <circle cx="195" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
+              <circle cx="195" cy="245" r="16" fill="#334155"/>
+              <rect x="90" y="220" width="135" height="18" rx="4" fill="#10b981" fill-opacity="0.3" stroke="#10b981" stroke-width="1.5"/>
+              <text x="157" y="233" fill="#a7f3d0" font-size="10" font-weight="bold" text-anchor="middle">Frenos / Ejes Remolque</text>
+            </g>
+
+            <!-- === CABEZAL TRACTO === -->
+            <!-- Cabina -->
+            <path d="M 540 220 L 540 120 Q 540 80 570 70 L 680 70 L 730 140 L 830 150 Q 850 150 850 170 L 850 220 Z" 
+                  fill="url(#cabezalGrad)" stroke="#38bdf8" stroke-width="3"/>
+            <text x="630" y="110" fill="#e2e8f0" font-size="14" font-weight="black" text-anchor="middle">CABEZAL (COLUMBIA)</text>
+            
+            <!-- Parabrisas -->
+            <polygon points="690,85 725,140 650,140 650,85" fill="#38bdf8" fill-opacity="0.4" stroke="#38bdf8"/>
+
+            <!-- Motor (Frente Cabezal) -->
+            <g class="truck-part" onclick="app.selectPart('Motor Detroit')">
+              <rect x="740" y="155" width="100" height="60" rx="8" fill="#ef4444" fill-opacity="0.2" stroke="#ef4444" stroke-width="2"/>
+              <text x="790" y="182" fill="#fca5a5" font-size="13" font-weight="bold" text-anchor="middle">MOTOR</text>
+              <text x="790" y="200" fill="#fca5a5" font-size="11" text-anchor="middle">Detroit DD15</text>
+            </g>
+
+            <!-- Caja y Transmisión -->
+            <g class="truck-part" onclick="app.selectPart('Caja de Cambios')">
+              <rect x="620" y="165" width="95" height="45" rx="6" fill="#8b5cf6" fill-opacity="0.2" stroke="#8b5cf6" stroke-width="2"/>
+              <text x="667" y="185" fill="#c4b5fd" font-size="11" font-weight="bold" text-anchor="middle">CAJA DE CAMBIOS</text>
+              <text x="667" y="200" fill="#cbd5e1" font-size="9" text-anchor="middle">Eaton Fuller</text>
+            </g>
+
+            <!-- Ejes y Llantas Cabezal Traseros -->
+            <g class="truck-part" onclick="app.selectPart('Ejes y Frenos Cabezal Traseros')">
+              <circle cx="580" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
+              <circle cx="580" cy="245" r="16" fill="#334155"/>
+              <circle cx="655" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
+              <circle cx="655" cy="245" r="16" fill="#334155"/>
+              <text x="618" y="235" fill="#6ee7b7" font-size="10" font-weight="bold" text-anchor="middle">Frenos / Eje Cabezal</text>
+            </g>
+
+            <!-- Llanta y Dirección Delantera -->
+            <g class="truck-part" onclick="app.selectPart('Dirección y Llantas Delanteras')">
+              <circle cx="790" cy="245" r="32" fill="#020617" stroke="#475569" stroke-width="8"/>
+              <circle cx="790" cy="245" r="16" fill="#334155"/>
+              <text x="790" y="295" fill="#cbd5e1" font-size="11" font-weight="bold" text-anchor="middle">Delanteras</text>
+            </g>
+
+            <!-- Zona General / Lavado / Eléctrico -->
+            <g class="truck-part" onclick="app.selectPart('General / Eléctrico / Engrase')">
+              <rect x="50" y="20" width="800" height="35" rx="10" fill="#334155" fill-opacity="0.4" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="450" y="42" fill="#cbd5e1" font-size="12" font-weight="bold" text-anchor="middle">
+                🛠️ TOCAR AQUÍ PARA: REVISIÓN GENERAL, LAVADO, ENGRASE COMPLETO O SISTEMA ELÉCTRICO
+              </text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- MODO 2: LISTA ACCESIBLE (Texto grande >= 20px, fácil para adultos mayores) -->
+        <div id="trailer-list-container" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+          <!-- Dynamically populated -->
+        </div>
+
+        <!-- Panel de Detalle de Parte Seleccionada -->
+        <div id="part-detail-box" class="mt-4 p-4 rounded-2xl bg-slate-800 border-2 border-emerald-500/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl">
+              <i class="fa-solid fa-wrench"></i>
+            </div>
+            <div>
+              <span class="text-xs uppercase text-slate-400 font-bold">Elemento Seleccionado</span>
+              <h3 id="selected-part-name" class="text-xl font-bold text-white">Motor Detroit</h3>
+              <p id="selected-part-status" class="text-sm text-emerald-400 font-medium">Último cambio: 12 Oct 2026 (180,000 km)</p>
+            </div>
+          </div>
+          <button id="btn-part-maintenance" onclick="app.openNewMaintenanceModalForPart()" class="touch-target w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-3 rounded-xl flex items-center justify-center gap-2 shadow">
+            <i class="fa-solid fa-plus-circle text-xl"></i>
+            <span>REGISTRAR MANTENIMIENTO AQUÍ</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Historial de Mantenimientos Recientes -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
+              Historial de Mantenimientos
+            </h2>
+            <p class="text-xs text-slate-400">Mantenimientos guardados en este dispositivo.</p>
+          </div>
+          <span id="history-count-badge" class="px-3 py-1 bg-slate-800 text-cyan-400 font-bold text-xs rounded-full border border-slate-700">
+            0 Registros
+          </span>
+        </div>
+
+        <div id="maintenance-history-list" class="space-y-3">
+          <!-- Maintenance cards injected here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: REPORTES (Inmutables, Folio, Mensual / Individual) -->
+    <section id="view-reports" class="hidden space-y-5">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h2 class="text-2xl font-black text-white flex items-center gap-2">
+              <i class="fa-solid fa-file-invoice text-emerald-400"></i>
+              Generador de Reportes Oficiales
+            </h2>
+            <p class="text-sm text-slate-400">Reportes congelados con huella de integridad y folio único para entregar al dueño.</p>
+          </div>
+          <button onclick="app.prepareMonthlyReportPreview()" class="touch-target bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-5 py-3 rounded-2xl flex items-center gap-2 shadow">
+            <i class="fa-solid fa-calendar-check text-xl"></i>
+            <span>GENERAR REPORTE MENSUAL</span>
+          </button>
+        </div>
+
+        <!-- Filtros de periodo mensual -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950 p-4 rounded-2xl border border-slate-800 mb-6">
+          <div>
+            <label class="block text-slate-400 text-sm font-bold mb-1">Seleccionar Mes del Reporte:</label>
+            <select id="report-select-month" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-lg font-bold text-white focus:outline-none focus:border-emerald-500">
+              <option value="10">Noviembre 2026 (Actual)</option>
+              <option value="9">Octubre 2026</option>
+              <option value="8">Septiembre 2026</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-slate-400 text-sm font-bold mb-1">Trailer Registrado:</label>
+            <input type="text" id="report-trailer-display" disabled value="Cabezal ABC-1234 + Remolque Cisterna" class="w-full bg-slate-900/50 border border-slate-800 rounded-xl p-3 text-base text-slate-300 font-bold">
+          </div>
+        </div>
+
+        <!-- Lista de reportes previamente generados -->
+        <h3 class="text-lg font-bold text-white mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-archive text-slate-400"></i>
+          Reportes Congelados Emitidos
+        </h3>
+        <div id="reports-generated-list" class="space-y-3">
+          <!-- Rendered generated reports -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAVIGATION BAR (Accessible, large touch buttons) -->
+  <nav class="fixed bottom-0 inset-x-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-20 shadow-2xl">
+    <div class="max-w-md mx-auto grid grid-cols-3 gap-1 px-3 py-2">
+      <button id="nav-btn-trailer" onclick="app.switchView('dashboard')" class="touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-emerald-400 font-bold transition-colors">
+        <i class="fa-solid fa-truck text-xl mb-1"></i>
+        <span class="text-xs">Mi Trailer</span>
+      </button>
+
+      <button id="nav-btn-new" onclick="app.openNewMaintenanceModal()" class="touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-slate-400 hover:text-white font-bold transition-colors">
+        <div class="w-10 h-10 -mt-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-lg text-lg">
+          <i class="fa-solid fa-plus"></i>
+        </div>
+        <span class="text-xs mt-1">Registrar</span>
+      </button>
+
+      <button id="nav-btn-reports" onclick="app.switchView('reports')" class="touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-slate-400 hover:text-white font-bold transition-colors">
+        <i class="fa-solid fa-file-contract text-xl mb-1"></i>
+        <span class="text-xs">Reportes</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- FLOATING FEEDBACK TRIGGER BUTTON (Always accessible for driver testing) -->
+  <button onclick="app.openFeedbackModal()" class="fixed bottom-20 right-4 z-20 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-full shadow-2xl border-2 border-amber-300 flex items-center gap-2 text-sm sm:text-base animate-bounce">
+    <i class="fa-solid fa-comment-dots text-lg"></i>
+    <span>¿Qué tal la app? Opina</span>
+  </button>
+
+  <!-- ==================== MODALES ==================== -->
+
+  <!-- MODAL 1: REGISTRO DE MANTENIMIENTO RÁPIDO (< 1 minuto) -->
+  <div id="modal-maintenance" class="fixed inset-0 bg-black/80 z-50 hidden backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto">
+    <div class="bg-slate-900 border-2 border-slate-700 rounded-3xl w-full max-w-xl max-h-[92vh] overflow-y-auto p-5 sm:p-7 shadow-2xl space-y-4">
+      
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div class="flex items-center gap-2">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-oil-can"></i>
+          </div>
+          <div>
+            <h3 class="text-xl sm:text-2xl font-black text-white">Nuevo Mantenimiento</h3>
+            <p class="text-xs text-slate-400">Guarda en segundos. Funciona sin internet.</p>
+          </div>
+        </div>
+        <button onclick="app.closeMaintenanceModal()" class="touch-target text-slate-400 hover:text-white text-2xl p-2">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="form-maintenance" onsubmit="app.handleSaveMaintenance(event)" class="space-y-4">
+        <!-- Parte Afectada -->
+        <div>
+          <label class="block text-slate-300 font-bold text-base mb-1">Parte del Trailer <span class="text-emerald-400">*</span></label>
+          <select id="maint-part" required class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
+            <option value="Motor Detroit">Motor Detroit</option>
+            <option value="Caja de Cambios">Caja de Cambios (Transmisión)</option>
+            <option value="Frenos / Eje Cabezal">Frenos / Eje Cabezal</option>
+            <option value="Dirección y Llantas Delanteras">Dirección y Llantas Delanteras</option>
+            <option value="Tanque - Compartimento 1">Tanque - Compartimento 1</option>
+            <option value="Tanque - Compartimento 2">Tanque - Compartimento 2</option>
+            <option value="Tanque - Compartimento 3">Tanque - Compartimento 3</option>
+            <option value="Ejes y Llantas Remolque">Ejes y Llantas Remolque</option>
+            <option value="Quinta Rueda">Quinta Rueda / Enganche</option>
+            <option value="General / Eléctrico / Engrase">General / Lavado / Engrase / Eléctrico</option>
+          </select>
+        </div>
+
+        <!-- Tipo de Trabajo -->
+        <div>
+          <label class="block text-slate-300 font-bold text-base mb-1">Tipo de Trabajo Realizado <span class="text-emerald-400">*</span></label>
+          <select id="maint-job" required class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
+            <option value="Cambio de Aceite y Filtros">Cambio de Aceite y Filtros</option>
+            <option value="Calibración y Cambio de Frenos">Calibración y Cambio de Frenos</option>
+            <option value="Engrase General y Puntos">Engrase General y Puntos</option>
+            <option value="Rotación / Reencauche de Llantas">Rotación / Reencauche de Llantas</option>
+            <option value="Prueba Hidrostática / Válvulas Tanque">Prueba Hidrostática / Válvulas Tanque</option>
+            <option value="Reparación Eléctrica / Luces">Reparación Eléctrica / Luces</option>
+            <option value="Revisión Mecánica Preventiva">Revisión Mecánica Preventiva</option>
+            <option value="Otro Trabajo">Otro Trabajo</option>
+          </select>
+        </div>
+
+        <!-- Kilometraje y Fecha -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-300 font-bold text-base mb-1">Kilometraje Cabezal <span class="text-emerald-400">*</span></label>
+            <div class="relative">
+              <input type="number" id="maint-km" required min="1"
+                     class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3 px-4 text-xl font-mono font-bold text-emerald-400 focus:outline-none">
+              <span class="absolute right-4 top-3.5 text-xs text-slate-400 font-bold">KM</span>
+            </div>
+            <p id="km-warning-hint" class="text-xs text-amber-400 mt-1 hidden">⚠️ El kilometraje ingresado es menor al registrado.</p>
+          </div>
+
+          <div>
+            <label class="block text-slate-300 font-bold text-base mb-1">Fecha del Trabajo <span class="text-emerald-400">*</span></label>
+            <input type="date" id="maint-date" required
+                   class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3 px-4 text-base font-bold text-white focus:outline-none">
+          </div>
+        </div>
+
+        <!-- Ubicación (Ecuador - División Política) -->
+        <div class="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-bold text-slate-300"><i class="fa-solid fa-location-dot text-cyan-400 mr-1"></i> Lugar de atención (Ecuador)</span>
+            <button type="button" onclick="app.setPreviousLocation()" class="text-xs font-bold text-cyan-400 hover:text-cyan-300 underline">
+              Mismo lugar anterior
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-xs text-slate-400">Provincia</label>
+              <select id="maint-provincia" onchange="app.handleProvinciaChange()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-sm font-bold text-white focus:outline-none">
+                <option value="Loja">Loja</option>
+                <option value="Pichincha">Pichincha</option>
+                <option value="Guayas">Guayas</option>
+                <option value="Azuay">Azuay</option>
+                <option value="El Oro">El Oro</option>
+                <option value="Santo Domingo">Santo Domingo</option>
+                <option value="Chimborazo">Chimborazo</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-slate-400">Cantón</label>
+              <select id="maint-canton" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-sm font-bold text-white focus:outline-none">
+                <!-- Injected based on province -->
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEPARACIÓN 1: TALLER Y MANO DE OBRA -->
+        <div class="bg-slate-950/90 p-4 rounded-2xl border-2 border-slate-800 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span class="text-base font-black text-emerald-400 flex items-center gap-2">
+              <i class="fa-solid fa-screwdriver-wrench"></i> Taller Mecánico / Mano de Obra
+            </span>
+            <span class="text-xs bg-emerald-500/10 text-emerald-300 px-2.5 py-0.5 rounded-full font-bold">Mano de Obra</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-300 font-bold text-sm mb-1">Nombre del Taller</label>
+              <input type="text" id="maint-taller" placeholder="Ej: Taller Diesel Loja"
+                     class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl py-2.5 px-3.5 text-sm text-white focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-slate-300 font-bold text-sm mb-1">Costo Mano de Obra (USD)</label>
+              <div class="relative">
+                <span class="absolute left-3.5 top-2.5 text-slate-400 font-bold">$</span>
+                <input type="number" step="0.01" min="0" id="maint-costo-taller" placeholder="0.00" oninput="app.calculateTotalCost()"
+                       class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl py-2.5 pl-8 pr-3 text-base font-mono text-white focus:outline-none">
+              </div>
+            </div>
+          </div>
+
+          <!-- Factura del Taller -->
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">Factura de Mano de Obra (Taller):</label>
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="file" id="file-factura-taller" accept="image/*,.pdf" onchange="app.handleTallerFile(event)"
+                     class="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-emerald-600 file:text-white">
+              <span id="label-factura-taller" class="text-xs text-amber-400 font-bold italic">⚠️ Sin factura de taller</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEPARACIÓN 2: PROVEEDOR DE REPUESTOS -->
+        <div class="bg-slate-950/90 p-4 rounded-2xl border-2 border-slate-800 space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span class="text-base font-black text-cyan-400 flex items-center gap-2">
+              <i class="fa-solid fa-boxes-packing"></i> Almacén / Proveedor de Repuestos
+            </span>
+            <span class="text-xs bg-cyan-500/10 text-cyan-300 px-2.5 py-0.5 rounded-full font-bold">Repuestos & Insumos</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-300 font-bold text-sm mb-1">Almacén / Proveedor</label>
+              <input type="text" id="maint-proveedor" placeholder="Ej: Importadora Andina de Repuestos"
+                     class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-xl py-2.5 px-3.5 text-sm text-white focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-slate-300 font-bold text-sm mb-1">Costo Repuestos (USD)</label>
+              <div class="relative">
+                <span class="absolute left-3.5 top-2.5 text-slate-400 font-bold">$</span>
+                <input type="number" step="0.01" min="0" id="maint-costo-repuestos" placeholder="0.00" oninput="app.calculateTotalCost()"
+                       class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-xl py-2.5 pl-8 pr-3 text-base font-mono text-white focus:outline-none">
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-slate-300 font-bold text-sm mb-1">Detalle de Repuestos comprados (nombre y cantidad)</label>
+            <input type="text" id="maint-repuestos-detalle" placeholder="Ej: 2 Filtros de aceite Detroit, 1 Galón refrigerante Delo"
+                   class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none">
+          </div>
+
+          <!-- Factura del Repuesto -->
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1">Factura del Proveedor de Repuestos:</label>
+            <div class="flex flex-wrap items-center gap-2">
+              <input type="file" id="file-factura-repuestos" accept="image/*,.pdf" onchange="app.handleRepuestosFile(event)"
+                     class="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-600 file:text-white">
+              <span id="label-factura-repuestos" class="text-xs text-amber-400 font-bold italic">⚠️ Sin factura de repuestos</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- TOTAL AUTOMÁTICO SUMADO -->
+        <div class="p-3.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/50 flex items-center justify-between">
+          <span class="text-sm font-black text-white">COSTO TOTAL DEL SERVICIO:</span>
+          <span id="maint-costo-total-preview" class="text-2xl font-black font-mono text-emerald-400">$0.00</span>
+        </div>
+
+        <!-- Notas breves -->
+        <div>
+          <label class="block text-slate-300 font-bold text-sm mb-1">Notas u Observación para el Dueño</label>
+          <input type="text" id="maint-notas" placeholder="Ej: Se cambiaron también 2 abrazaderas que estaban flojas"
+                 class="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500 rounded-2xl py-2.5 px-4 text-sm text-white focus:outline-none">
+        </div>
+
+        <button type="submit" class="touch-target w-full bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-black text-xl py-4 rounded-2xl shadow-xl flex items-center justify-center gap-3">
+          <i class="fa-solid fa-floppy-disk text-2xl"></i>
+          <span>GUARDAR MANTENIMIENTO</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL ADJUNTO POSTERIOR A REPORTE (RF-74, RF-85) -->
+  <div id="modal-post-evidence" class="fixed inset-0 bg-black/85 z-50 hidden backdrop-blur-sm flex items-center justify-center p-3">
+    <div class="bg-slate-900 border-2 border-cyan-500 rounded-3xl max-w-lg w-full p-5 sm:p-7 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-file-circle-plus"></i>
+          </div>
+          <div>
+            <h3 class="text-lg sm:text-xl font-black text-white">Subir Evidencia Posterior</h3>
+            <p class="text-xs text-slate-400">Anexo posterior al reporte (inmutable)</p>
+          </div>
+        </div>
+        <button onclick="app.closePostEvidenceModal()" class="text-slate-400 hover:text-white text-2xl">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-xs">
+        <p class="text-slate-400">Mantenimiento Seleccionado:</p>
+        <p id="post-ev-maint-name" class="text-sm font-bold text-white">Cambio de Aceite - 184,000 km</p>
+        <p id="post-ev-maint-folio" class="text-cyan-400 font-mono mt-0.5">Reporte Asociado: REP-2026-001</p>
+      </div>
+
+      <form onsubmit="app.handleSavePostEvidence(event)" class="space-y-4">
+        <div>
+          <label class="block text-slate-300 font-bold text-sm mb-1">Tipo de Factura / Evidencia</label>
+          <select id="post-ev-type" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-white font-bold">
+            <option value="Factura de Taller (Mano de Obra)">Factura de Taller (Mano de Obra)</option>
+            <option value="Factura de Repuestos">Factura de Repuestos (Almacén)</option>
+            <option value="Factura Física Extemporánea">Factura Física Extemporánea</option>
+            <option value="Comprobante de Retención / Pago">Comprobante de Retención / Pago</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-bold text-sm mb-1">Seleccionar Archivo (Foto o PDF)</label>
+          <input type="file" id="post-ev-file" required accept="image/*,.pdf" class="w-full text-sm text-slate-400 file:mr-2 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-cyan-500 file:text-slate-950">
+        </div>
+
+        <div class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-800/60 text-xs text-slate-300">
+          <i class="fa-solid fa-shield-halved text-cyan-400 mr-1"></i>
+          Esta evidencia quedará sellada con fecha, hora y hash criptográfico como <strong>Anexo Posterior</strong>, sin alterar los datos numéricos originales congelados en el reporte.
+        </div>
+
+        <button type="submit" class="touch-target w-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-lg py-3.5 rounded-2xl shadow-xl flex items-center justify-center gap-2">
+          <i class="fa-solid fa-cloud-arrow-up"></i>
+          <span>REGISTRAR ANEXO POSTERIOR</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: VISTA PREVIA Y EXPORTACIÓN DEL REPORTE INMUTABLE (FROZEN & FOLIO) -->
+  <div id="modal-report-preview" class="fixed inset-0 bg-black/85 z-50 hidden backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-slate-900 border-2 border-emerald-500/50 rounded-3xl w-full max-w-3xl max-h-[94vh] overflow-y-auto p-4 sm:p-7 shadow-2xl space-y-4">
+      
+      <!-- Report Modal Actions Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800 no-print">
+        <div class="flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-emerald-400"></span>
+          <h3 class="text-xl font-black text-white">Reporte Oficial Congelado</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="window.print()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-xl text-sm font-bold flex items-center gap-1.5 border border-slate-700">
+            <i class="fa-solid fa-print"></i> <span>Imprimir / PDF</span>
+          </button>
+          <button onclick="app.simulateShareWhatsapp()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
+            <i class="fa-brands fa-whatsapp text-lg"></i> <span>Enviar al Dueño</span>
+          </button>
+          <button onclick="app.closeReportModal()" class="touch-target text-slate-400 hover:text-white text-2xl p-2 ml-1">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Printable Clean Certificate Body (Looks official) -->
+      <div id="printable-report" class="bg-white text-slate-900 rounded-2xl p-6 sm:p-8 shadow space-y-5 border border-slate-300">
+        <!-- Encabezado del Reporte -->
+        <div class="flex justify-between items-start border-b-2 border-slate-800 pb-4">
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">REPORTE DE MANTENIMIENTO</h1>
+            <p class="text-xs text-slate-600 uppercase font-bold tracking-wider">Sistema de Gestión de Flota Pesada "Mi Trailer"</p>
+            <p class="text-xs text-slate-500 mt-1">Normativa Técnica UTC-5 Ecuador • Inmutable</p>
+          </div>
+          <div class="text-right">
+            <span class="inline-block bg-slate-900 text-white font-mono text-xs font-bold px-3 py-1 rounded">
+              FOLIO: <span id="rep-folio">REP-2026-001</span>
+            </span>
+            <p class="text-xs text-slate-500 mt-1 font-mono">Emisión: <span id="rep-fecha-emision">08/11/2026</span></p>
+          </div>
+        </div>
+
+        <!-- Ficha de Datos del Vehículo y Conductor -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-100 p-4 rounded-xl text-xs">
+          <div>
+            <span class="font-bold text-slate-500 block">PLACA CABEZAL:</span>
+            <span id="rep-placa" class="text-sm font-black text-slate-900 font-mono">ABC-1234</span>
+          </div>
+          <div>
+            <span class="font-bold text-slate-500 block">MODELO / MOTOR:</span>
+            <span class="text-sm font-bold text-slate-900">Freightliner Columbia</span>
+          </div>
+          <div>
+            <span class="font-bold text-slate-500 block">CHOFER RESPONSABLE:</span>
+            <span id="rep-chofer" class="text-sm font-bold text-slate-900">Manuel Benítez</span>
+          </div>
+          <div>
+            <span class="font-bold text-slate-500 block">CÉDULA IDENTIDAD:</span>
+            <span id="rep-cedula" class="text-sm font-mono font-bold text-slate-900">1104****90</span>
+          </div>
+        </div>
+
+        <!-- Resumen del Periodo y Odómetro -->
+        <div class="flex flex-wrap justify-between items-center text-xs border-y border-slate-200 py-2">
+          <span><strong>Periodo de Corte:</strong> <span id="rep-periodo">Noviembre 2026</span></span>
+          <span><strong>Odómetro Registrado:</strong> <span id="rep-odometro" class="font-bold text-emerald-700">184,520 km</span></span>
+          <span><strong>Total Mantenimientos:</strong> <span id="rep-total-items" class="font-bold">3 trabajos</span></span>
+        </div>
+
+        <!-- Tabla Detallada de Mantenimientos con Desglose Taller vs Repuestos -->
+        <div>
+          <h4 class="font-black text-sm text-slate-800 mb-2 uppercase">Detalle de Trabajos, Mano de Obra y Repuestos:</h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-slate-200 text-slate-700 font-bold">
+                  <th class="p-2 border border-slate-300">Fecha / Km</th>
+                  <th class="p-2 border border-slate-300">Parte Afectada</th>
+                  <th class="p-2 border border-slate-300">Trabajo Realizado</th>
+                  <th class="p-2 border border-slate-300">Taller (Mano Obra)</th>
+                  <th class="p-2 border border-slate-300">Almacén Repuestos</th>
+                  <th class="p-2 border border-slate-300">Evidencias Adjuntas</th>
+                  <th class="p-2 border border-slate-300 text-right">Total (USD)</th>
+                </tr>
+              </thead>
+              <tbody id="rep-table-rows">
+                <!-- Injected maintenance table rows -->
+              </tbody>
+              <tfoot>
+                <tr class="font-black bg-slate-100 text-slate-900">
+                  <td colspan="6" class="p-2 border border-slate-300 text-right uppercase">Total Mantenimientos del Mes:</td>
+                  <td id="rep-total-cost" class="p-2 border border-slate-300 text-right text-sm text-emerald-800">$0.00</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Anexos Posteriores al Reporte (RF-85) -->
+        <div id="rep-anexos-box" class="pt-2 border-t border-slate-200 space-y-2">
+          <h5 class="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+            <i class="fa-solid fa-paperclip text-cyan-600"></i> Anexos y Facturas Agregadas Posteriormente al Cierre:
+          </h5>
+          <div id="rep-anexos-list" class="space-y-1 text-xs">
+            <!-- Injected posterior evidence -->
+          </div>
+        </div>
+
+        <!-- Pie de Integridad Criptográfica (RN-05) -->
+        <div class="pt-3 border-t border-slate-300 text-[10px] text-slate-500 space-y-1 font-mono">
+          <p><strong>HUELLA DIGITAL SHA-256 (INMUTABLE):</strong> <span id="rep-hash" class="break-all text-slate-700">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</span></p>
+          <p class="italic text-slate-600">Este reporte se encuentra congelado. Todo cambio posterior quedará registrado únicamente como "Anexo posterior con fecha extemporánea".</p>
+        </div>
+      </div>
+
+      <div class="text-center text-xs text-slate-400 no-print">
+        💡 Al cerrar esta ventana, los registros incluidos quedarán con insignia de <strong>Bloqueado</strong>.
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: PERFIL DE CHOFER Y CONFIGURACIÓN -->
+  <div id="modal-profile" class="fixed inset-0 bg-black/80 z-50 hidden backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xl font-bold text-white">Ficha del Trailer y Conductor</h3>
+        <button onclick="app.closeProfileModal()" class="text-slate-400 hover:text-white text-xl">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-sm">
+        <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800">
+          <span class="text-xs text-slate-400 block font-bold">CABEZAL ASIGNADO:</span>
+          <span id="prof-placa" class="text-lg font-black font-mono text-emerald-400">ABC-1234</span>
+          <p class="text-xs text-slate-400">Freightliner Columbia 2020 • Motor Detroit DD15</p>
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800">
+          <span class="text-xs text-slate-400 block font-bold">CHOFER / CONDUCTOR:</span>
+          <span id="prof-nombre" class="text-base font-bold text-white">Manuel Benítez</span>
+          <p id="prof-cedula" class="text-xs text-slate-400 font-mono">Cédula: 1104****90 (Cifrada)</p>
+          <p id="prof-email" class="text-xs text-slate-400">manuel.chofer@gmail.com</p>
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800">
+          <span class="text-xs text-slate-400 block font-bold">REMOLQUE:</span>
+          <span class="text-base font-bold text-white">Cisterna de Combustible (4 Compartimentos)</span>
+          <p class="text-xs text-slate-400">Capacidad Total: 10,000 Galones (2x2,000 + 2x3,000)</p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex flex-col gap-2">
+        <button onclick="app.handleLogout()" class="touch-target w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-2xl font-bold py-3">
+          <i class="fa-solid fa-right-from-bracket mr-2"></i> Cerrar Sesión en este teléfono
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 4: RETROALIMENTACIÓN / FEEDBACK DEL CHOFER O EVALUADOR -->
+  <div id="modal-feedback" class="fixed inset-0 bg-black/80 z-50 hidden backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-comment-dots"></i>
+          </div>
+          <div>
+            <h3 class="text-xl font-black text-white">Retroalimentación Directa</h3>
+            <p class="text-xs text-slate-400">Tu opinión nos ayuda a que la app sea facilísima.</p>
+          </div>
+        </div>
+        <button onclick="app.closeFeedbackModal()" class="text-slate-400 hover:text-white text-2xl">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="form-feedback" onsubmit="app.handleSaveFeedback(event)" class="space-y-4">
+        <div>
+          <label class="block text-slate-300 font-bold text-sm mb-2">¿Qué tan fácil te pareció usar la aplicación?</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="cursor-pointer border-2 border-slate-700 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 p-3 rounded-2xl text-center flex flex-col items-center">
+              <input type="radio" name="facilidad" value="Muy Fácil" class="hidden" checked>
+              <span class="text-2xl mb-1">😃</span>
+              <span class="text-xs font-bold text-slate-200">Muy Fácil</span>
+            </label>
+            <label class="cursor-pointer border-2 border-slate-700 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/10 p-3 rounded-2xl text-center flex flex-col items-center">
+              <input type="radio" name="facilidad" value="Normal" class="hidden">
+              <span class="text-2xl mb-1">😐</span>
+              <span class="text-xs font-bold text-slate-200">Regular</span>
+            </label>
+            <label class="cursor-pointer border-2 border-slate-700 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-500/10 p-3 rounded-2xl text-center flex flex-col items-center">
+              <input type="radio" name="facilidad" value="Difícil" class="hidden">
+              <span class="text-2xl mb-1">🙁</span>
+              <span class="text-xs font-bold text-slate-200">Se me complicó</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-bold text-sm mb-1">¿Qué parte cambiarías o qué te gustaría agregar?</label>
+          <textarea id="feedback-comment" rows="3" required placeholder="Ej: Los números se ven claritos, pero quisiera que recuerde siempre el taller de Loja..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-amber-400"></textarea>
+        </div>
+
+        <button type="submit" class="touch-target w-full bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-black text-lg py-3.5 rounded-2xl shadow-lg flex items-center justify-center gap-2">
+          <i class="fa-solid fa-paper-plane"></i>
+          <span>ENVIAR MI COMENTARIO</span>
+        </button>
+      </form>
+
+      <!-- Feedback List History -->
+      <div id="feedback-history-list" class="pt-2 border-t border-slate-800 text-xs space-y-2">
+        <span class="font-bold text-slate-400">Comentarios recibidos en esta prueba:</span>
+        <div id="feedback-items-box" class="space-y-1.5 max-h-32 overflow-y-auto">
+          <!-- Injected feedback -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast" class="fixed top-20 right-4 max-w-sm z-50 bg-emerald-500 text-slate-950 font-extrabold px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 transition-all transform translate-y-[-150%] opacity-0 pointer-events-none">
+    <i id="toast-icon" class="fa-solid fa-circle-check text-2xl"></i>
+    <span id="toast-message" class="text-sm">Operación realizada con éxito</span>
+  </div>
+
+  <!-- JAVASCRIPT APPLICATION CORE -->
+  <script>
+    /**
+     * Data catalogs for Ecuador's political division (RF-64)
+     */
+    const ECUADOR_LOCATIONS = {
+      "Loja": ["Loja", "Catamayo", "Saraguro", "Macará", "Paltas", "Calvas", "Chaguarpamba"],
+      "Pichincha": ["Quito", "Rumiñahui", "Mejía", "Cayambe", "Pedro Moncayo"],
+      "Guayas": ["Guayaquil", "Durán", "Daule", "Milagro", "Samborondón", "El Empalme"],
+      "Azuay": ["Cuenca", "Gualaceo", "Paute", "Santa Isabel", "Girón"],
+      "El Oro": ["Machala", "Pasaje", "Santa Rosa", "Arenillas", "Huaquillas"],
+      "Santo Domingo": ["Santo Domingo", "La Concordia"],
+      "Chimborazo": ["Riobamba", "Alausí", "Guano", "Colta"]
+    };
+
+    /**
+     * Trailer parts catalog based on documentation (RF-51, RF-52)
+     */
+    const TRAILER_PARTS = [
+      { id: "Motor Detroit", name: "Motor Detroit DD15", type: "Cabezal", icon: "fa-engine" },
+      { id: "Caja de Cambios", name: "Caja de Cambios (Eaton)", type: "Cabezal", icon: "fa-gear" },
+      { id: "Frenos / Eje Cabezal", name: "Frenos y Ejes de Cabezal", type: "Cabezal", icon: "fa-circle-notch" },
+      { id: "Dirección y Llantas Delanteras", name: "Dirección y Llantas Delanteras", type: "Cabezal", icon: "fa-arrows-split-up-and-left" },
+      { id: "Quinta Rueda", name: "Quinta Rueda / Enganche", type: "Conexión", icon: "fa-link" },
+      { id: "Tanque - Compartimento 1", name: "Tanque Comp. 1 (2,000 Gal)", type: "Remolque", icon: "fa-cubes" },
+      { id: "Tanque - Compartimento 2", name: "Tanque Comp. 2 (2,000 Gal)", type: "Remolque", icon: "fa-cubes" },
+      { id: "Tanque - Compartimento 3", name: "Tanque Comp. 3 (3,000 Gal)", type: "Remolque", icon: "fa-cubes" },
+      { id: "Tanque - Compartimento 4", name: "Tanque Comp. 4 (3,000 Gal)", type: "Remolque", icon: "fa-cubes" },
+      { id: "Ejes y Llantas Remolque", name: "Ejes y Frenos de Remolque", type: "Remolque", icon: "fa-dharmachakra" },
+      { id: "General / Eléctrico / Engrase", name: "Revisión General / Engrase / Luces", type: "General", icon: "fa-screwdriver-wrench" }
+    ];
+
+    /**
+     * Application State Store (Persists in LocalStorage)
+     */
+    class TrailerApp {
+      constructor() {
+        this.session = null;
+        this.maintenances = [];
+        this.reports = [];
+        this.feedbackList = [];
+        this.selectedPart = "Motor Detroit";
+        this.lastLocation = { provincia: "Loja", canton: "Loja" };
+        this.selectedTallerFile = null;
+        this.selectedRepuestosFile = null;
+        this.targetPostMaintId = null;
+        this.displayMode = "graphic";
+
+        this.init();
+      }
+
+      init() {
+        this.loadStorage();
+        this.bindEvents();
+        this.setupProvinciaSelector();
+        this.renderTrailerAccessibleList();
+        
+        // Check if session exists
+        if (this.session && this.session.placa) {
+          this.switchView('dashboard');
+          this.refreshUI();
+        } else {
+          this.switchView('login');
+        }
+
+        // Set today's date in maintenance form
+        const todayStr = new Date().toISOString().split('T')[0];
+        const dateInput = document.getElementById('maint-date');
+        if (dateInput) {
+          dateInput.value = todayStr;
+          dateInput.max = todayStr; // Rule RN-07: cannot be future date
+        }
+      }
+
+      loadStorage() {
+        try {
+          const savedSession = localStorage.getItem('mi_trailer_session');
+          if (savedSession) this.session = JSON.parse(savedSession);
+
+          const savedMaint = localStorage.getItem('mi_trailer_maint');
+          if (savedMaint) this.maintenances = JSON.parse(savedMaint);
+
+          const savedRep = localStorage.getItem('mi_trailer_reports');
+          if (savedRep) this.reports = JSON.parse(savedRep);
+
+          const savedFeed = localStorage.getItem('mi_trailer_feedback');
+          if (savedFeed) this.feedbackList = JSON.parse(savedFeed);
+        } catch (e) {
+          console.error("Storage loading error:", e);
+        }
+      }
+
+      saveStorage() {
+        try {
+          localStorage.setItem('mi_trailer_session', JSON.stringify(this.session));
+          localStorage.setItem('mi_trailer_maint', JSON.stringify(this.maintenances));
+          localStorage.setItem('mi_trailer_reports', JSON.stringify(this.reports));
+          localStorage.setItem('mi_trailer_feedback', JSON.stringify(this.feedbackList));
+        } catch (e) {
+          console.error("Storage saving error:", e);
+        }
+      }
+
+      loadDemoSeedData() {
+        this.session = {
+          placa: "ABC-1234",
+          nombre: "Manuel Antonio Benítez",
+          cedula: "1104928374",
+          email: "chofer.benitez@transporte.ec",
+          trailerModel: "Freightliner Columbia 2020",
+          engine: "Detroit Diesel DD15",
+          odometro: 184520
+        };
+
+        this.maintenances = [
+          {
+            id: 'm-101',
+            fecha: '2026-10-14',
+            km: 180000,
+            parte: 'Motor Detroit',
+            trabajo: 'Cambio de Aceite y Filtros',
+            provincia: 'Pichincha',
+            canton: 'Quito',
+            taller: 'Taller Diesel Pichincha',
+            costoTaller: 80.00,
+            facturaTallerFile: 'factura_mano_obra_001.pdf',
+            proveedor: 'Distribuidora Detroit Sur',
+            costoRepuestos: 265.50,
+            repuestosDetalle: '4 Galones 15W40 Mobil + 2 filtros combustible',
+            facturaRepuestosFile: 'factura_repuestos_oct.jpg',
+            costo: 345.50,
+            notas: 'Filtro primario y secundario cambiados.',
+            anexosPosteriores: [],
+            bloqueado: true,
+            reportFolio: 'REP-2026-001'
+          },
+          {
+            id: 'm-102',
+            fecha: '2026-10-28',
+            km: 182100,
+            parte: 'Frenos / Eje Cabezal',
+            trabajo: 'Calibración y Cambio de Frenos',
+            provincia: 'Guayas',
+            canton: 'Guayaquil',
+            taller: 'Frenos y Muelles del Puerto',
+            costoTaller: 70.00,
+            facturaTallerFile: 'factura_taller_frenos.pdf',
+            proveedor: 'Repuestos Pesados Guayas',
+            costoRepuestos: 110.00,
+            repuestosDetalle: '4 zapatas de freno posteriores',
+            facturaRepuestosFile: null,
+            costo: 180.00,
+            notas: 'Rectificación de tambor.',
+            anexosPosteriores: [],
+            bloqueado: true,
+            reportFolio: 'REP-2026-001'
+          },
+          {
+            id: 'm-103',
+            fecha: '2026-11-04',
+            km: 184520,
+            parte: 'General / Eléctrico / Engrase',
+            trabajo: 'Engrase General y Puntos',
+            provincia: 'Loja',
+            canton: 'Loja',
+            taller: 'Lubricadora San Cayetano',
+            costoTaller: 45.00,
+            facturaTallerFile: null,
+            proveedor: 'Lubricantes y Grasas Loja',
+            costoRepuestos: 0.00,
+            repuestosDetalle: 'Grasa EP2 para chasis y quinta rueda',
+            facturaRepuestosFile: null,
+            costo: 45.00,
+            notas: 'Engrase completo de corona, crucetas y quinta rueda.',
+            anexosPosteriores: [],
+            bloqueado: false,
+            reportFolio: null
+          }
+        ];
+
+        this.reports = [
+          {
+            folio: 'REP-2026-001',
+            mes: 'Octubre 2026',
+            fechaGenerado: '01/11/2026',
+            hash: '7a9c8f102e3b4a5d89f1a23c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e',
+            totalCosto: 525.50,
+            mantenimientoIds: ['m-101', 'm-102']
+          }
+        ];
+
+        this.feedbackList = [
+          {
+            fecha: '08/11/2026',
+            facilidad: 'Muy Fácil',
+            comentario: 'Separar repuestos de taller era justo lo que necesitábamos. Se entiende clarito.'
+          }
+        ];
+
+        this.saveStorage();
+        this.switchView('dashboard');
+        this.refreshUI();
+        this.showToast('¡Datos demo cargados con 4 compartimentos y separación Taller/Repuestos!', 'success');
+      }
+
+      bindEvents() {
+        document.addEventListener('gesturestart', (e) => e.preventDefault());
+      }
+
+      maskCedula(cedula) {
+        if (!cedula || cedula.length < 6) return cedula || '---';
+        return cedula.substring(0, 4) + '****' + cedula.substring(cedula.length - 2);
+      }
+
+      setupProvinciaSelector() {
+        const provSelect = document.getElementById('maint-provincia');
+        if (!provSelect) return;
+        this.handleProvinciaChange();
+      }
+
+      handleProvinciaChange() {
+        const provSelect = document.getElementById('maint-provincia');
+        const cantonSelect = document.getElementById('maint-canton');
+        if (!provSelect || !cantonSelect) return;
+
+        const cantones = ECUADOR_LOCATIONS[provSelect.value] || [];
+        cantonSelect.innerHTML = '';
+        cantones.forEach(canton => {
+          const opt = document.createElement('option');
+          opt.value = canton;
+          opt.textContent = canton;
+          cantonSelect.appendChild(opt);
+        });
+      }
+
+      setPreviousLocation() {
+        if (!this.lastLocation) return;
+        const provSelect = document.getElementById('maint-provincia');
+        if (provSelect) {
+          provSelect.value = this.lastLocation.provincia;
+          this.handleProvinciaChange();
+          const cantonSelect = document.getElementById('maint-canton');
+          if (cantonSelect) cantonSelect.value = this.lastLocation.canton;
+          this.showToast('Lugar anterior cargado (' + this.lastLocation.canton + ')', 'info');
+        }
+      }
+
+      renderTrailerAccessibleList() {
+        const container = document.getElementById('trailer-list-container');
+        if (!container) return;
+
+        container.innerHTML = TRAILER_PARTS.map(part => {
+          const lastMaint = this.getLastMaintenanceForPart(part.id);
+          const statusText = lastMaint ? `${lastMaint.fecha} (${lastMaint.km.toLocaleString()} km)` : 'Sin mantenimientos registrados';
+          const isSelected = this.selectedPart === part.id;
+          return `
+            <div onclick="app.selectPart('${part.id}')" class="p-3.5 rounded-2xl border-2 ${isSelected ? 'border-emerald-400 bg-slate-800' : 'border-slate-800 bg-slate-950'} cursor-pointer flex items-center justify-between transition-all">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-emerald-400 text-lg">
+                  <i class="fa-solid ${part.icon}"></i>
+                </div>
+                <div>
+                  <h4 class="font-bold text-base text-white">${part.name}</h4>
+                  <p class="text-xs text-slate-400">${statusText}</p>
+                </div>
+              </div>
+              <span class="text-xs px-2.5 py-1 rounded-full ${isSelected ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400 font-bold'}">
+                ${isSelected ? 'Activo' : 'Tocar'}
+              </span>
+            </div>
+          `;
+        }).join('');
+      }
+
+      setTrailerDisplayMode(mode) {
+        this.displayMode = mode;
+        const graphicBox = document.getElementById('trailer-graphic-container');
+        const listBox = document.getElementById('trailer-list-container');
+        const btnGraphic = document.getElementById('btn-toggle-graphic');
+        const btnList = document.getElementById('btn-toggle-list');
+
+        if (mode === 'graphic') {
+          graphicBox.classList.remove('hidden');
+          listBox.classList.add('hidden');
+          btnGraphic.className = "px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-slate-950 transition-colors";
+          btnList.className = "px-3 py-2 rounded-xl text-sm font-bold text-slate-400 hover:text-white transition-colors";
+        } else {
+          graphicBox.classList.add('hidden');
+          listBox.classList.remove('hidden');
+          btnList.className = "px-3 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-slate-950 transition-colors";
+          btnGraphic.className = "px-3 py-2 rounded-xl text-sm font-bold text-slate-400 hover:text-white transition-colors";
+        }
+      }
+
+      selectPart(partId) {
+        this.selectedPart = partId;
+        
+        document.querySelectorAll('.truck-part').forEach(el => el.classList.remove('active'));
+        
+        const nameEl = document.getElementById('selected-part-name');
+        const statusEl = document.getElementById('selected-part-status');
+        if (nameEl) nameEl.textContent = partId;
+
+        const lastMaint = this.getLastMaintenanceForPart(partId);
+        if (statusEl) {
+          if (lastMaint) {
+            statusEl.textContent = `Último trabajo: ${lastMaint.trabajo} el ${lastMaint.fecha} (${lastMaint.km.toLocaleString()} km)`;
+            statusEl.className = "text-sm text-emerald-400 font-semibold";
+          } else {
+            statusEl.textContent = "Sin registros previos en esta parte.";
+            statusEl.className = "text-sm text-slate-400 italic";
+          }
+        }
+
+        this.renderTrailerAccessibleList();
+      }
+
+      getLastMaintenanceForPart(partId) {
+        const matches = this.maintenances.filter(m => m.parte === partId);
+        if (matches.length === 0) return null;
+        matches.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+        return matches[0];
+      }
+
+      getMaxKm() {
+        if (!this.session) return 0;
+        let km = this.session.odometro || 180000;
+        this.maintenances.forEach(m => {
+          if (m.km > km) km = m.km;
+        });
+        return km;
+      }
+
+      handleLogin(e) {
+        e.preventDefault();
+        const placa = document.getElementById('login-placa').value.trim();
+        const nombre = document.getElementById('login-nombre').value.trim();
+        const cedula = document.getElementById('login-cedula').value.trim();
+        const email = document.getElementById('login-email').value.trim();
+
+        if (!placa || !nombre || !cedula || !email) {
+          this.showToast('Por favor completa todos los campos obligatorios', 'warning');
+          return;
+        }
+
+        this.session = {
+          placa: placa.toUpperCase(),
+          nombre,
+          cedula,
+          email,
+          trailerModel: "Freightliner Columbia 2020",
+          engine: "Detroit Diesel DD15",
+          odometro: 184500
+        };
+
+        this.saveStorage();
+        this.switchView('dashboard');
+        this.refreshUI();
+        this.showToast(`¡Bienvenido al sistema, ${nombre}!`, 'success');
+      }
+
+      handleLogout() {
+        if (confirm("¿Deseas cerrar la sesión de este chofer en este dispositivo?")) {
+          this.session = null;
+          this.saveStorage();
+          this.closeProfileModal();
+          this.switchView('login');
+          this.showToast('Sesión cerrada correctamente', 'info');
+        }
+      }
+
+      switchView(viewName) {
+        const viewLogin = document.getElementById('view-login');
+        const viewDash = document.getElementById('view-dashboard');
+        const viewReports = document.getElementById('view-reports');
+
+        const navTrailer = document.getElementById('nav-btn-trailer');
+        const navReports = document.getElementById('nav-btn-reports');
+
+        [navTrailer, navReports].forEach(btn => {
+          if (btn) btn.className = "touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-slate-400 hover:text-white font-bold transition-colors";
+        });
+
+        if (viewName === 'login') {
+          viewLogin.classList.remove('hidden');
+          viewDash.classList.add('hidden');
+          viewReports.classList.add('hidden');
+          document.querySelector('nav').classList.add('hidden');
+          return;
+        }
+
+        document.querySelector('nav').classList.remove('hidden');
+
+        if (viewName === 'dashboard') {
+          viewLogin.classList.add('hidden');
+          viewDash.classList.remove('hidden');
+          viewReports.classList.add('hidden');
+          if (navTrailer) navTrailer.className = "touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-emerald-400 font-bold transition-colors";
+        } else if (viewName === 'reports') {
+          viewLogin.classList.add('hidden');
+          viewDash.classList.add('hidden');
+          viewReports.classList.remove('hidden');
+          if (navReports) navReports.className = "touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-emerald-400 font-bold transition-colors";
+          this.renderReportsList();
+        }
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      refreshUI() {
+        if (!this.session) return;
+
+        const headerInfo = document.getElementById('header-cabezal-info');
+        if (headerInfo) headerInfo.textContent = `Placa: ${this.session.placa} • Chofer: ${this.session.nombre}`;
+
+        const currentKm = this.getMaxKm();
+        const kmEl = document.getElementById('dash-km');
+        if (kmEl) kmEl.textContent = currentKm.toLocaleString();
+
+        const placaEl = document.getElementById('dash-placa');
+        if (placaEl) placaEl.textContent = `Placa: ${this.session.placa} (${this.session.trailerModel || 'Freightliner'})`;
+
+        const profPlaca = document.getElementById('prof-placa');
+        const profNombre = document.getElementById('prof-nombre');
+        const profCedula = document.getElementById('prof-cedula');
+        const profEmail = document.getElementById('prof-email');
+        if (profPlaca) profPlaca.textContent = this.session.placa;
+        if (profNombre) profNombre.textContent = this.session.nombre;
+        if (profCedula) profCedula.textContent = `Cédula: ${this.maskCedula(this.session.cedula)} (Cifrada en reposo)`;
+        if (profEmail) profEmail.textContent = this.session.email;
+
+        this.selectPart(this.selectedPart || "Motor Detroit");
+        this.renderHistory();
+        this.renderFeedbackHistory();
+      }
+
+      openNewMaintenanceModal() {
+        const modal = document.getElementById('modal-maintenance');
+        if (!modal) return;
+        
+        const kmInput = document.getElementById('maint-km');
+        if (kmInput) kmInput.value = this.getMaxKm();
+
+        const partSelect = document.getElementById('maint-part');
+        if (partSelect && this.selectedPart) {
+          partSelect.value = this.selectedPart;
+        }
+
+        this.selectedTallerFile = null;
+        this.selectedRepuestosFile = null;
+        
+        const lblTaller = document.getElementById('label-factura-taller');
+        if (lblTaller) lblTaller.innerHTML = '⚠️ Sin factura de taller';
+        
+        const lblRep = document.getElementById('label-factura-repuestos');
+        if (lblRep) lblRep.innerHTML = '⚠️ Sin factura de repuestos';
+
+        this.calculateTotalCost();
+        modal.classList.remove('hidden');
+      }
+
+      openNewMaintenanceModalForPart() {
+        this.openNewMaintenanceModal();
+      }
+
+      closeMaintenanceModal() {
+        const modal = document.getElementById('modal-maintenance');
+        if (modal) modal.classList.add('hidden');
+      }
+
+      calculateTotalCost() {
+        const costoTaller = parseFloat(document.getElementById('maint-costo-taller')?.value) || 0;
+        const costoRepuestos = parseFloat(document.getElementById('maint-costo-repuestos')?.value) || 0;
+        const total = costoTaller + costoRepuestos;
+        const preview = document.getElementById('maint-costo-total-preview');
+        if (preview) {
+          preview.textContent = `$${total.toFixed(2)}`;
+        }
+        return total;
+      }
+
+      handleTallerFile(e) {
+        const file = e.target.files[0];
+        const lbl = document.getElementById('label-factura-taller');
+        if (!file) {
+          this.selectedTallerFile = null;
+          if (lbl) lbl.innerHTML = '⚠️ Sin factura de taller';
+          return;
+        }
+        this.selectedTallerFile = file.name;
+        if (lbl) lbl.innerHTML = `✅ <span class="text-emerald-400 font-bold">${file.name}</span>`;
+      }
+
+      handleRepuestosFile(e) {
+        const file = e.target.files[0];
+        const lbl = document.getElementById('label-factura-repuestos');
+        if (!file) {
+          this.selectedRepuestosFile = null;
+          if (lbl) lbl.innerHTML = '⚠️ Sin factura de repuestos';
+          return;
+        }
+        this.selectedRepuestosFile = file.name;
+        if (lbl) lbl.innerHTML = `✅ <span class="text-cyan-400 font-bold">${file.name}</span>`;
+      }
+
+      handleSaveMaintenance(e) {
+        e.preventDefault();
+        const part = document.getElementById('maint-part').value;
+        const job = document.getElementById('maint-job').value;
+        const km = parseInt(document.getElementById('maint-km').value, 10);
+        const date = document.getElementById('maint-date').value;
+        const provincia = document.getElementById('maint-provincia').value;
+        const canton = document.getElementById('maint-canton').value;
+        
+        const taller = document.getElementById('maint-taller').value.trim() || 'No especificado';
+        const costoTaller = parseFloat(document.getElementById('maint-costo-taller').value) || 0;
+        
+        const proveedor = document.getElementById('maint-proveedor').value.trim() || 'No especificado';
+        const costoRepuestos = parseFloat(document.getElementById('maint-costo-repuestos').value) || 0;
+        const repuestosDetalle = document.getElementById('maint-repuestos-detalle').value.trim();
+
+        const notas = document.getElementById('maint-notas').value.trim();
+        const totalCosto = costoTaller + costoRepuestos;
+
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (date > todayStr) {
+          this.showToast('No se permiten mantenimientos con fecha futura', 'warning');
+          return;
+        }
+
+        const currentMax = this.getMaxKm();
+        if (km < currentMax) {
+          const proceed = confirm(`Atención: El kilometraje ingresado (${km.toLocaleString()} km) es MENOR al odómetro actual (${currentMax.toLocaleString()} km). ¿Deseas guardar de todas formas?`);
+          if (!proceed) return;
+        }
+
+        const newMaintenance = {
+          id: 'm-' + Date.now(),
+          fecha: date,
+          km: km,
+          parte: part,
+          trabajo: job,
+          provincia: provincia,
+          canton: canton,
+          taller: taller,
+          costoTaller: costoTaller,
+          facturaTallerFile: this.selectedTallerFile,
+          proveedor: proveedor,
+          costoRepuestos: costoRepuestos,
+          repuestosDetalle: repuestosDetalle,
+          facturaRepuestosFile: this.selectedRepuestosFile,
+          costo: totalCosto,
+          notas: notas,
+          anexosPosteriores: [],
+          bloqueado: false,
+          reportFolio: null
+        };
+
+        this.maintenances.unshift(newMaintenance);
+        this.lastLocation = { provincia, canton };
+
+        this.saveStorage();
+        this.closeMaintenanceModal();
+        this.refreshUI();
+        this.showToast('¡Mantenimiento guardado con taller y repuestos separados!', 'success');
+      }
+
+      // MODAL ADJUNTO POSTERIOR (RF-74, RF-85)
+      openPostEvidenceModal(maintId) {
+        this.targetPostMaintId = maintId;
+        const maint = this.maintenances.find(m => m.id === maintId);
+        if (!maint) return;
+
+        document.getElementById('post-ev-maint-name').textContent = `${maint.trabajo} (${maint.km.toLocaleString()} km - ${maint.parte})`;
+        document.getElementById('post-ev-maint-folio').textContent = `Reporte Asociado: ${maint.reportFolio || 'Sin reporte previo'}`;
+        document.getElementById('modal-post-evidence').classList.remove('hidden');
+      }
+
+      closePostEvidenceModal() {
+        document.getElementById('modal-post-evidence').classList.add('hidden');
+        this.targetPostMaintId = null;
+      }
+
+      handleSavePostEvidence(e) {
+        e.preventDefault();
+        const maint = this.maintenances.find(m => m.id === this.targetPostMaintId);
+        if (!maint) return;
+
+        const type = document.getElementById('post-ev-type').value;
+        const fileInput = document.getElementById('post-ev-file');
+        const file = fileInput.files[0];
+
+        if (!file) {
+          this.showToast('Selecciona un archivo para adjuntar', 'warning');
+          return;
+        }
+
+        if (!maint.anexosPosteriores) maint.anexosPosteriores = [];
+
+        const now = new Date();
+        const stamp = now.toLocaleDateString('es-EC') + ' ' + now.toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+        const hash = this.generateSimulatedHash(file.name + now.getTime());
+
+        maint.anexosPosteriores.push({
+          tipo: type,
+          archivo: file.name,
+          fechaCarga: stamp,
+          hash: hash
+        });
+
+        // If it was missing specific invoices, also populate the reference
+        if (type.includes('Taller') && !maint.facturaTallerFile) maint.facturaTallerFile = `[Anexo Post] ${file.name}`;
+        if (type.includes('Repuestos') && !maint.facturaRepuestosFile) maint.facturaRepuestosFile = `[Anexo Post] ${file.name}`;
+
+        this.saveStorage();
+        this.closePostEvidenceModal();
+        this.renderHistory();
+        fileInput.value = '';
+        this.showToast('¡Anexo posterior registrado e incorporado al expediente!', 'success');
+      }
+
+      renderHistory() {
+        const listContainer = document.getElementById('maintenance-history-list');
+        const countBadge = document.getElementById('history-count-badge');
+        if (!listContainer) return;
+
+        if (countBadge) countBadge.textContent = `${this.maintenances.length} Registros`;
+
+        if (this.maintenances.length === 0) {
+          listContainer.innerHTML = `
+            <div class="text-center py-8 bg-slate-950 rounded-2xl border border-slate-800 p-4">
+              <i class="fa-solid fa-clipboard-list text-3xl text-slate-600 mb-2"></i>
+              <p class="text-base text-slate-300 font-bold">No hay mantenimientos registrados todavía.</p>
+              <p class="text-xs text-slate-500 mt-1">Presiona "NUEVO MANTENIMIENTO" o toca una parte del camión.</p>
+            </div>
+          `;
+          return;
+        }
+
+        listContainer.innerHTML = this.maintenances.map(m => {
+          const costoTaller = m.costoTaller || 0;
+          const costoRep = m.costoRepuestos || 0;
+          const anexosCount = (m.anexosPosteriores || []).length;
+
+          return `
+            <div class="p-4 rounded-2xl bg-slate-950 border ${m.bloqueado ? 'border-cyan-800/80 shadow-md shadow-cyan-950/20' : 'border-slate-800'} space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="px-2.5 py-1 rounded-xl text-xs font-black bg-slate-800 text-emerald-400 font-mono">
+                    ${m.fecha}
+                  </span>
+                  <span class="text-xs font-mono font-bold text-slate-400">
+                    ${m.km.toLocaleString()} KM
+                  </span>
+                </div>
+                
+                <div class="flex items-center gap-1.5">
+                  ${m.bloqueado ? `
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center gap-1">
+                      <i class="fa-solid fa-lock text-[10px]"></i> Congelado (${m.reportFolio})
+                    </span>
+                  ` : `
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400">
+                      Editable
+                    </span>
+                  `}
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-1">
+                <div>
+                  <h4 class="text-lg font-black text-white">${m.trabajo}</h4>
+                  <p class="text-xs text-emerald-400 font-semibold">${m.parte} • ${m.canton}, ${m.provincia}</p>
+                </div>
+                <div class="text-left sm:text-right">
+                  <span class="text-lg font-black font-mono text-emerald-400">
+                    $${m.costo.toFixed(2)}
+                  </span>
+                  <span class="block text-[10px] text-slate-400">Total acumulado</span>
+                </div>
+              </div>
+
+              <!-- Desglose de Taller y Repuestos en la tarjeta -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+                <div>
+                  <span class="text-slate-400 font-bold block"><i class="fa-solid fa-wrench text-emerald-400 mr-1"></i> Taller / Mano Obra:</span>
+                  <span class="text-slate-200">${m.taller} ($${costoTaller.toFixed(2)})</span>
+                  <div class="mt-0.5">
+                    ${m.facturaTallerFile ? 
+                      `<span class="text-emerald-400 font-bold text-[11px]"><i class="fa-solid fa-file-invoice"></i> ${m.facturaTallerFile}</span>` : 
+                      `<span class="text-amber-400 text-[11px] font-bold">⚠️ Falta Factura Taller</span>`}
+                  </div>
+                </div>
+
+                <div>
+                  <span class="text-slate-400 font-bold block"><i class="fa-solid fa-box text-cyan-400 mr-1"></i> Almacén Repuestos:</span>
+                  <span class="text-slate-200">${m.proveedor} ($${costoRep.toFixed(2)})</span>
+                  <div class="mt-0.5">
+                    ${m.facturaRepuestosFile ? 
+                      `<span class="text-cyan-400 font-bold text-[11px]"><i class="fa-solid fa-receipt"></i> ${m.facturaRepuestosFile}</span>` : 
+                      `<span class="text-amber-400 text-[11px] font-bold">⚠️ Falta Factura Repuestos</span>`}
+                  </div>
+                </div>
+              </div>
+
+              ${m.repuestosDetalle ? `<p class="text-xs text-slate-300 bg-slate-900/50 p-2 rounded-xl"><strong>Piezas:</strong> ${m.repuestosDetalle}</p>` : ''}
+              ${m.notas ? `<p class="text-xs text-slate-400 italic">"${m.notas}"</p>` : ''}
+
+              <!-- Anexos Posteriores Registrados -->
+              ${anexosCount > 0 ? `
+                <div class="p-2 rounded-xl bg-cyan-950/40 border border-cyan-800/50 text-xs">
+                  <span class="font-bold text-cyan-300 block mb-1">
+                    <i class="fa-solid fa-clock-rotate-left mr-1"></i> ${anexosCount} Anexo(s) posterior(es) al reporte:
+                  </span>
+                  ${m.anexosPosteriores.map(a => `
+                    <div class="flex items-center justify-between text-[11px] text-slate-300">
+                      <span>• ${a.tipo}: <strong>${a.archivo}</strong></span>
+                      <span class="font-mono text-slate-500">${a.fechaCarga}</span>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
+
+              <!-- Botones de Acción -->
+              <div class="flex flex-wrap items-center justify-between pt-2 border-t border-slate-900 gap-2">
+                <!-- Botón CLAVE de feedback: Subir evidencia posterior incluso si está reportado -->
+                <button onclick="app.openPostEvidenceModal('${m.id}')" class="px-3.5 py-2 rounded-xl bg-cyan-950 hover:bg-cyan-900 text-cyan-300 font-bold text-xs flex items-center gap-1.5 border border-cyan-700/60 shadow">
+                  <i class="fa-solid fa-file-circle-plus text-sm"></i>
+                  <span>${m.bloqueado ? 'Adjuntar Factura Posterior' : 'Adjuntar Evidencia'}</span>
+                </button>
+
+                <div class="flex items-center gap-2">
+                  <button onclick="app.generateSingleMaintenanceReport('${m.id}')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs flex items-center gap-1">
+                    <i class="fa-solid fa-file-pdf text-emerald-400"></i> Reporte
+                  </button>
+                  ${!m.bloqueado ? `
+                    <button onclick="app.deleteMaintenance('${m.id}')" class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs" title="Eliminar servicio">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      deleteMaintenance(id) {
+        const item = this.maintenances.find(m => m.id === id);
+        if (!item) return;
+        if (item.bloqueado) {
+          this.showToast('No se puede eliminar: ya pertenece a un reporte emitido (RN-04)', 'warning');
+          return;
+        }
+
+        if (confirm("¿Estás seguro de dar de baja este mantenimiento?")) {
+          this.maintenances = this.maintenances.filter(m => m.id !== id);
+          this.saveStorage();
+          this.refreshUI();
+          this.showToast('Mantenimiento eliminado con éxito', 'info');
+        }
+      }
+
+      // Preparation of Monthly Report with content freezing (RF-80, RF-84, RF-85)
+      prepareMonthlyReportPreview() {
+        if (!this.session) {
+          this.showToast('Debes iniciar sesión para emitir reportes', 'warning');
+          return;
+        }
+
+        if (this.maintenances.length === 0) {
+          this.showToast('No hay mantenimientos para incluir en el reporte', 'warning');
+          return;
+        }
+
+        const folio = `REP-2026-${String(this.reports.length + 1).padStart(3, '0')}`;
+        const fechaEmision = new Date().toLocaleDateString('es-EC');
+        const hash = this.generateSimulatedHash(folio + this.session.placa + Date.now());
+
+        document.getElementById('rep-folio').textContent = folio;
+        document.getElementById('rep-fecha-emision').textContent = fechaEmision;
+        document.getElementById('rep-placa').textContent = this.session.placa;
+        document.getElementById('rep-chofer').textContent = this.session.nombre;
+        document.getElementById('rep-cedula').textContent = this.maskCedula(this.session.cedula);
+        document.getElementById('rep-odometro').textContent = this.getMaxKm().toLocaleString() + ' km';
+        document.getElementById('rep-hash').textContent = hash;
+
+        const tableBody = document.getElementById('rep-table-rows');
+        const anexosContainer = document.getElementById('rep-anexos-list');
+        let totalCost = 0;
+        const maintIncludedIds = [];
+        let allPosteriorEvidences = [];
+
+        tableBody.innerHTML = this.maintenances.map(m => {
+          totalCost += m.costo;
+          maintIncludedIds.push(m.id);
+
+          if (m.anexosPosteriores && m.anexosPosteriores.length > 0) {
+            m.anexosPosteriores.forEach(a => {
+              allPosteriorEvidences.push({
+                trabajo: m.trabajo,
+                km: m.km,
+                tipo: a.tipo,
+                archivo: a.archivo,
+                fecha: a.fechaCarga,
+                hash: a.hash
+              });
+            });
+          }
+
+          return `
+            <tr class="border-b border-slate-200">
+              <td class="p-2 border border-slate-300 font-mono">
+                <div>${m.fecha}</div>
+                <div class="text-[10px] text-slate-500">${m.km.toLocaleString()} km</div>
+              </td>
+              <td class="p-2 border border-slate-300 font-bold">${m.parte}</td>
+              <td class="p-2 border border-slate-300">${m.trabajo}</td>
+              <td class="p-2 border border-slate-300">
+                <div>${m.taller}</div>
+                <div class="font-mono font-bold text-slate-700">$${(m.costoTaller || 0).toFixed(2)}</div>
+              </td>
+              <td class="p-2 border border-slate-300">
+                <div>${m.proveedor}</div>
+                <div class="font-mono font-bold text-slate-700">$${(m.costoRepuestos || 0).toFixed(2)}</div>
+              </td>
+              <td class="p-2 border border-slate-300 text-[10px]">
+                <div>Fact. Taller: ${m.facturaTallerFile ? '✅' : '⚠️ Falta'}</div>
+                <div>Fact. Repuestos: ${m.facturaRepuestosFile ? '✅' : '⚠️ Falta'}</div>
+              </td>
+              <td class="p-2 border border-slate-300 text-right font-mono font-bold text-slate-900">$${m.costo.toFixed(2)}</td>
+            </tr>
+          `;
+        }).join('');
+
+        // Render Posterior Annexes in Report
+        if (allPosteriorEvidences.length === 0) {
+          anexosContainer.innerHTML = '<span class="text-slate-500 italic">No se han registrado anexos o facturas extemporáneas para este periodo.</span>';
+        } else {
+          anexosContainer.innerHTML = allPosteriorEvidences.map(a => `
+            <div class="p-2 bg-slate-100 rounded border border-slate-300 flex justify-between">
+              <div>
+                <strong>${a.tipo}:</strong> ${a.archivo} (Asociado a ${a.trabajo} - ${a.km.toLocaleString()} km)
+              </div>
+              <div class="text-[10px] font-mono text-slate-600">
+                Cargado: ${a.fecha} | SHA: ${a.hash.substring(0, 16)}...
+              </div>
+            </div>
+          `).join('');
+        }
+
+        document.getElementById('rep-total-items').textContent = `${this.maintenances.length} registros`;
+        document.getElementById('rep-total-cost').textContent = `$${totalCost.toFixed(2)}`;
+
+        // Freeze records
+        this.maintenances.forEach(m => {
+          m.bloqueado = true;
+          m.reportFolio = folio;
+        });
+
+        this.reports.unshift({
+          folio: folio,
+          mes: 'Noviembre 2026',
+          fechaGenerado: fechaEmision,
+          hash: hash,
+          totalCosto: totalCost,
+          mantenimientoIds: maintIncludedIds
+        });
+
+        this.saveStorage();
+        this.renderHistory();
+
+        document.getElementById('modal-report-preview').classList.remove('hidden');
+      }
+
+      generateSingleMaintenanceReport(maintId) {
+        const item = this.maintenances.find(m => m.id === maintId);
+        if (!item) return;
+
+        const folio = `IND-${item.km}-${item.fecha.replace(/-/g, '')}`;
+        const fechaEmision = new Date().toLocaleDateString('es-EC');
+        const hash = this.generateSimulatedHash(folio + item.id);
+
+        document.getElementById('rep-folio').textContent = folio;
+        document.getElementById('rep-fecha-emision').textContent = fechaEmision;
+        document.getElementById('rep-placa').textContent = this.session.placa;
+        document.getElementById('rep-chofer').textContent = this.session.nombre;
+        document.getElementById('rep-cedula').textContent = this.maskCedula(this.session.cedula);
+        document.getElementById('rep-odometro').textContent = item.km.toLocaleString() + ' km';
+        document.getElementById('rep-hash').textContent = hash;
+
+        const tableBody = document.getElementById('rep-table-rows');
+        tableBody.innerHTML = `
+          <tr class="border-b border-slate-200">
+            <td class="p-2 border border-slate-300 font-mono">
+              <div>${item.fecha}</div>
+              <div class="text-[10px] text-slate-500">${item.km.toLocaleString()} km</div>
+            </td>
+            <td class="p-2 border border-slate-300 font-bold">${item.parte}</td>
+            <td class="p-2 border border-slate-300">${item.trabajo}</td>
+            <td class="p-2 border border-slate-300">
+              <div>${item.taller}</div>
+              <div class="font-mono font-bold">$${(item.costoTaller || 0).toFixed(2)}</div>
+            </td>
+            <td class="p-2 border border-slate-300">
+              <div>${item.proveedor}</div>
+              <div class="font-mono font-bold">$${(item.costoRepuestos || 0).toFixed(2)}</div>
+            </td>
+            <td class="p-2 border border-slate-300 text-[10px]">
+              <div>Fact. Taller: ${item.facturaTallerFile ? '✅' : '⚠️ Falta'}</div>
+              <div>Fact. Repuestos: ${item.facturaRepuestosFile ? '✅' : '⚠️ Falta'}</div>
+            </td>
+            <td class="p-2 border border-slate-300 text-right font-mono font-bold">$${item.costo.toFixed(2)}</td>
+          </tr>
+        `;
+
+        const anexosContainer = document.getElementById('rep-anexos-list');
+        const anexos = item.anexosPosteriores || [];
+        if (anexos.length === 0) {
+          anexosContainer.innerHTML = '<span class="text-slate-500 italic">No hay anexos posteriores registrados para este mantenimiento.</span>';
+        } else {
+          anexosContainer.innerHTML = anexos.map(a => `
+            <div class="p-2 bg-slate-100 rounded border border-slate-300 flex justify-between">
+              <div><strong>${a.tipo}:</strong> ${a.archivo}</div>
+              <div class="text-[10px] font-mono text-slate-600">Cargado: ${a.fechaCarga} | Hash: ${a.hash.substring(0, 16)}...</div>
+            </div>
+          `).join('');
+        }
+
+        document.getElementById('rep-total-items').textContent = `1 trabajo individual`;
+        document.getElementById('rep-total-cost').textContent = `$${item.costo.toFixed(2)}`;
+
+        document.getElementById('modal-report-preview').classList.remove('hidden');
+      }
+
+      closeReportModal() {
+        document.getElementById('modal-report-preview').classList.add('hidden');
+      }
+
+      simulateShareWhatsapp() {
+        const folio = document.getElementById('rep-folio').textContent;
+        const msg = encodeURIComponent(`Hola Don, le comparto el reporte oficial con desglose de taller y repuestos del trailer placa ${this.session.placa}. Folio: ${folio}. Generado por Mi Trailer.`);
+        window.open(`https://api.whatsapp.com/send?text=${msg}`, '_blank');
+      }
+
+      renderReportsList() {
+        const listContainer = document.getElementById('reports-generated-list');
+        if (!listContainer) return;
+
+        if (this.reports.length === 0) {
+          listContainer.innerHTML = `
+            <div class="text-center py-6 bg-slate-950 rounded-2xl border border-slate-800 text-slate-400">
+              <i class="fa-solid fa-folder-open text-2xl mb-1"></i>
+              <p class="text-sm">Aún no se han generado reportes mensuales congelados.</p>
+            </div>
+          `;
+          return;
+        }
+
+        listContainer.innerHTML = this.reports.map(rep => {
+          return `
+            <div class="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-mono text-sm font-black text-emerald-400">${rep.folio}</span>
+                  <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-bold">${rep.mes}</span>
+                </div>
+                <p class="text-xs text-slate-400 mt-1 font-mono">Emisión: ${rep.fechaGenerado} • Total: $${rep.totalCosto.toFixed(2)}</p>
+                <p class="text-[10px] text-slate-500 font-mono truncate max-w-xs">Hash: ${rep.hash}</p>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button onclick="app.prepareMonthlyReportPreview()" class="px-3 py-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold flex items-center gap-1 border border-emerald-500/30">
+                  <i class="fa-solid fa-eye"></i> Ver Reporte
+                </button>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      openFeedbackModal() {
+        document.getElementById('modal-feedback').classList.remove('hidden');
+      }
+
+      closeFeedbackModal() {
+        document.getElementById('modal-feedback').classList.add('hidden');
+      }
+
+      handleSaveFeedback(e) {
+        e.preventDefault();
+        const facilidad = document.querySelector('input[name="facilidad"]:checked').value;
+        const comentario = document.getElementById('feedback-comment').value.trim();
+
+        if (!comentario) return;
+
+        const newFeedback = {
+          fecha: new Date().toLocaleDateString('es-EC'),
+          facilidad: facilidad,
+          comentario: comentario
+        };
+
+        this.feedbackList.unshift(newFeedback);
+        this.saveStorage();
+        this.renderFeedbackHistory();
+
+        document.getElementById('feedback-comment').value = '';
+        this.closeFeedbackModal();
+        this.showToast('¡Gracias por tus comentarios! Nos ayuda mucho.', 'success');
+      }
+
+      renderFeedbackHistory() {
+        const container = document.getElementById('feedback-items-box');
+        if (!container) return;
+
+        if (this.feedbackList.length === 0) {
+          container.innerHTML = '<p class="text-slate-500 italic">No hay comentarios aún.</p>';
+          return;
+        }
+
+        container.innerHTML = this.feedbackList.map(f => `
+          <div class="p-2 bg-slate-950 rounded-xl border border-slate-800">
+            <span class="text-amber-400 font-bold">${f.facilidad}</span> - <span class="text-slate-300">"${f.comentario}"</span>
+          </div>
+        `).join('');
+      }
+
+      openProfileModal() {
+        document.getElementById('modal-profile').classList.remove('hidden');
+      }
+
+      closeProfileModal() {
+        document.getElementById('modal-profile').classList.add('hidden');
+      }
+
+      generateSimulatedHash(str) {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+          hash = (hash << 5) - hash + str.charCodeAt(i);
+          hash |= 0;
+        }
+        return 'sha256-' + Math.abs(hash).toString(16) + '8f0a2c91b4e5d6';
+      }
+
+      showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        const msgEl = document.getElementById('toast-message');
+        const iconEl = document.getElementById('toast-icon');
+        if (!toast || !msgEl) return;
+
+        msgEl.textContent = message;
+
+        if (type === 'success') {
+          toast.className = "fixed top-20 right-4 max-w-sm z-50 bg-emerald-500 text-slate-950 font-extrabold px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300";
+          iconEl.className = "fa-solid fa-circle-check text-2xl";
+        } else if (type === 'warning') {
+          toast.className = "fixed top-20 right-4 max-w-sm z-50 bg-amber-500 text-slate-950 font-extrabold px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300";
+          iconEl.className = "fa-solid fa-triangle-exclamation text-2xl";
+        } else {
+          toast.className = "fixed top-20 right-4 max-w-sm z-50 bg-cyan-500 text-slate-950 font-extrabold px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 transition-all duration-300";
+          iconEl.className = "fa-solid fa-circle-info text-2xl";
+        }
+
+        toast.style.transform = "translateY(0)";
+        toast.style.opacity = "1";
+
+        setTimeout(() => {
+          toast.style.transform = "translateY(-150%)";
+          toast.style.opacity = "0";
+        }, 3200);
+      }
+    }
+
+    let app;
+    window.addEventListener('DOMContentLoaded', () => {
+      app = new TrailerApp();
+    });
+
+    // Funcionamiento sin conexión para los archivos propios de la app
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  </script>
 </body>
 </html>

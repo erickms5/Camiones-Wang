@@ -142,15 +142,17 @@ const ICONO_NAV = {
   telemetria: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/><circle cx="12" cy="16" r="1.4"/></svg>',
 };
 
-export function htmlVista(id) {
+// opciones.inicio: página principal; opciones.ultimoServicio(unidad, componente, compartimento) → texto o null
+export function htmlVista(id, opciones = {}) {
+  const inicio = opciones.inicio || '#/';
   if (estado?.detener) estado.detener();
   const e = armar(id);
-  if (!e) return `<a class="volver" href="#/">‹ Mis unidades</a><h1 tabindex="-1">No se encontró la unidad</h1>`;
+  if (!e) return `<a class="volver" href="${inicio}">‹ Volver</a><h1 tabindex="-1">No se encontró la unidad</h1>`;
   const usuario = db().usuario;
   const avisos = activas().filter((u) => !conductorDe(u.id) || (u.rol === 'remolque' && !pareja(u.id))).length;
   const iniciales = (usuario.nombre || 'Mi cuenta').split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
   estado = {
-    e, puntos: e.puntos, foco: e.focoInicial, modo: 'telemetria', sim: simulacionActiva(), etiquetas: false, info: true,
+    e, puntos: e.puntos, foco: e.focoInicial, ultimoServicio: opciones.ultimoServicio, modo: 'telemetria', sim: simulacionActiva(), etiquetas: false, info: true,
     paneles: { izq: null, der: null }, historial: Array.from({ length: 40 }, (_, i) => 70 + 12 * Math.sin(i / 3)),
     sensores: JSON.parse(JSON.stringify(SENSORES)),
   };
@@ -158,16 +160,16 @@ export function htmlVista(id) {
   return `<div class="tos" id="tos">
   <header class="tos-top">
     <button type="button" class="tos-icono-btn tos-menu" data-v="menu" aria-label="Mostrar u ocultar el menú lateral">☰</button>
-    <a class="tos-logo" href="#/unidad/${e.u.id}" aria-label="Volver a la ficha de ${esc(e.u.placa)}"><span class="tos-volver" aria-hidden="true">‹</span><b>CAMIONES</b><span>WANG</span></a>
+    <a class="tos-logo" href="${opciones.inicio || `#/unidad/${e.u.id}`}" aria-label="Volver"><span class="tos-volver" aria-hidden="true">‹</span><b>CAMIONES</b><span>WANG</span></a>
     <label class="tos-buscar"><span class="sr-only">Buscar una parte</span><span aria-hidden="true">⌕</span><input id="tos-q" type="search" placeholder="Buscar parte" autocomplete="off"></label>
     ${vistas.length ? `<div class="tos-vistas" role="group" aria-label="Encuadre">${vistas.map(([k, t]) => `<button type="button" class="tos-vista" data-v="foco" data-foco="${k}" title="${t}"><span class="tos-vista-pt" aria-hidden="true"></span><span class="tos-vista-txt">${t}</span></button>`).join('')}</div>` : ''}
     <span class="tos-espacio"></span>
     <button type="button" class="tos-control" data-v="sim" aria-pressed="${estado.sim}"><span aria-hidden="true">◉</span> <span class="tos-control-txt">Simulación</span></button>
-    <a class="tos-icono-btn tos-campana" href="#/" aria-label="Avisos: ${avisos}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>${avisos ? '<span class="tos-punto-rojo"></span>' : ''}</a>
-    <a class="tos-usuario" href="#/cuenta"><span class="tos-avatar" aria-hidden="true">${esc(iniciales)}</span><span class="tos-usuario-txt">${esc(usuario.nombre || 'Mi cuenta')}<small>${esc([e.cab?.placa, e.rem?.placa].filter(Boolean).join(' + '))}</small></span></a>
+    <a class="tos-icono-btn tos-campana" href="${inicio}" aria-label="Avisos: ${avisos}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>${avisos ? '<span class="tos-punto-rojo"></span>' : ''}</a>
+    <a class="tos-usuario" href="${opciones.cuenta || '#/cuenta'}"><span class="tos-avatar" aria-hidden="true">${esc(iniciales)}</span><span class="tos-usuario-txt">${esc(usuario.nombre || 'Mi cuenta')}<small>${esc([e.cab?.placa, e.rem?.placa].filter(Boolean).join(' + '))}</small></span></a>
   </header>
   <nav class="tos-lateral" aria-label="Secciones">
-    <a class="tos-nav" href="#/">${ICONO_NAV.flota}<span>Flota</span></a>
+    <a class="tos-nav" href="${inicio}">${ICONO_NAV.flota}<span>Flota</span></a>
     <button type="button" class="tos-nav" data-v="modo" data-modo="mantenimiento">${ICONO_NAV.mantenimiento}<span>Mantenimiento</span></button>
     <button type="button" class="tos-nav" data-v="modo" data-modo="diagnostico">${ICONO_NAV.diagnostico}<span>Diagnóstico</span></button>
     <button type="button" class="tos-nav" data-v="modo" data-modo="telemetria">${ICONO_NAV.telemetria}<span>Telemetría</span></button>
@@ -277,7 +279,7 @@ function contenidoPanel(p, lado) {
         <p class="tos-grande">${miles(c.capacidad_galones)}<small> gal</small></p>
         <div class="tos-barra-fila"><span>Del tanque</span><span>${pct} %</span><span class="tos-barra"><span style="width:${pct}%;--c:#38e1ff"></span></span></div>
         <dl class="tos-datos">${fila('Capacidad total', `${miles(total)} gal`)}${fila('Posición', c.orden === 1 ? 'Adelante' : `${c.orden} de ${e.comps.length}`)}</dl>
-        <p class="tos-nota">Mantenimientos: sin registros todavía.</p>
+        <p class="tos-nota">Último mantenimiento: ${esc(estado.ultimoServicio?.(p.unidad, null, c) || 'sin registros todavía')}.</p>
       </div>`;
   }
   const n = p.componente;
@@ -286,7 +288,7 @@ function contenidoPanel(p, lado) {
   const est = estadoComponente(n);
   let cuerpo = '';
   if (estado.modo === 'mantenimiento') {
-    cuerpo = `<dl class="tos-datos">${fila('Kilometraje', kmCab(e) !== undefined ? `${miles(kmCab(e))} km` : 'Sin registrar')}${fila('Último servicio', 'Sin registrar')}</dl>
+    cuerpo = `<dl class="tos-datos">${fila('Kilometraje', kmCab(e) !== undefined ? `${miles(kmCab(e))} km` : 'Sin registrar')}${fila('Último servicio', estado.ultimoServicio?.(u, n) || 'Sin registrar')}</dl>
       <h3 class="tos-p-sec">Intervalos</h3>${intervalosHTML(u, n, 8)}`;
   } else if (estado.modo === 'diagnostico') {
     cuerpo = `<dl class="tos-datos">

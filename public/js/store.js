@@ -52,6 +52,11 @@ function migrar(d) {
   return true;
 }
 
+// Usa un conjunto de datos en memoria (sin tocar el almacenamiento), p. ej. para la vista 3D de la demo.
+export function usarDatos(d) {
+  cache = d;
+}
+
 export function guardar() {
   try {
     localStorage.setItem(CLAVE, JSON.stringify(cache));

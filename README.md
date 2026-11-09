@@ -8,21 +8,17 @@ Funciona sin internet y guarda los datos en el teléfono.
 ## Estructura
 
 ```
-public/               ← todo lo que se publica
-  index.html
-  css/app.css
-  js/app.js           pantallas y asistente de registro
-  js/plantillas.js    tipos de unidad (agregar un tipo = agregar una plantilla)
-  js/catalogo.js      catálogo interno de modelos e intervalos de mantenimiento (no visible)
-  js/validaciones.js  placa, cédula, teléfono, compartimentos
-  js/textos.js        todos los mensajes
-  js/config.js        decisiones abiertas D1–D5
-  js/store.js         almacenamiento local
-  js/consultas.js     consultas de datos (unidades, acoples, km, intervalos)
-  js/vista.js         panel de control con el camión en 3D (sensores simulados con aviso)
-  vendor/             Three.js 0.160 (licencia MIT), guardado localmente para funcionar sin internet
+public/
+  index.html          app «Mi Trailer» (demo de mantenimientos: registro, historial, reportes)
+  camion3d.html       camión en 3D (se abre con el botón «Ver camión en 3D»)
+  js/camion3d.js      arma los datos de la vista 3D a partir de la sesión de la demo
+  js/vista.js         panel de control 3D (sensores simulados con aviso)
+  js/catalogo.js      catálogo interno de modelos e intervalos de mantenimiento
+  js/consultas.js, store.js, plantillas.js, validaciones.js, textos.js, config.js
+  css/app.css         estilos de la vista 3D
+  vendor/             Three.js 0.160 (licencia MIT), guardado localmente
   sw.js               funcionamiento sin conexión
-tests/                pruebas de validaciones
+tests/                pruebas de validaciones y catálogo
 wrangler.jsonc        configuración de Cloudflare Workers
 ```
 

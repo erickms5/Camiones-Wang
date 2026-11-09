@@ -372,7 +372,8 @@ body.modo-holo #app { max-width: none; padding: 0; }
 .tos-control[aria-pressed="false"] span:first-child { opacity: .4; }
 .tos-usuario { display: flex; align-items: center; gap: .6rem; color: var(--tx); text-decoration: none; min-height: 46px; }
 .tos-avatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; background: #1a3346; border: 1px solid rgb(56 225 255 / .35); font-weight: 800; font-size: .75rem; }
-.tos-usuario-txt { display: grid; line-height: 1.15; font-weight: 600; }
+.tos-usuario-txt { display: grid; line-height: 1.15; font-weight: 600; max-width: 11rem; overflow: hidden; white-space: nowrap; }
+.tos-usuario-txt small { overflow: hidden; text-overflow: ellipsis; }
 .tos-usuario-txt small { color: var(--sv); font-weight: 400; font-size: .68rem; }
 
 .tos-lateral { display: flex; flex-direction: column; gap: .4rem; padding: .6rem 0; background: #060e16; border-right: 1px solid rgb(56 225 255 / .14); }
