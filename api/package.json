@@ -1,0 +1,32 @@
+{
+  "name": "mi-trailer-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "API de Mi Trailer: unidades, mantenimientos, evidencias y reportes",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch --env-file-if-exists=.env src/servidor.js",
+    "start": "node src/servidor.js",
+    "test": "node --test test/",
+    "db:generar": "drizzle-kit generate",
+    "db:migrar": "node --env-file-if-exists=.env src/db/migrar.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "drizzle-orm": "^0.45.4",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.3",
+    "helmet": "^8.3.0",
+    "nodemailer": "^10.4.0",
+    "pg": "^8.23.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
+    "drizzle-kit": "^0.31.11",
+    "supertest": "^7.3.2"
+  }
+}
