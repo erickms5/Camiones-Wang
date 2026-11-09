@@ -386,10 +386,20 @@
 
             <!-- Zona General / Lavado / Eléctrico -->
             <g class="truck-part" onclick="app.selectPart('General / Eléctrico / Engrase')">
-              <rect x="50" y="20" width="800" height="35" rx="10" fill="#334155" fill-opacity="0.4" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 5"/>
-              <text x="450" y="42" fill="#cbd5e1" font-size="12" font-weight="bold" text-anchor="middle">
-                🛠️ TOCAR AQUÍ PARA: REVISIÓN GENERAL, LAVADO, ENGRASE COMPLETO O SISTEMA ELÉCTRICO
+              <rect x="50" y="20" width="560" height="35" rx="10" fill="#334155" fill-opacity="0.4" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 5"/>
+              <text x="330" y="42" fill="#cbd5e1" font-size="12" font-weight="bold" text-anchor="middle">
+                🛠️ REVISIÓN GENERAL, LAVADO, ENGRASE O SISTEMA ELÉCTRICO
               </text>
+            </g>
+
+            <!-- Categorías: Llantas y Frenos (se elige el eje al registrar) -->
+            <g class="truck-part" onclick="app.selectPart('Llantas')">
+              <rect x="620" y="20" width="110" height="35" rx="10" fill="#0ea5e9" fill-opacity="0.15" stroke="#38bdf8" stroke-width="1.5"/>
+              <text x="675" y="42" fill="#bae6fd" font-size="12" font-weight="bold" text-anchor="middle">🛞 LLANTAS</text>
+            </g>
+            <g class="truck-part" onclick="app.selectPart('Frenos')">
+              <rect x="740" y="20" width="110" height="35" rx="10" fill="#f97316" fill-opacity="0.15" stroke="#fb923c" stroke-width="1.5"/>
+              <text x="795" y="42" fill="#fed7aa" font-size="12" font-weight="bold" text-anchor="middle">⛔ FRENOS</text>
             </g>
           </svg>
         </div>
@@ -507,12 +517,6 @@
     </div>
   </nav>
 
-  <!-- FLOATING FEEDBACK TRIGGER BUTTON (Always accessible for driver testing) -->
-  <button onclick="app.openFeedbackModal()" class="fixed bottom-20 right-4 z-20 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-full shadow-2xl border-2 border-amber-300 flex items-center gap-2 text-sm sm:text-base animate-bounce">
-    <i class="fa-solid fa-comment-dots text-lg"></i>
-    <span>¿Qué tal la app? Opina</span>
-  </button>
-
   <!-- ==================== MODALES ==================== -->
 
   <!-- MODAL 1: REGISTRO DE MANTENIMIENTO RÁPIDO (< 1 minuto) -->
@@ -538,7 +542,7 @@
         <!-- Parte Afectada -->
         <div>
           <label class="block text-slate-300 font-bold text-base mb-1">Parte del Trailer <span class="text-emerald-400">*</span></label>
-          <select id="maint-part" required class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
+          <select id="maint-part" required onchange="app.toggleEjeSelect()" class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
             <option value="Motor Detroit">Motor Detroit</option>
             <option value="Caja de Cambios">Caja de Cambios (Transmisión)</option>
             <option value="Eje Delantero Cabezal">Eje Delantero Cabezal (Dirección)</option>
@@ -551,8 +555,24 @@
             <option value="Eje 1 Remolque">Eje 1 Remolque</option>
             <option value="Eje 2 Remolque">Eje 2 Remolque</option>
             <option value="Eje 3 Remolque">Eje 3 Remolque</option>
+            <option value="Llantas">Llantas</option>
+            <option value="Frenos">Frenos</option>
             <option value="Quinta Rueda">Quinta Rueda / Enganche</option>
             <option value="General / Eléctrico / Engrase">General / Lavado / Engrase / Eléctrico</option>
+          </select>
+        </div>
+
+        <!-- Eje de las llantas o frenos -->
+        <div id="maint-eje-box" class="hidden">
+          <label class="block text-slate-300 font-bold text-base mb-1" for="maint-eje">¿En qué eje? <span class="text-emerald-400">*</span></label>
+          <select id="maint-eje" class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
+            <option value="Todos los ejes">Todos los ejes</option>
+            <option value="Eje Delantero Cabezal">Eje Delantero Cabezal</option>
+            <option value="Eje Trasero 1 Cabezal">Eje Trasero 1 Cabezal</option>
+            <option value="Eje Trasero 2 Cabezal">Eje Trasero 2 Cabezal</option>
+            <option value="Eje 1 Remolque">Eje 1 Remolque</option>
+            <option value="Eje 2 Remolque">Eje 2 Remolque</option>
+            <option value="Eje 3 Remolque">Eje 3 Remolque</option>
           </select>
         </div>
 
@@ -930,67 +950,6 @@
     </div>
   </div>
 
-  <!-- MODAL 4: RETROALIMENTACIÓN / FEEDBACK DEL CHOFER O EVALUADOR -->
-  <div id="modal-feedback" class="fixed inset-0 bg-black/80 z-50 hidden backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-slate-900 border-2 border-amber-500/50 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl">
-            <i class="fa-solid fa-comment-dots"></i>
-          </div>
-          <div>
-            <h3 class="text-xl font-black text-white">Retroalimentación Directa</h3>
-            <p class="text-xs text-slate-400">Tu opinión nos ayuda a que la app sea facilísima.</p>
-          </div>
-        </div>
-        <button onclick="app.closeFeedbackModal()" class="text-slate-400 hover:text-white text-2xl">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <form id="form-feedback" onsubmit="app.handleSaveFeedback(event)" class="space-y-4">
-        <div>
-          <label class="block text-slate-300 font-bold text-sm mb-2">¿Qué tan fácil te pareció usar la aplicación?</label>
-          <div class="grid grid-cols-3 gap-2">
-            <label class="cursor-pointer border-2 border-slate-700 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10 p-3 rounded-2xl text-center flex flex-col items-center">
-              <input type="radio" name="facilidad" value="Muy Fácil" class="hidden" checked>
-              <span class="text-2xl mb-1">😃</span>
-              <span class="text-xs font-bold text-slate-200">Muy Fácil</span>
-            </label>
-            <label class="cursor-pointer border-2 border-slate-700 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-500/10 p-3 rounded-2xl text-center flex flex-col items-center">
-              <input type="radio" name="facilidad" value="Normal" class="hidden">
-              <span class="text-2xl mb-1">😐</span>
-              <span class="text-xs font-bold text-slate-200">Regular</span>
-            </label>
-            <label class="cursor-pointer border-2 border-slate-700 has-[:checked]:border-rose-500 has-[:checked]:bg-rose-500/10 p-3 rounded-2xl text-center flex flex-col items-center">
-              <input type="radio" name="facilidad" value="Difícil" class="hidden">
-              <span class="text-2xl mb-1">🙁</span>
-              <span class="text-xs font-bold text-slate-200">Se me complicó</span>
-            </label>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-slate-300 font-bold text-sm mb-1">¿Qué parte cambiarías o qué te gustaría agregar?</label>
-          <textarea id="feedback-comment" rows="3" required placeholder="Ej: Los números se ven claritos, pero quisiera que recuerde siempre el taller de Loja..." class="w-full bg-slate-950 border border-slate-700 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-amber-400"></textarea>
-        </div>
-
-        <button type="submit" class="touch-target w-full bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-slate-950 font-black text-lg py-3.5 rounded-2xl shadow-lg flex items-center justify-center gap-2">
-          <i class="fa-solid fa-paper-plane"></i>
-          <span>ENVIAR MI COMENTARIO</span>
-        </button>
-      </form>
-
-      <!-- Feedback List History -->
-      <div id="feedback-history-list" class="pt-2 border-t border-slate-800 text-xs space-y-2">
-        <span class="font-bold text-slate-400">Comentarios recibidos en esta prueba:</span>
-        <div id="feedback-items-box" class="space-y-1.5 max-h-32 overflow-y-auto">
-          <!-- Injected feedback -->
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- TOAST NOTIFICATION CONTAINER -->
   <div id="toast" class="fixed top-20 right-4 max-w-sm z-50 bg-emerald-500 text-slate-950 font-extrabold px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 transition-all transform translate-y-[-150%] opacity-0 pointer-events-none">
     <i id="toast-icon" class="fa-solid fa-circle-check text-2xl"></i>
@@ -1029,6 +988,8 @@
       { id: "Eje 1 Remolque", name: "Eje 1 Remolque (Llantas y Frenos)", type: "Remolque", icon: "fa-dharmachakra" },
       { id: "Eje 2 Remolque", name: "Eje 2 Remolque (Llantas y Frenos)", type: "Remolque", icon: "fa-dharmachakra" },
       { id: "Eje 3 Remolque", name: "Eje 3 Remolque (Llantas y Frenos)", type: "Remolque", icon: "fa-dharmachakra" },
+      { id: "Llantas", name: "Llantas (elige el eje al registrar)", type: "General", icon: "fa-circle-dot" },
+      { id: "Frenos", name: "Frenos (elige el eje al registrar)", type: "General", icon: "fa-compact-disc" },
       { id: "General / Eléctrico / Engrase", name: "Revisión General / Engrase / Luces", type: "General", icon: "fa-screwdriver-wrench" }
     ];
 
@@ -1318,7 +1279,10 @@
       }
 
       getLastMaintenanceForPart(partId) {
-        const matches = this.maintenances.filter(m => m.parte === partId);
+        const matches = this.maintenances.filter(m =>
+          m.parte === partId ||
+          m.parte.startsWith(partId + ' - ') ||
+          m.parte === 'Llantas - ' + partId || m.parte === 'Frenos - ' + partId);
         if (matches.length === 0) return null;
         matches.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
         return matches[0];
@@ -1447,6 +1411,7 @@
         if (partSelect && this.selectedPart) {
           partSelect.value = this.selectedPart;
         }
+        this.toggleEjeSelect();
 
         this.selectedTallerFile = null;
         this.selectedRepuestosFile = null;
@@ -1459,6 +1424,12 @@
 
         this.calculateTotalCost();
         modal.classList.remove('hidden');
+      }
+
+      toggleEjeSelect() {
+        const part = document.getElementById('maint-part')?.value;
+        const box = document.getElementById('maint-eje-box');
+        if (box) box.classList.toggle('hidden', part !== 'Llantas' && part !== 'Frenos');
       }
 
       openNewMaintenanceModalForPart() {
@@ -1507,7 +1478,8 @@
 
       handleSaveMaintenance(e) {
         e.preventDefault();
-        const part = document.getElementById('maint-part').value;
+        let part = document.getElementById('maint-part').value;
+        if (part === 'Llantas' || part === 'Frenos') part = `${part} - ${document.getElementById('maint-eje').value}`;
         const job = document.getElementById('maint-job').value;
         const km = parseInt(document.getElementById('maint-km').value, 10);
         const date = document.getElementById('maint-date').value;

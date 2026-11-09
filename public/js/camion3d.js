@@ -83,6 +83,14 @@ if (!sesion?.placa) {
       Tanque: ['Tanque - Compartimento 1', 'Tanque - Compartimento 2', 'Tanque - Compartimento 3', 'Tanque - Compartimento 4'],
     },
   };
+  // Las categorías Llantas y Frenos se guardan como «Llantas - <eje>» o «Llantas - Todos los ejes»
+  Object.values(PARTES).forEach((partes) =>
+    Object.entries(partes).forEach(([nombre, lista]) => {
+      if (!nombre.startsWith('Eje')) return;
+      const eje = lista[0];
+      lista.push(`Llantas - ${eje}`, `Frenos - ${eje}`, 'Llantas - Todos los ejes', 'Frenos - Todos los ejes');
+    }),
+  );
   const ultimoServicio = (u, componente, compartimento) => {
     const partes = compartimento ? [`Tanque - Compartimento ${compartimento.orden}`] : PARTES[u.id]?.[componente] || [];
     const m = mantenimientos.filter((x) => partes.includes(x.parte)).sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)))[0];
