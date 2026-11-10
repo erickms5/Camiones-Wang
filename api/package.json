@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node --watch --env-file-if-exists=.env src/servidor.js",
     "start": "node src/servidor.js",
-    "test": "node --test test/",
+    "test": "node --test \"test/*.test.js\"",
     "db:generar": "drizzle-kit generate",
     "db:migrar": "node --env-file-if-exists=.env src/db/migrar.js"
   },

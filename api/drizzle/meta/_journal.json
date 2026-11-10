@@ -29,6 +29,27 @@
       "when": 1794211732771,
       "tag": "0003_archivos",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794282211884,
+      "tag": "0004_flota_roles",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794282215880,
+      "tag": "0005_sin_codigos",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794297184004,
+      "tag": "0006_pagos",
+      "breakpoints": true
     }
   ]
 }

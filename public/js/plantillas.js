@@ -18,6 +18,16 @@ export const PLANTILLAS = [
     componentes: ['Motor', 'Transmisión', 'Ejes', 'Frenos', 'Llantas', 'Quinta rueda'],
   },
   {
+    // Camión rígido con el tanque montado sobre el mismo chasis (sin remolque)
+    id: 'camion',
+    nombre: 'Camión tanquero',
+    rol: 'cabezal',
+    descripcion: 'Camión con tanque para combustible',
+    tanque: true,
+    campos: [],
+    componentes: ['Motor', 'Transmisión', 'Ejes', 'Frenos', 'Llantas', 'Tanque', 'Válvulas'],
+  },
+  {
     id: 'tanquero',
     nombre: 'Tanquero',
     rol: 'remolque',

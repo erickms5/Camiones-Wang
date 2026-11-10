@@ -9,6 +9,7 @@ const carpetaMigraciones = fileURLToPath(new URL('../../drizzle', import.meta.ur
 
 export async function conectar(url) {
   if (!url) throw new Error('Falta DATABASE_URL (ej. postgres://mitrailer:mitrailer_dev@localhost:5432/mitrailer)');
+  if (url.startsWith('pglite:')) return conectarMemoria(url.slice(7));
   // Con SSL siempre se verifica el certificado del servidor; PG_CA_CERT permite indicar la CA del proveedor
   const ssl = /sslmode=(require|verify-ca|verify-full)/.test(url)
     ? { rejectUnauthorized: true, ...(process.env.PG_CA_CERT ? { ca: process.env.PG_CA_CERT } : {}) }
@@ -18,12 +19,15 @@ export async function conectar(url) {
   return { db, migrar: () => migrarPg(db, { migrationsFolder: carpetaMigraciones }), cerrar: () => pool.end() };
 }
 
-export async function conectarMemoria() {
+// PGlite: en memoria (pruebas) o en una carpeta local (desarrollo sin instalar PostgreSQL)
+export async function conectarMemoria(carpeta) {
   const { PGlite } = await import('@electric-sql/pglite');
   const { drizzle } = await import('drizzle-orm/pglite');
   const { migrate } = await import('drizzle-orm/pglite/migrator');
-  const cliente = new PGlite();
+  const cliente = new PGlite(carpeta || undefined);
+  if (carpeta) console.log(`Base de datos local en ${carpeta} (solo para desarrollo)`);
   const db = drizzle(cliente, { schema: esquema });
-  await migrate(db, { migrationsFolder: carpetaMigraciones });
-  return { db, cerrar: () => cliente.close() };
+  const migrar = () => migrate(db, { migrationsFolder: carpetaMigraciones });
+  if (!carpeta) await migrar();
+  return { db, migrar, cerrar: () => cliente.close() };
 }

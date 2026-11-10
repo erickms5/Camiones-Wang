@@ -25,6 +25,11 @@ services:
         generateValue: true
       - key: PIMIENTA
         generateValue: true
+      # Cuenta del administrador: escribir los valores en el panel de Render (no se guardan en el repositorio)
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_CLAVE
+        sync: false
       - key: CORS_ORIGENES
         value: https://app.camiones-wang.workers.dev
       - key: TRUST_PROXY

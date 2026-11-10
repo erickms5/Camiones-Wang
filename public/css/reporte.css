@@ -1,0 +1,25 @@
+/* Reporte de mantenimiento: hoja blanca en pantalla y la misma hoja al imprimir o guardar como PDF.
+   Para imprimir se copia la hoja a #zona-impresion y se oculta todo lo demás (js/reporte.js). */
+#zona-impresion { display: none; }
+
+.hoja-reporte { background: #fff; color: #0f172a; }
+.hoja-reporte .foto-evidencia { width: 100%; max-height: 28rem; object-fit: contain; background: #fff; }
+.hoja-reporte .hoja-pdf { border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.5rem; background: #f8fafc; }
+.hoja-reporte .hoja-pdf img { width: 100%; display: block; background: #fff; }
+
+@media print {
+  body.imprimiendo { padding: 0 !important; background: #fff !important; }
+  body.imprimiendo > *:not(#zona-impresion) { display: none !important; }
+  body.imprimiendo #zona-impresion { display: block; }
+  body.imprimiendo #zona-impresion, body.imprimiendo #zona-impresion * { visibility: visible !important; }
+  #zona-impresion .hoja-reporte { padding: 0; border-radius: 0; }
+  #zona-impresion .no-print { display: none !important; }
+  #zona-impresion figure, #zona-impresion tr { break-inside: avoid; }
+  /* Cada foto grande y cada página de una factura en PDF va en su propia hoja */
+  #zona-impresion .evidencias-fotos { display: block; }
+  #zona-impresion .evidencias-fotos figure { margin-bottom: 0.75rem; }
+  #zona-impresion .foto-evidencia { max-height: 21cm; }
+  #zona-impresion .hoja-pdf { break-before: page; border: 0; padding: 0; }
+  #zona-impresion .hoja-pdf img { max-height: 25cm; object-fit: contain; }
+  @page { margin: 12mm; }
+}

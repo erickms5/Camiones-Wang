@@ -6,11 +6,12 @@ mantenimientos, facturas con fecha y hora de subida, y reportes congelados con h
 ## Puesta en marcha
 
 ```bash
-bash scripts/instalar-postgres.sh   # una sola vez (CachyOS/Arch)
-cp .env.example .env
+cp .env.example .env     # poner ADMIN_EMAIL y ADMIN_CLAVE
 npm install
-npm run dev                         # aplica migraciones y arranca en http://localhost:3000
+npm run dev              # aplica migraciones y arranca en http://localhost:3000
 ```
+
+Sin `DATABASE_URL` (solo en desarrollo) usa una base local en `datos-locales/`: no hace falta instalar PostgreSQL.
 
 ## Pruebas
 
@@ -28,24 +29,32 @@ Usan PostgreSQL en memoria (PGlite): no necesitan la base instalada.
 
 ## Roles
 
-- **Dueño**: crea su cuenta con correo y contraseña (`POST /auth/registro`), registra choferes y unidades, ve los reportes de todos sus choferes.
-- **Chofer**: lo registra el dueño con una contraseña que le entrega (y que puede cambiar si la olvida); entra con correo y contraseña; ve sus unidades asignadas, registra mantenimientos y genera sus reportes.
+- **Administrador**: su cuenta sale de `ADMIN_EMAIL` y `ADMIN_CLAVE` (se crea al arrancar; `ADMIN_RESTABLECER=si` restablece la contraseña). Crea empresas y dueños, registra y corrige vehículos, decide de quién es cada uno y pone contraseñas nuevas. No ve mantenimientos, facturas ni reportes.
+- **Dueño**: lo crea el administrador. Ve solo los vehículos de los que es dueño (un vehículo puede tener varios dueños). Pone o corrige el km, asigna choferes, registra choferes, ve mantenimientos y reportes, y marca como pagado lo que quedó a crédito.
+- **Chofer**: lo registra el dueño. Ve su vehículo asignado (y el tanquero enganchado), registra mantenimientos con sus facturas y formas de pago, y emite sus reportes.
 
-Las contraseñas se guardan con scrypt (nunca en texto). Cambiar la contraseña o desactivar a un chofer cierra sus sesiones.
+Nadie crea su propia cuenta. Las contraseñas se guardan con scrypt. Cambiar la contraseña o desactivar a alguien cierra sus sesiones.
+
+## Flota
+
+Los vehículos se registran eligiendo un modelo de `public/js/catalogo.js` (cabezal con tanquero o camión con el tanque encima); el servidor arma ejes, llantas, frenos y compartimentos. Con la base vacía, `src/flota-inicial.js` deja registrada la flota del primer cliente con el km pendiente.
 
 ## Kilometraje
 
-Se pide al registrar el cabezal (puede quedar pendiente) y después **sube solo con el km de cada mantenimiento**. Solo el dueño puede ponerlo o corregirlo (`POST /unidades/:id/km` con motivo, queda en la auditoría); el chofer no. Los trabajos del remolque cuentan para el cabezal enganchado.
+Puede quedar pendiente al registrar. Solo el dueño (o el administrador, a pedido) lo pone o corrige con motivo; después **sube solo con el km de cada mantenimiento**. Los trabajos del tanquero cuentan para el cabezal enganchado.
 
 ## Rutas principales
 
 | Método | Ruta | Quién |
 |---|---|---|
-| POST | `/auth/registro`, `/auth/entrar`, `/auth/clave`, `/auth/salir` · GET `/auth/yo` | todos |
-| GET/POST/PATCH | `/choferes` (PATCH: activar/desactivar o contraseña nueva) | dueño |
-| GET/POST | `/unidades` · GET `/unidades/:id` | ambos |
-| POST | `/unidades/:id/acoplar`, `/unidades/:id/asignar` | dueño |
-| PATCH | `/unidades/componentes/:id` (ficha de llanta o freno) | ambos |
-| GET/POST | `/mantenimientos` · GET `/mantenimientos/:id` | ambos (el chofer ve los suyos) |
-| POST | `/mantenimientos/:id/evidencias` → PUT/GET `/evidencias/:id/archivo` | ambos |
-| GET/POST | `/reportes` · GET `/reportes/:folio` | ambos (el dueño ve los de sus choferes) |
+| POST | `/auth/entrar`, `/auth/clave`, `/auth/salir` · GET `/auth/yo` | todos |
+| GET/POST/PATCH/PUT | `/admin/cuentas`, `/admin/cuentas/:id` (`/duenos`, `/vehiculos`), `/admin/usuarios/:id`, `/admin/unidades/:id` (`/propietarios`, `/km`, `/asignar`, `/acoplar`) | administrador |
+| GET | `/flota` · POST `/vehiculos` | dueño |
+| GET/POST/PATCH | `/choferes` | dueño |
+| GET | `/unidades`, `/unidades/:id` | dueño y chofer |
+| POST | `/unidades/:id/km`, `/acoplar`, `/asignar` | dueño |
+| PATCH | `/unidades/componentes/:id` (ficha de llanta o freno) | dueño y chofer |
+| GET/POST | `/mantenimientos` (`?porPagar=si`, `?vehiculo=`) · GET `/mantenimientos/:id` | dueño y chofer |
+| POST | `/mantenimientos/:id/pagos` (marcar un crédito como pagado) | dueño |
+| POST | `/mantenimientos/:id/evidencias` → PUT/GET `/evidencias/:id/archivo` | dueño y chofer |
+| GET/POST | `/reportes` · GET `/reportes/:folio` (incluye anexos posteriores) | dueño y chofer |

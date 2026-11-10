@@ -18,5 +18,13 @@ export function leerConfig(entorno = process.env) {
     claveCedula: prod ? requerida(entorno, 'CEDULA_CLAVE') : entorno.CEDULA_CLAVE || Buffer.alloc(32, 7).toString('base64'),
     pimienta: prod ? requerida(entorno, 'PIMIENTA') : entorno.PIMIENTA || 'desarrollo',
     carpetaArchivos: entorno.CARPETA_ARCHIVOS || './archivos',
+    // Cuenta del administrador: se crea al arrancar si no existe (ver administrador.js)
+    adminEmail: (entorno.ADMIN_EMAIL || '').trim().toLowerCase(),
+    adminClave: entorno.ADMIN_CLAVE || '',
+    adminNombre: entorno.ADMIN_NOMBRE || 'Administrador',
+    adminRestablecer: entorno.ADMIN_RESTABLECER === 'si',
+    // Flota del primer cliente (ver flota-inicial.js). FLOTA_INICIAL=no la omite.
+    sinFlotaInicial: entorno.FLOTA_INICIAL === 'no',
+    flotaEmpresa: entorno.FLOTA_EMPRESA || '',
   };
 }

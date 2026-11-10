@@ -6,132 +6,124 @@
   <title>Mi Trailer - Panel del Dueño</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="./css/menu.css">
+  <link rel="stylesheet" href="./css/reporte.css">
   <link rel="icon" href="icono.svg" type="image/svg+xml">
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
     .touch-target { min-height: 52px; }
-    @media print {
-      body * { visibility: hidden; }
-      #reporte-imprimible, #reporte-imprimible * { visibility: visible; }
-      #reporte-imprimible { position: absolute; left: 0; top: 0; width: 100%; }
-      .no-print { display: none !important; }
-      figure { break-inside: avoid; }
-    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
   <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 no-print">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center text-white"><i class="fa-solid fa-building text-2xl"></i></div>
-        <div>
-          <h1 class="text-xl font-black text-white">MI TRAILER <span class="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-500/30 align-middle">DUEÑO</span></h1>
-          <p id="d-usuario" class="text-xs text-slate-400"></p>
-        </div>
+    <div class="max-w-5xl mx-auto px-3 sm:px-4 py-2.5 flex items-center gap-3">
+      <button id="btn-menu" type="button" aria-label="Abrir el menú" aria-controls="menu-lateral" aria-expanded="false"
+              class="touch-target w-[52px] shrink-0 rounded-xl bg-slate-800 border border-slate-700 text-white flex items-center justify-center"><i class="fa-solid fa-bars text-2xl"></i></button>
+      <div class="min-w-0 flex-1">
+        <h1 id="titulo-vista" class="text-xl sm:text-2xl font-black text-white truncate">Inicio</h1>
+        <p class="text-xs text-slate-400">Panel del dueño</p>
       </div>
-      <button id="d-salir" class="touch-target px-4 rounded-xl bg-rose-500/10 text-rose-300 border border-rose-500/30 font-bold"><i class="fa-solid fa-right-from-bracket mr-1"></i> Salir</button>
     </div>
-    <nav class="max-w-5xl mx-auto px-4 pb-3 grid grid-cols-3 gap-2" role="tablist">
-      <button data-pestana="reportes" class="pestana touch-target rounded-xl font-bold border border-slate-700"><i class="fa-solid fa-file-invoice mr-1"></i> Reportes</button>
-      <button data-pestana="choferes" class="pestana touch-target rounded-xl font-bold border border-slate-700"><i class="fa-solid fa-id-card mr-1"></i> Choferes</button>
-      <button data-pestana="unidades" class="pestana touch-target rounded-xl font-bold border border-slate-700"><i class="fa-solid fa-truck mr-1"></i> Camiones</button>
-    </nav>
   </header>
 
-  <main class="max-w-5xl mx-auto p-4 space-y-4">
-    <!-- REPORTES -->
-    <section id="p-reportes" class="space-y-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 class="text-2xl font-black text-white">Reportes de tus choferes</h2>
-          <p class="text-sm text-slate-400">Reportes congelados con folio y huella de integridad.</p>
-        </div>
-        <label class="text-sm text-slate-300 font-bold">Chofer
-          <select id="r-filtro" class="block mt-1 bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"><option value="">Todos</option></select>
-        </label>
+  <!-- Menú lateral desplegable -->
+  <div id="menu-fondo" class="fixed inset-0 bg-black/70 z-40 hidden"></div>
+  <aside id="menu-lateral" aria-label="Menú principal" class="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-slate-900 border-r border-slate-800 z-50 flex flex-col shadow-2xl no-print">
+    <div class="p-4 flex items-center gap-3 border-b border-slate-800">
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center text-white shrink-0"><i class="fa-solid fa-building text-xl"></i></div>
+      <div class="min-w-0 flex-1">
+        <p class="text-lg font-black tracking-wide text-white leading-tight">MI TRAILER <span class="text-[10px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded-full border border-cyan-500/30 align-middle">DUEÑO</span></p>
+        <p id="menu-nombre" class="text-xs text-slate-400 truncate"></p>
       </div>
-      <div id="r-lista" class="space-y-3"></div>
+      <button id="menu-cerrar" type="button" aria-label="Cerrar el menú" class="touch-target text-slate-400 hover:text-white text-2xl"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <nav class="flex-1 overflow-y-auto p-3 space-y-1">
+      <button type="button" class="menu-item" data-seccion="inicio"><i class="fa-solid fa-house"></i><span>Inicio</span></button>
+      <button type="button" class="menu-item" data-seccion="vehiculos"><i class="fa-solid fa-truck"></i><span>Mis vehículos</span></button>
+      <button type="button" class="menu-item" data-seccion="choferes"><i class="fa-solid fa-id-card"></i><span>Choferes</span></button>
+      <button type="button" class="menu-item" data-seccion="pagos"><i class="fa-solid fa-hand-holding-dollar"></i><span>Por pagar</span><b id="menu-pagos" class="hidden ml-auto bg-amber-500 text-slate-950 text-xs font-black px-2 py-0.5 rounded-full"></b></button>
+      <button type="button" class="menu-item" data-seccion="mantenimientos"><i class="fa-solid fa-screwdriver-wrench"></i><span>Mantenimientos</span></button>
+      <button type="button" class="menu-item" data-seccion="reportes"><i class="fa-solid fa-file-invoice"></i><span>Reportes</span></button>
+      <button type="button" class="menu-item" data-seccion="cuenta"><i class="fa-solid fa-user-gear"></i><span>Mi cuenta</span></button>
+    </nav>
+    <div class="p-3 border-t border-slate-800">
+      <button id="salir" type="button" class="menu-item salir"><i class="fa-solid fa-right-from-bracket"></i><span>Cerrar sesión</span></button>
+    </div>
+  </aside>
+
+  <main class="max-w-5xl mx-auto p-3 sm:p-5 space-y-4 pb-16">
+    <!-- INICIO -->
+    <section id="sec-inicio" class="space-y-4">
+      <div id="i-resumen" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5">
+        <h2 class="text-lg font-black text-white mb-3"><i class="fa-solid fa-bell text-amber-400 mr-1"></i> Por hacer</h2>
+        <div id="i-pendientes" class="space-y-2"></div>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-black text-white">Últimos mantenimientos</h2>
+          <button type="button" data-seccion="mantenimientos" class="text-sm font-bold text-cyan-400 px-2 py-2">Ver todos ›</button>
+        </div>
+        <div id="i-ultimos" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- MIS VEHÍCULOS -->
+    <section id="sec-vehiculos" class="space-y-4 hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-slate-400 max-w-xl">Pon el kilometraje, elige el chofer de cada vehículo y revisa su tanque. Si algún dato del vehículo está mal, pide al administrador que lo corrija.</p>
+        <button id="v-nuevo" type="button" class="touch-target px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black"><i class="fa-solid fa-plus mr-1"></i> Agregar vehículo</button>
+      </div>
+      <div id="v-lista" class="grid md:grid-cols-2 gap-4"></div>
     </section>
 
     <!-- CHOFERES -->
-    <section id="p-choferes" class="space-y-4 hidden">
-      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5">
-        <h2 class="text-2xl font-black text-white mb-3">Registrar chofer</h2>
-        <form id="c-form" class="grid sm:grid-cols-2 gap-3" novalidate>
-          <label class="text-sm font-bold text-slate-300">Nombre completo<input name="nombre" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label class="text-sm font-bold text-slate-300">Correo (con este y su contraseña entra a la app)<input name="email" type="email" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label class="text-sm font-bold text-slate-300">Cédula<input name="cedula" inputmode="numeric" maxlength="10" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono"></label>
-          <label class="text-sm font-bold text-slate-300">Celular<input name="telefono" inputmode="tel" placeholder="099 123 4567" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label class="sm:col-span-2 text-sm font-bold text-slate-300">Contraseña para el chofer (mínimo 6 caracteres; entrégasela tú)
-            <input name="clave" type="text" autocomplete="off" required minlength="6" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono"></label>
-          <label class="sm:col-span-2 flex gap-3 items-start text-sm text-slate-300 bg-slate-950 border border-slate-800 rounded-xl p-3">
-            <input name="consentimiento" type="checkbox" class="w-6 h-6 mt-0.5 accent-emerald-500">
-            El chofer autoriza guardar su cédula y teléfono para el registro de mantenimientos (Ley Orgánica de Protección de Datos Personales).
-          </label>
-          <p id="c-error" class="sm:col-span-2 hidden text-amber-400 font-bold" role="alert"></p>
-          <button class="sm:col-span-2 touch-target bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl"><i class="fa-solid fa-user-plus mr-1"></i> REGISTRAR CHOFER</button>
-        </form>
+    <section id="sec-choferes" class="space-y-4 hidden">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-slate-400 max-w-xl">Cada chofer entra a la app con su correo y la contraseña que tú le entregas.</p>
+        <button id="c-nuevo" type="button" class="touch-target px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black"><i class="fa-solid fa-user-plus mr-1"></i> Registrar chofer</button>
       </div>
       <div id="c-lista" class="space-y-3"></div>
     </section>
 
-    <!-- CAMIONES -->
-    <section id="p-unidades" class="space-y-4 hidden">
-      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5">
-        <h2 class="text-2xl font-black text-white mb-3">Registrar cabezal o remolque</h2>
-        <form id="u-form" class="grid sm:grid-cols-2 gap-3" novalidate>
-          <label class="text-sm font-bold text-slate-300">Tipo
-            <select name="tipo" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white">
-              <option value="tracto">Cabezal (tractocamión)</option><option value="tanquero">Remolque tanquero</option>
-              <option value="plataforma">Remolque plataforma</option><option value="furgon">Remolque furgón</option><option value="otro">Otro remolque</option>
-            </select></label>
-          <label class="text-sm font-bold text-slate-300">Placa<input name="placa" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono uppercase"></label>
-          <label class="text-sm font-bold text-slate-300">Marca<input name="marca" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label class="text-sm font-bold text-slate-300">Modelo<input name="modelo" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label class="text-sm font-bold text-slate-300">Año<input name="anio" inputmode="numeric" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label class="text-sm font-bold text-slate-300">Número de ejes<input name="numEjes" inputmode="numeric" value="" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label class="text-sm font-bold text-slate-300">Número de llantas<input name="numLlantas" inputmode="numeric" required class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label id="u-motor" class="text-sm font-bold text-slate-300">Motor<input name="motor" placeholder="Ej: Cummins ISX 500" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
-          <label id="u-km" class="text-sm font-bold text-slate-300">Kilometraje actual (punto de partida)<input name="kmInicial" inputmode="numeric" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"><span class="block text-xs font-normal text-slate-400 mt-1">Si aún no lo sabes, déjalo vacío y ponlo después desde la lista. Luego sube solo con cada mantenimiento.</span></label>
-          <label id="u-comps" class="hidden sm:col-span-2 text-sm font-bold text-slate-300">Galones de cada compartimento, del cabezal hacia atrás (separados por coma)
-            <input name="compartimentos" placeholder="Ej: 3000, 2000, 2000, 3000" class="mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white font-mono"></label>
-          <p id="u-error" class="sm:col-span-2 hidden text-amber-400 font-bold" role="alert"></p>
-          <button class="sm:col-span-2 touch-target bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-2xl"><i class="fa-solid fa-plus mr-1"></i> REGISTRAR</button>
-        </form>
+    <!-- POR PAGAR: lo que los choferes dejaron a crédito -->
+    <section id="sec-pagos" class="space-y-4 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 flex flex-wrap items-center justify-between gap-3">
+        <p class="text-sm text-slate-400 max-w-xl">Trabajos o repuestos que quedaron a crédito. El taller y los repuestos se pagan por separado: marca cada uno cuando lo pagues y sale de esta lista.</p>
+        <div class="text-right"><p class="text-xs uppercase font-bold text-slate-400">Total por pagar</p><p id="p-total" class="text-3xl font-black font-mono text-amber-400">$0.00</p></div>
       </div>
-      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 grid sm:grid-cols-2 gap-4">
-        <form id="a-form" class="space-y-2">
-          <h3 class="font-black text-white">Enganchar remolque a cabezal</h3>
-          <select name="cabezal" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></select>
-          <select name="remolque" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></select>
-          <button class="w-full touch-target bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl">Enganchar</button>
-        </form>
-        <form id="s-form" class="space-y-2">
-          <h3 class="font-black text-white">Asignar chofer a una unidad</h3>
-          <select name="unidad" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></select>
-          <select name="chofer" class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></select>
-          <button class="w-full touch-target bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl">Asignar</button>
-        </form>
-      </div>
-      <div id="u-lista" class="grid sm:grid-cols-2 gap-3"></div>
+      <div id="p-lista" class="space-y-3"></div>
     </section>
+
+    <!-- MANTENIMIENTOS -->
+    <section id="sec-mantenimientos" class="space-y-4 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 grid sm:grid-cols-3 gap-3 items-end">
+        <label class="text-sm text-slate-300 font-bold">Vehículo
+          <select id="m-vehiculo" class="block mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></select></label>
+        <label class="text-sm text-slate-300 font-bold">Mes
+          <input id="m-mes" type="month" class="block mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></label>
+        <div class="text-right"><p class="text-xs uppercase font-bold text-slate-400">Total gastado</p><p id="m-total" class="text-3xl font-black font-mono text-emerald-400">$0.00</p></div>
+      </div>
+      <div id="m-lista" class="space-y-3"></div>
+    </section>
+
+    <!-- REPORTES -->
+    <section id="sec-reportes" class="space-y-4 hidden">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 grid sm:grid-cols-2 gap-3">
+        <label class="text-sm text-slate-300 font-bold">Vehículo
+          <select id="r-vehiculo" class="block mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></select></label>
+        <label class="text-sm text-slate-300 font-bold">Chofer
+          <select id="r-chofer" class="block mt-1 w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white"></select></label>
+      </div>
+      <p class="text-sm text-slate-400">Reportes emitidos por los choferes: quedan congelados con su folio y una huella que demuestra que no fueron modificados.</p>
+      <div id="r-lista" class="space-y-3"></div>
+    </section>
+
+    <!-- MI CUENTA -->
+    <section id="sec-cuenta" class="hidden"><div id="cuenta" class="space-y-4"></div></section>
   </main>
 
-  <!-- Detalle de un reporte -->
-  <div id="modal-reporte" class="fixed inset-0 bg-black/85 z-50 hidden flex items-start justify-center p-2 sm:p-6 overflow-y-auto">
-    <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-4xl p-4 sm:p-6 space-y-4">
-      <div class="flex items-center justify-between no-print">
-        <h3 class="text-xl font-black text-white">Reporte del chofer</h3>
-        <div class="flex gap-2">
-          <button onclick="window.print()" class="px-3 py-2 bg-slate-800 text-cyan-300 rounded-xl font-bold border border-slate-700"><i class="fa-solid fa-print"></i> Imprimir / PDF</button>
-          <button id="m-cerrar" class="px-3 py-2 text-slate-300 text-2xl" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-      </div>
-      <div id="reporte-imprimible" class="bg-white text-slate-900 rounded-2xl p-5 sm:p-7 space-y-4"></div>
-    </div>
-  </div>
-
-  <div id="toast" class="fixed top-4 right-4 z-[60] hidden px-5 py-3 rounded-2xl font-extrabold shadow-2xl"></div>
+  <div id="toast" class="hidden" role="status" aria-live="polite"></div>
   <script type="module" src="./js/dueno.js"></script>
 </body>
 </html>

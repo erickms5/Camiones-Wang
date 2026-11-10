@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "npm --prefix api run dev",
     "app": "python3 -m http.server 8790 -d public",
-    "test": "node --test tests/ && npm --prefix api test",
+    "test": "node --test \"tests/*.test.js\" && npm --prefix api test",
     "deploy": "npx wrangler@4 deploy"
   }
 }
