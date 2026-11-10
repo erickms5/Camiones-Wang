@@ -1,300 +1,354 @@
-// Panel del dueño: reportes de sus choferes (con facturas), choferes y camiones.
-import { api, API } from './sincronizacion.js';
+// Panel del dueño: sus vehículos (km, chofer, tanque), sus choferes, los mantenimientos y los reportes.
+// El dueño solo ve los vehículos de los que es dueño; un vehículo puede tener varios dueños.
+import { MODELOS, nombreModelo } from './catalogo.js';
+import { abrirHoja, abrirReporte, htmlEvidencias, nombrePago, nombreMes } from './reporte.js';
+import {
+  $, api, esc, dinero, miles, fechaHora, mensajeDe, aviso, iniciarMenu, dialogo, confirmar, entero, sesionPanel, pintarCuenta, barraTanque, placaHTML, nombreVehiculo,
+} from './panel.js';
 
-const $ = (id) => document.getElementById(id);
-const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const dinero = (n) => `$${Number(n || 0).toFixed(2)}`;
-const fechaHora = (iso) => (iso ? new Date(iso).toLocaleString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—');
-const miles = (n) => Number(n || 0).toLocaleString('es-EC');
-const datos = { choferes: [], unidades: [], reportes: [] };
+const datos = { vehiculos: [], tanquerosSueltos: [], choferes: [], mantenimientos: [] };
+const vacio = (texto) => `<p class="text-slate-400 italic bg-slate-900 rounded-2xl p-5 border border-slate-800">${esc(texto)}</p>`;
+const vehiculoDe = (id) => datos.vehiculos.find((v) => v.id === id);
+const choferDe = (id) => datos.choferes.find((c) => c.id === id);
+const mesActual = () => new Date().toISOString().slice(0, 7);
+const total = (m) => Number(m.costoTaller) + Number(m.costoRepuestos);
+// Lo que quedó a crédito y sigue sin pagar: [{ concepto, a quién, monto }]
+const deudas = (m) => [
+  ['taller', m.taller, m.costoTaller, m.pagoTaller, m.tallerPagadoEn],
+  ['repuestos', m.proveedor, m.costoRepuestos, m.pagoRepuestos, m.repuestosPagadoEn],
+].filter(([, , monto, forma, pagado]) => forma === 'credito' && !pagado && Number(monto) > 0).map(([concepto, aQuien, monto]) => ({ concepto, aQuien, monto: Number(monto) }));
+const porPagar = (m) => deudas(m).reduce((s, d) => s + d.monto, 0);
 
-function aviso(texto, tipo = 'ok') {
-  const t = $('toast');
-  t.textContent = texto;
-  t.className = `fixed top-4 right-4 z-[60] px-5 py-3 rounded-2xl font-extrabold shadow-2xl ${tipo === 'ok' ? 'bg-emerald-500 text-slate-950' : 'bg-amber-500 text-slate-950'}`;
-  setTimeout(() => t.classList.add('hidden'), 3500);
+async function contarPagos() {
+  const { mantenimientos } = await api('/mantenimientos?porPagar=si');
+  $('menu-pagos').textContent = mantenimientos.length;
+  $('menu-pagos').classList.toggle('hidden', !mantenimientos.length);
+  return mantenimientos;
 }
 
-function errorEn(id, err) {
-  const el = $(id);
-  el.textContent = err ? err.message || 'Sin conexión con el servidor' : '';
-  el.classList.toggle('hidden', !err);
-}
-
-// ---------------------------------------------------------------- pestañas
-function pestana(nombre) {
-  document.querySelectorAll('.pestana').forEach((b) => {
-    const activa = b.dataset.pestana === nombre;
-    b.setAttribute('aria-selected', String(activa));
-    b.className = `pestana touch-target rounded-xl font-bold border ${activa ? 'bg-emerald-500 text-slate-950 border-emerald-400' : 'border-slate-700 text-slate-300'}`;
+async function cargarBase() {
+  const [flota, { choferes }] = await Promise.all([api('/flota'), api('/choferes')]);
+  Object.assign(datos, flota, { choferes });
+  const opcionesV = `<option value="">Todos mis vehículos</option>${datos.vehiculos.map((v) => `<option value="${esc(v.id)}">${esc(v.placa)} · ${esc(nombreVehiculo(v))}</option>`).join('')}`;
+  ['m-vehiculo', 'r-vehiculo'].forEach((id) => {
+    const previo = $(id).value;
+    $(id).innerHTML = opcionesV;
+    $(id).value = previo;
   });
-  ['reportes', 'choferes', 'unidades'].forEach((p) => $(`p-${p}`).classList.toggle('hidden', p !== nombre));
+  const previo = $('r-chofer').value;
+  $('r-chofer').innerHTML = `<option value="">Todos los choferes</option>${choferes.map((c) => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('')}`;
+  $('r-chofer').value = previo;
 }
-document.querySelectorAll('.pestana').forEach((b) => (b.onclick = () => pestana(b.dataset.pestana)));
+
+// ---------------------------------------------------------------- inicio
+function filaMantenimiento(m) {
+  const v = vehiculoDe(m.vehiculoId);
+  return `<button type="button" data-mant="${esc(m.id)}" class="w-full text-left p-3 rounded-2xl bg-slate-950 border border-slate-800 hover:border-emerald-500 flex items-center justify-between gap-3">
+    <div class="min-w-0">
+      <p class="font-bold text-white truncate">${esc(m.trabajo)}</p>
+      <p class="text-xs text-slate-400 truncate">${esc(m.parte)} · ${esc(m.fecha)} · ${esc(miles(m.km))} km</p>
+      <p class="text-xs text-cyan-300 truncate">${esc(v?.placa || '')}${choferDe(m.creadoPor) ? ` · ${esc(choferDe(m.creadoPor).nombre)}` : ''}</p>
+    </div>
+    <div class="text-right shrink-0"><span class="font-mono font-black text-emerald-400">${esc(dinero(total(m)))}</span>
+      ${porPagar(m) ? `<span class="block text-[11px] font-black text-amber-300">Por pagar ${esc(dinero(porPagar(m)))}</span>` : ''}</div>
+  </button>`;
+}
+const alTocarMantenimientos = (contenedor) => contenedor.querySelectorAll('[data-mant]').forEach((b) => (b.onclick = () => abrirMantenimiento(b.dataset.mant).catch((e) => aviso(mensajeDe(e), 'error'))));
+
+async function pintarInicio() {
+  await cargarBase();
+  const { mantenimientos } = await api('/mantenimientos');
+  const delMes = mantenimientos.filter((m) => m.fecha.startsWith(mesActual()));
+  const tarjeta = (icono, valor, texto, color) => `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+    <i class="fa-solid ${icono} ${color} text-xl"></i><p class="text-2xl sm:text-3xl font-black text-white mt-1">${esc(valor)}</p><p class="text-xs text-slate-400 font-bold">${esc(texto)}</p></div>`;
+  $('i-resumen').innerHTML = tarjeta('fa-truck', datos.vehiculos.length, 'Vehículos', 'text-emerald-400')
+    + tarjeta('fa-id-card', datos.choferes.filter((c) => c.activo).length, 'Choferes activos', 'text-cyan-400')
+    + tarjeta('fa-screwdriver-wrench', delMes.length, 'Trabajos este mes', 'text-amber-400')
+    + tarjeta('fa-dollar-sign', dinero(delMes.reduce((s, m) => s + total(m), 0)), 'Gastado este mes', 'text-emerald-400');
+
+  // Lo que falta para que cada vehículo quede listo para trabajar, y lo que hay que pagar
+  const pendientes = [];
+  const creditos = await contarPagos();
+  if (creditos.length) pendientes.push(['fa-hand-holding-dollar', `Tienes ${dinero(creditos.reduce((s, m) => s + porPagar(m), 0))} por pagar de trabajos a crédito.`, 'pagos']);
+  if (!datos.vehiculos.length) pendientes.push(['fa-truck', 'Todavía no tienes vehículos registrados.', 'vehiculos']);
+  datos.vehiculos.forEach((v) => {
+    if (v.km === null) pendientes.push(['fa-gauge-high', `Pon el kilometraje actual de ${v.placa}.`, 'vehiculos']);
+    if (!v.chofer) pendientes.push(['fa-user', `${v.placa} no tiene chofer asignado.`, 'vehiculos']);
+  });
+  if (datos.vehiculos.length && !datos.choferes.length) pendientes.push(['fa-user-plus', 'Registra a tu primer chofer.', 'choferes']);
+  $('i-pendientes').innerHTML = pendientes.length
+    ? pendientes.map(([icono, texto, seccion]) => `<button type="button" data-ir="${seccion}" class="w-full text-left flex items-center gap-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-100 font-bold">
+        <i class="fa-solid ${icono} text-amber-400 w-6 text-center"></i><span class="flex-1">${esc(texto)}</span><i class="fa-solid fa-chevron-right text-amber-400/70"></i></button>`).join('')
+    : '<p class="flex items-center gap-2 text-emerald-300 font-bold"><i class="fa-solid fa-circle-check"></i> Todo al día: tus vehículos tienen kilometraje y chofer, y no hay nada por pagar.</p>';
+  $('i-pendientes').querySelectorAll('[data-ir]').forEach((b) => (b.onclick = () => ir(b.dataset.ir)));
+  $('i-ultimos').innerHTML = mantenimientos.length ? mantenimientos.slice(0, 5).map(filaMantenimiento).join('') : '<p class="text-sm text-slate-400">Tus choferes aún no registran mantenimientos.</p>';
+  alTocarMantenimientos($('i-ultimos'));
+}
+
+// ---------------------------------------------------------------- vehículos
+async function pintarVehiculos() {
+  await cargarBase();
+  const activos = datos.choferes.filter((c) => c.activo);
+  $('v-lista').innerHTML = datos.vehiculos.length ? datos.vehiculos.map((v) => {
+    const tracto = v.tipo === 'tracto';
+    return `<article class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 space-y-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          ${placaHTML(v.placa)}
+          <p class="text-lg font-black text-white mt-1.5 leading-tight">${esc(nombreVehiculo(v))}</p>
+          <p class="text-xs text-slate-400">${tracto ? 'Cabezal con tanquero' : 'Camión tanquero'} · ${esc(v.numEjes + (v.tanquero?.numEjes || 0))} ejes · ${esc(v.numLlantas + (v.tanquero?.numLlantas || 0))} llantas${v.motor ? ` · Motor ${esc(v.motor)}` : ''}</p>
+        </div>
+        <i class="fa-solid ${tracto ? 'fa-truck-moving' : 'fa-truck'} text-3xl text-slate-700"></i>
+      </div>
+      ${barraTanque(v.compartimentos)}
+      <div class="flex items-center justify-between gap-2 bg-slate-950 border border-slate-800 rounded-2xl p-3">
+        <div><p class="text-xs uppercase font-bold text-slate-400">Kilometraje</p>
+          <p class="${v.km === null ? 'text-amber-300 font-bold' : 'text-2xl font-black font-mono text-emerald-400'}">${v.km === null ? 'Pendiente' : `${esc(miles(v.km))} km`}</p></div>
+        <button type="button" data-km="${esc(v.id)}" class="touch-target px-4 rounded-xl border border-cyan-500/40 text-cyan-300 font-bold">${v.km === null ? 'Poner km' : 'Corregir'}</button>
+      </div>
+      <label class="block text-sm font-bold text-slate-300">Chofer
+        <select data-chofer="${esc(v.id)}" class="mt-1 w-full bg-slate-950 border-2 ${v.chofer ? 'border-slate-700' : 'border-amber-500/50'} rounded-xl p-3 text-base text-white">
+          <option value="">Sin chofer</option>
+          ${activos.map((c) => `<option value="${esc(c.id)}" ${v.chofer?.id === c.id ? 'selected' : ''}>${esc(c.nombre)}</option>`).join('')}
+        </select></label>
+      <div class="flex items-center justify-between gap-2 text-xs text-slate-400">
+        <span>${v.duenos.length > 1 ? `Dueños: ${esc(v.duenos.map((d) => d.nombre).join(', '))}` : ''}</span>
+        <button type="button" data-ver="${esc(v.id)}" class="text-sm font-bold text-cyan-400 py-2">Ver mantenimientos ›</button>
+      </div>
+    </article>`;
+  }).join('') : vacio('Todavía no tienes vehículos. Agrega uno o pide al administrador que los registre.');
+
+  $('v-lista').querySelectorAll('[data-km]').forEach((b) => (b.onclick = () => ponerKm(vehiculoDe(b.dataset.km))));
+  $('v-lista').querySelectorAll('[data-ver]').forEach((b) => (b.onclick = () => {
+    $('m-vehiculo').value = b.dataset.ver;
+    $('m-mes').value = '';
+    ir('mantenimientos');
+  }));
+  $('v-lista').querySelectorAll('[data-chofer]').forEach((sel) => (sel.onchange = async () => {
+    const v = vehiculoDe(sel.dataset.chofer);
+    const chofer = choferDe(sel.value);
+    // Un chofer maneja un vehículo a la vez: se avisa si esto lo quita de otro
+    const otro = chofer && datos.vehiculos.find((x) => x.chofer?.id === chofer.id && x.id !== v.id);
+    if (otro && !(await confirmar('Cambiar de vehículo', `${chofer.nombre} maneja ahora ${otro.placa}. Si lo pasas a ${v.placa}, ${otro.placa} queda sin chofer.`, 'Sí, cambiarlo'))) return pintarVehiculos();
+    try {
+      await api(`/unidades/${v.id}/asignar`, { metodo: 'POST', cuerpo: { choferId: sel.value || null } });
+      aviso(chofer ? `${chofer.nombre} ahora maneja ${v.placa}` : `${v.placa} quedó sin chofer`);
+    } catch (err) {
+      aviso(mensajeDe(err), 'error');
+    }
+    await pintarVehiculos();
+  }));
+}
+
+async function ponerKm(v) {
+  const primera = v.km === null;
+  const r = await dialogo({
+    titulo: primera ? `Kilometraje de ${v.placa}` : `Corregir kilometraje de ${v.placa}`,
+    texto: primera
+      ? 'Mira el tablero y escribe el número completo. Desde ahí, el kilometraje sube solo con cada mantenimiento que registre el chofer.'
+      : `Ahora marca ${miles(v.km)} km. La corrección queda guardada con su motivo.`,
+    campos: [
+      { nombre: 'km', etiqueta: 'Kilometraje actual', tipo: 'numero', valor: v.km ?? '', mono: true },
+      ...(primera ? [] : [{ nombre: 'motivo', etiqueta: '¿Por qué lo corriges?', ejemplo: 'Ej: estaba mal escrito' }]),
+    ],
+    alAceptar: (x) => api(`/unidades/${v.id}/km`, { metodo: 'POST', cuerpo: { km: entero(x.km), motivo: primera ? 'Kilometraje inicial' : x.motivo } }),
+  });
+  if (r) {
+    aviso('Kilometraje guardado');
+    await pintarVehiculos();
+  }
+}
+
+$('v-nuevo').onclick = async () => {
+  const r = await dialogo({
+    titulo: 'Agregar vehículo',
+    texto: 'Elige el modelo: el sistema arma solo sus ejes, llantas, frenos y los compartimentos del tanque.',
+    campos: [
+      { nombre: 'modeloId', etiqueta: 'Modelo', tipo: 'lista', opciones: MODELOS.map((m) => [m.id, `${nombreModelo(m)} — ${m.descripcion}`]) },
+      { nombre: 'placa', etiqueta: 'Placa', ejemplo: 'ABC-1234', mono: true },
+      { nombre: 'anio', etiqueta: 'Año', tipo: 'numero', opcional: true },
+      { nombre: 'kmInicial', etiqueta: 'Kilometraje actual', tipo: 'numero', opcional: true, ayuda: 'Si aún no lo sabes, déjalo vacío y ponlo después.' },
+    ],
+    boton: 'Agregar',
+    alAceptar: (x) => api('/vehiculos', {
+      metodo: 'POST',
+      cuerpo: { modeloId: x.modeloId, placa: x.placa, anio: entero(x.anio), kmInicial: entero(x.kmInicial) },
+    }),
+  });
+  if (r) {
+    aviso('Vehículo agregado con sus ejes, llantas, frenos y tanque');
+    await pintarVehiculos();
+  }
+};
+
+// ---------------------------------------------------------------- choferes
+async function pintarChoferes() {
+  await cargarBase();
+  $('c-lista').innerHTML = datos.choferes.length ? datos.choferes.map((c) => `
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-lg font-bold text-white">${esc(c.nombre)} ${c.activo ? '' : '<span class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full align-middle">Inactivo</span>'}</p>
+        <p class="text-sm text-slate-400 break-all">${esc(c.email)} · Cédula ${esc(c.cedula || '—')}</p>
+        <p class="text-xs ${c.unidades.length ? 'text-cyan-300' : 'text-amber-300'}">${c.unidades.length ? `Maneja ${esc(c.unidades.join(', '))}` : 'Sin vehículo asignado'}</p>
+      </div>
+      <div class="flex gap-2">
+        <button type="button" data-clave="${esc(c.id)}" class="touch-target px-4 rounded-xl border border-cyan-500/40 text-cyan-300 font-bold">Nueva contraseña</button>
+        <button type="button" data-activo="${esc(c.id)}" class="touch-target px-4 rounded-xl border ${c.activo ? 'border-rose-500/40 text-rose-300' : 'border-emerald-500/40 text-emerald-300'} font-bold">${c.activo ? 'Desactivar' : 'Activar'}</button>
+      </div>
+    </div>`).join('') : vacio('Aún no registras choferes.');
+  $('c-lista').querySelectorAll('[data-activo]').forEach((b) => (b.onclick = async () => {
+    const c = choferDe(b.dataset.activo);
+    if (c.activo && !(await confirmar(`Desactivar a ${c.nombre}`, 'Ya no podrá entrar a la app. Sus mantenimientos y reportes se conservan y puedes activarlo de nuevo cuando quieras.', 'Desactivar', true))) return;
+    await api(`/choferes/${c.id}`, { metodo: 'PATCH', cuerpo: { activo: !c.activo } }).catch((e) => aviso(mensajeDe(e), 'error'));
+    await pintarChoferes();
+  }));
+  // Si el chofer olvidó su contraseña, el dueño le pone una nueva
+  $('c-lista').querySelectorAll('[data-clave]').forEach((b) => (b.onclick = async () => {
+    const c = choferDe(b.dataset.clave);
+    const r = await dialogo({
+      titulo: `Nueva contraseña para ${c.nombre}`,
+      texto: 'Se cierran sus sesiones abiertas y entra de nuevo con esta contraseña. Entrégasela tú.',
+      campos: [{ nombre: 'clave', etiqueta: 'Contraseña nueva (mínimo 6 caracteres)', tipo: 'clave' }],
+      alAceptar: (x) => api(`/choferes/${c.id}`, { metodo: 'PATCH', cuerpo: { clave: x.clave } }),
+    });
+    if (r) aviso('Contraseña cambiada. Entrégasela al chofer.');
+  }));
+}
+
+$('c-nuevo').onclick = async () => {
+  const r = await dialogo({
+    titulo: 'Registrar chofer',
+    campos: [
+      { nombre: 'nombre', etiqueta: 'Nombre completo' },
+      { nombre: 'email', etiqueta: 'Correo (con este entra a la app)', tipo: 'correo' },
+      { nombre: 'cedula', etiqueta: 'Cédula', tipo: 'numero', mono: true },
+      { nombre: 'telefono', etiqueta: 'Celular', ejemplo: '099 123 4567', opcional: true },
+      { nombre: 'clave', etiqueta: 'Contraseña para el chofer (mínimo 6 caracteres)', tipo: 'clave', ayuda: 'Entrégasela tú. Después él puede cambiarla.' },
+      { nombre: 'consentimiento', tipo: 'casilla', etiqueta: 'El chofer autoriza guardar su cédula y teléfono para el registro de mantenimientos (Ley Orgánica de Protección de Datos Personales).' },
+    ],
+    boton: 'Registrar',
+    alAceptar: (x) => api('/choferes', { metodo: 'POST', cuerpo: { ...x, telefono: x.telefono || undefined } }),
+  });
+  if (r) {
+    aviso('Chofer registrado. Ahora asígnale su vehículo.');
+    await pintarChoferes();
+  }
+};
+
+// ---------------------------------------------------------------- mantenimientos
+async function pintarMantenimientos() {
+  if (!datos.vehiculos.length) await cargarBase();
+  const q = new URLSearchParams();
+  if ($('m-vehiculo').value) q.set('vehiculo', $('m-vehiculo').value);
+  if ($('m-mes').value) {
+    const [a, m] = $('m-mes').value.split('-').map(Number);
+    q.set('desde', `${$('m-mes').value}-01`);
+    q.set('hasta', new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10));
+  }
+  const { mantenimientos } = await api(`/mantenimientos?${q}`);
+  $('m-total').textContent = dinero(mantenimientos.reduce((s, m) => s + total(m), 0));
+  $('m-lista').innerHTML = mantenimientos.length ? mantenimientos.map(filaMantenimiento).join('') : vacio('No hay mantenimientos con ese filtro.');
+  alTocarMantenimientos($('m-lista'));
+}
+$('m-vehiculo').onchange = $('m-mes').onchange = () => pintarMantenimientos().catch((e) => aviso(mensajeDe(e), 'error'));
+
+// ---------------------------------------------------------------- por pagar (créditos)
+async function pintarPagos() {
+  if (!datos.vehiculos.length) await cargarBase();
+  const lista = await contarPagos();
+  $('p-total').textContent = dinero(lista.reduce((s, m) => s + porPagar(m), 0));
+  $('p-lista').innerHTML = lista.length ? lista.map((m) => {
+    const v = vehiculoDe(m.vehiculoId);
+    return `<article class="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 space-y-3">
+      <button type="button" data-mant="${esc(m.id)}" class="block w-full text-left">
+        <p class="font-bold text-white">${esc(m.trabajo)} <span class="text-sm text-slate-400 font-normal">· ${esc(m.parte)}</span></p>
+        <p class="text-xs text-slate-400">${esc(m.fecha)} · ${esc(v?.placa || '')}${choferDe(m.creadoPor) ? ` · ${esc(choferDe(m.creadoPor).nombre)}` : ''} · <span class="text-cyan-400 font-bold">ver detalle y facturas ›</span></p>
+      </button>
+      ${deudas(m).map((d) => `<div class="flex flex-wrap items-center justify-between gap-3 bg-slate-950 border border-slate-800 rounded-xl p-3">
+        <div class="min-w-0"><p class="text-xs uppercase font-bold text-slate-400">${d.concepto === 'taller' ? 'Taller (mano de obra)' : 'Repuestos'}</p>
+          <p class="font-bold text-white truncate">${esc(d.aQuien || 'Sin nombre')}</p></div>
+        <div class="flex items-center gap-3"><span class="text-xl font-black font-mono text-amber-400">${esc(dinero(d.monto))}</span>
+          <button type="button" data-pagar="${esc(m.id)}" data-concepto="${d.concepto}" class="touch-target px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black">Ya lo pagué</button></div>
+      </div>`).join('')}
+    </article>`;
+  }).join('') : vacio('No hay nada por pagar: ningún trabajo quedó a crédito.');
+  alTocarMantenimientos($('p-lista'));
+  $('p-lista').querySelectorAll('[data-pagar]').forEach((b) => (b.onclick = async () => {
+    const m = lista.find((x) => x.id === b.dataset.pagar);
+    const d = deudas(m).find((x) => x.concepto === b.dataset.concepto);
+    const r = await dialogo({
+      titulo: `Marcar como pagado: ${dinero(d.monto)}`,
+      texto: `${d.concepto === 'taller' ? 'Mano de obra' : 'Repuestos'} de «${m.trabajo}»${d.aQuien ? `, a ${d.aQuien}` : ''}. Queda registrado con la fecha de hoy.`,
+      campos: [{ nombre: 'forma', etiqueta: '¿Cómo lo pagaste?', tipo: 'lista', opciones: [['transferencia', 'Transferencia'], ['efectivo', 'Efectivo'], ['cheque', 'Cheque']] }],
+      boton: 'Marcar como pagado',
+      alAceptar: (x) => api(`/mantenimientos/${m.id}/pagos`, { metodo: 'POST', cuerpo: { concepto: d.concepto, forma: x.forma } }),
+    });
+    if (r) {
+      aviso('Pago registrado');
+      await pintarPagos();
+    }
+  }));
+}
+
+// ---------------------------------------------------------------- detalle de un mantenimiento
+const estadoPago = (forma, pagadoEn, pagadoCon) => {
+  if (!forma) return '';
+  if (forma !== 'credito') return `<div class="text-xs text-slate-600">Pagado con ${esc(nombrePago(forma).toLowerCase())}</div>`;
+  return pagadoEn
+    ? `<div class="text-xs text-emerald-700 font-bold">Crédito pagado el ${esc(new Date(pagadoEn).toLocaleDateString('es-EC'))} (${esc(nombrePago(pagadoCon).toLowerCase())})</div>`
+    : '<div class="text-xs text-amber-700 font-black">A CRÉDITO · POR PAGAR</div>';
+};
+
+async function abrirMantenimiento(id) {
+  const { mantenimiento: m, evidencias } = await api(`/mantenimientos/${encodeURIComponent(id)}`);
+  const v = vehiculoDe(m.vehiculoId);
+  const dato = (k, valor) => `<div><span class="font-bold text-slate-500 block text-xs">${k}</span><span class="text-sm font-bold">${esc(valor || '—')}</span></div>`;
+  abrirHoja('Mantenimiento', `
+    <div class="border-b-2 border-slate-800 pb-3"><h4 class="text-2xl font-black">${esc(m.trabajo)}</h4><p class="text-sm text-slate-600 font-bold">${esc(m.parte)}</p></div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-100 p-3 rounded-xl">
+      ${dato('VEHÍCULO', v ? `${v.placa} · ${nombreVehiculo(v)}` : '')}${dato('CHOFER', choferDe(m.creadoPor)?.nombre)}${dato('FECHA', m.fecha)}
+      ${dato('KILOMETRAJE', `${miles(m.km)} km`)}${dato('LUGAR', [m.canton, m.provincia].filter(Boolean).join(', '))}${dato('REPORTE', m.bloqueado ? 'Incluido en un reporte' : 'Aún sin reporte')}
+    </div>
+    <div class="grid sm:grid-cols-3 gap-3 text-sm">
+      <div class="border border-slate-300 rounded-xl p-3"><span class="font-bold text-slate-500 block text-xs">TALLER (mano de obra)</span>${esc(m.taller || '—')}<div class="font-mono font-black text-lg">${esc(dinero(m.costoTaller))}</div>${Number(m.costoTaller) > 0 ? estadoPago(m.pagoTaller, m.tallerPagadoEn, m.tallerPagadoCon) : ''}</div>
+      <div class="border border-slate-300 rounded-xl p-3"><span class="font-bold text-slate-500 block text-xs">REPUESTOS</span>${esc(m.proveedor || '—')}<div class="font-mono font-black text-lg">${esc(dinero(m.costoRepuestos))}</div>${Number(m.costoRepuestos) > 0 ? estadoPago(m.pagoRepuestos, m.repuestosPagadoEn, m.repuestosPagadoCon) : ''}${m.repuestosDetalle ? `<div class="text-xs text-slate-600">${esc(m.repuestosDetalle)}</div>` : ''}</div>
+      <div class="border-2 border-slate-800 rounded-xl p-3"><span class="font-bold text-slate-500 block text-xs">TOTAL</span><div class="font-mono font-black text-2xl">${esc(dinero(total(m)))}</div></div>
+    </div>
+    ${m.notas ? `<p class="text-sm italic text-slate-700">«${esc(m.notas)}»</p>` : ''}
+    <div class="space-y-2"><h5 class="text-xs font-black uppercase text-slate-700">Facturas y fotos</h5>${htmlEvidencias(evidencias, `${m.trabajo} · ${m.fecha}`)}</div>`);
+}
 
 // ---------------------------------------------------------------- reportes
-async function cargarReportes() {
-  const filtro = $('r-filtro').value;
-  const { reportes } = await api(`/reportes${filtro ? `?chofer=${encodeURIComponent(filtro)}` : ''}`);
-  datos.reportes = reportes;
+async function pintarReportes() {
+  if (!datos.vehiculos.length) await cargarBase();
+  const q = new URLSearchParams();
+  if ($('r-vehiculo').value) q.set('vehiculo', $('r-vehiculo').value);
+  if ($('r-chofer').value) q.set('chofer', $('r-chofer').value);
+  const { reportes } = await api(`/reportes?${q}`);
   $('r-lista').innerHTML = reportes.length
     ? reportes.map((r) => `
-      <button data-folio="${esc(r.folio)}" class="w-full text-left bg-slate-900 border border-slate-800 hover:border-emerald-500 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+      <button type="button" data-folio="${esc(r.folio)}" class="w-full text-left bg-slate-900 border border-slate-800 hover:border-emerald-500 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <span class="font-mono text-xs bg-slate-800 text-cyan-300 px-2 py-0.5 rounded">${esc(r.folio)}</span>
-          <span class="text-xs text-slate-400 ml-2">${esc(r.tipo === 'mensual' ? `Mensual ${r.periodo || ''}` : 'Individual')}</span>
-          <p class="text-lg font-bold text-white mt-1">${esc(r.chofer || 'Chofer')}</p>
+          <span class="text-xs text-slate-400 ml-2">${esc(r.tipo === 'mensual' ? `Mensual · ${nombreMes(r.periodo)}` : 'De un solo trabajo')}</span>
+          <p class="text-lg font-bold text-white mt-1">${esc(r.chofer || 'Chofer')}${r.placa ? ` <span class="text-sm text-cyan-300 font-mono">· ${esc(r.placa)}</span>` : ''}</p>
           <p class="text-xs text-slate-400">Emitido: ${esc(fechaHora(r.generadoEn))}</p>
         </div>
         <div class="text-right"><p class="text-2xl font-black font-mono text-emerald-400">${esc(dinero(r.total))}</p><p class="text-xs text-cyan-400">Ver detalle ›</p></div>
       </button>`).join('')
-    : '<p class="text-slate-400 italic bg-slate-900 rounded-2xl p-5 border border-slate-800">Todavía no hay reportes emitidos por tus choferes.</p>';
-  $('r-lista').querySelectorAll('[data-folio]').forEach((b) => (b.onclick = () => abrirReporte(b.dataset.folio)));
+    : vacio('Todavía no hay reportes emitidos para tus vehículos.');
+  $('r-lista').querySelectorAll('[data-folio]').forEach((b) => (b.onclick = () => abrirReporte(b.dataset.folio).catch((e) => aviso(mensajeDe(e), 'error'))));
 }
-$('r-filtro').onchange = () => cargarReportes().catch((e) => aviso(e.message, 'error'));
+$('r-vehiculo').onchange = $('r-chofer').onchange = () => pintarReportes().catch((e) => aviso(mensajeDe(e), 'error'));
 
-const urlsArchivos = [];
-async function abrirReporte(folio) {
-  const { reporte, integro } = await api(`/reportes/${encodeURIComponent(folio)}`);
-  const d = reporte.datos;
-  const filas = d.mantenimientos.map((m) => `
-    <tr class="border-b border-slate-200">
-      <td class="p-2 border border-slate-300 font-mono">${esc(m.fecha)}<div class="text-[10px] text-slate-500">${esc(miles(m.km))} km</div></td>
-      <td class="p-2 border border-slate-300 font-bold">${esc(m.parte)}</td>
-      <td class="p-2 border border-slate-300">${esc(m.trabajo)}</td>
-      <td class="p-2 border border-slate-300">${esc(m.taller || '—')}<div class="font-mono font-bold">${esc(dinero(m.costoTaller))}</div></td>
-      <td class="p-2 border border-slate-300">${esc(m.proveedor || '—')}<div class="font-mono font-bold">${esc(dinero(m.costoRepuestos))}</div></td>
-      <td class="p-2 border border-slate-300 text-right font-mono font-bold">${esc(dinero(Number(m.costoTaller) + Number(m.costoRepuestos)))}</td>
-    </tr>`).join('');
-  const evidencias = d.mantenimientos.flatMap((m) => m.evidencias.map((e) => ({ ...e, m })));
-  $('reporte-imprimible').innerHTML = `
-    <div class="flex justify-between items-start border-b-2 border-slate-800 pb-3 gap-3">
-      <div><h4 class="text-2xl font-black">REPORTE DE MANTENIMIENTO</h4><p class="text-xs text-slate-600 uppercase font-bold">Mi Trailer · Reporte congelado</p></div>
-      <div class="text-right"><span class="bg-slate-900 text-white font-mono text-xs font-bold px-3 py-1 rounded">FOLIO: ${esc(reporte.folio)}</span>
-        <p class="text-xs text-slate-500 mt-1 font-mono">Emisión: ${esc(fechaHora(reporte.generadoEn))}</p></div>
-    </div>
-    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-100 p-3 rounded-xl text-xs">
-      <div><span class="font-bold text-slate-500 block">CHOFER</span><span class="text-sm font-bold">${esc(d.chofer.nombre)}</span></div>
-      <div><span class="font-bold text-slate-500 block">CÉDULA</span><span class="text-sm font-mono font-bold">${esc(d.chofer.cedula || '—')}</span></div>
-      <div><span class="font-bold text-slate-500 block">PERIODO</span><span class="text-sm font-bold">${esc(d.periodo || 'Individual')}</span></div>
-    </div>
-    <div class="overflow-x-auto"><table class="w-full text-left text-xs border-collapse">
-      <thead><tr class="bg-slate-200 font-bold"><th class="p-2 border border-slate-300">Fecha / Km</th><th class="p-2 border border-slate-300">Parte</th><th class="p-2 border border-slate-300">Trabajo</th><th class="p-2 border border-slate-300">Taller</th><th class="p-2 border border-slate-300">Repuestos</th><th class="p-2 border border-slate-300 text-right">Total</th></tr></thead>
-      <tbody>${filas}</tbody>
-      <tfoot><tr class="font-black bg-slate-100"><td colspan="5" class="p-2 border border-slate-300 text-right">TOTAL</td><td class="p-2 border border-slate-300 text-right">${esc(dinero(d.total))}</td></tr></tfoot>
-    </table></div>
-    <div class="space-y-2"><h5 class="text-xs font-bold uppercase text-slate-700">Evidencias adjuntas (facturas y fotos)</h5>
-      <div id="m-evidencias" class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-        ${evidencias.length ? evidencias.map((e) => `
-          <figure class="border border-slate-300 rounded-lg p-2 bg-slate-50">
-            ${e.mime.startsWith('image/') ? `<img data-ev="${esc(e.id)}" alt="${esc(e.nombreArchivo)}" class="w-full max-h-72 object-contain bg-white rounded border">`
-              : `<div class="h-24 flex flex-col items-center justify-center bg-white rounded border"><i class="fa-solid fa-file-pdf text-3xl text-rose-600"></i><a data-ev-doc="${esc(e.id)}" target="_blank" class="no-print underline mt-1">Abrir documento</a></div>`}
-            <figcaption class="mt-1 text-[11px] space-y-0.5">
-              <div class="font-bold">${esc(e.categoria)}${e.anexoPosterior ? ' · anexo posterior' : ''}</div>
-              <div class="break-all">${esc(e.nombreArchivo)}</div>
-              <div class="font-mono font-bold">Subida: ${esc(fechaHora(e.subidoEn))}</div>
-              <div class="text-slate-500">${esc(e.m.trabajo)} · ${esc(e.m.parte)}</div>
-            </figcaption>
-          </figure>`).join('') : '<span class="italic text-slate-500">Sin facturas adjuntas.</span>'}
-      </div>
-    </div>
-    <div class="pt-3 border-t border-slate-300 text-[10px] font-mono text-slate-600 space-y-1">
-      <p><strong>HUELLA SHA-256:</strong> <span class="break-all">${esc(reporte.hash)}</span></p>
-      <p class="${integro ? 'text-emerald-700' : 'text-rose-700'} font-bold">${integro ? '✔ Integridad verificada: el reporte no fue modificado.' : '✖ ATENCIÓN: los datos no coinciden con la huella.'}</p>
-    </div>`;
-  $('modal-reporte').classList.remove('hidden');
-  // Las imágenes se piden con la sesión del dueño
-  urlsArchivos.splice(0).forEach((u) => URL.revokeObjectURL(u));
-  for (const el of $('m-evidencias').querySelectorAll('[data-ev], [data-ev-doc]')) {
-    const id = el.dataset.ev || el.dataset.evDoc;
-    try {
-      const u = URL.createObjectURL(await api(`/evidencias/${encodeURIComponent(id)}/archivo`));
-      urlsArchivos.push(u);
-      if (el.dataset.ev) el.src = u;
-      else el.href = u;
-    } catch {
-      el.replaceWith(Object.assign(document.createElement('div'), { className: 'italic text-slate-500 p-3', textContent: 'Archivo aún no subido por el chofer' }));
-    }
-  }
+// ---------------------------------------------------------------- inicio del panel
+let ir = () => {};
+try {
+  const usuario = await sesionPanel('dueno');
+  pintarCuenta(usuario);
+  $('m-mes').value = mesActual();
+  ir = iniciarMenu({ inicio: pintarInicio, vehiculos: pintarVehiculos, choferes: pintarChoferes, pagos: pintarPagos, mantenimientos: pintarMantenimientos, reportes: pintarReportes });
+  ir('inicio');
+} catch (err) {
+  aviso(mensajeDe(err), 'error');
 }
-$('m-cerrar').onclick = () => $('modal-reporte').classList.add('hidden');
-
-// ---------------------------------------------------------------- choferes
-async function cargarChoferes() {
-  const { choferes } = await api('/choferes');
-  datos.choferes = choferes;
-  $('c-lista').innerHTML = choferes.length
-    ? choferes.map((c) => `
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p class="text-lg font-bold text-white">${esc(c.nombre)} ${c.activo ? '' : '<span class="text-xs bg-slate-700 text-slate-300 px-2 rounded-full">Inactivo</span>'}</p>
-          <p class="text-sm text-slate-400">${esc(c.email)} · Cédula ${esc(c.cedula || '—')}</p>
-          <p class="text-xs text-cyan-300">${c.unidades.length ? `Maneja ${esc(c.unidades.join(', '))}` : 'Sin unidad asignada'}</p>
-        </div>
-        <div class="flex gap-2">
-          <button data-clave="${esc(c.id)}" data-nombre="${esc(c.nombre)}" class="px-4 py-2 rounded-xl border border-cyan-500/40 text-cyan-300 font-bold">Nueva contraseña</button>
-          <button data-chofer="${esc(c.id)}" data-activo="${c.activo}" class="px-4 py-2 rounded-xl border ${c.activo ? 'border-rose-500/40 text-rose-300' : 'border-emerald-500/40 text-emerald-300'} font-bold">${c.activo ? 'Desactivar' : 'Activar'}</button>
-        </div>
-      </div>`).join('')
-    : '<p class="text-slate-400 italic">Aún no registras choferes.</p>';
-  $('c-lista').querySelectorAll('[data-chofer]').forEach((b) => (b.onclick = async () => {
-    await api(`/choferes/${b.dataset.chofer}`, { metodo: 'PATCH', cuerpo: { activo: b.dataset.activo !== 'true' } });
-    await cargarChoferes();
-  }));
-  // Si el chofer olvidó su contraseña, el dueño le pone una nueva
-  $('c-lista').querySelectorAll('[data-clave]').forEach((b) => (b.onclick = async () => {
-    const nueva = prompt(`Nueva contraseña para ${b.dataset.nombre} (mínimo 6 caracteres):`);
-    if (!nueva) return;
-    try {
-      await api(`/choferes/${b.dataset.clave}`, { metodo: 'PATCH', cuerpo: { clave: nueva } });
-      aviso('Contraseña cambiada. Entrégasela al chofer.');
-    } catch (err) {
-      aviso(err.message, 'error');
-    }
-  }));
-  const opciones = choferes.filter((c) => c.activo).map((c) => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('');
-  $('r-filtro').innerHTML = `<option value="">Todos</option>${choferes.map((c) => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('')}`;
-  document.querySelector('#s-form [name=chofer]').innerHTML = opciones || '<option value="">Registra un chofer primero</option>';
-}
-
-$('c-form').onsubmit = async (e) => {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  try {
-    await api('/choferes', {
-      metodo: 'POST',
-      cuerpo: {
-        nombre: f.get('nombre'), email: f.get('email'), cedula: f.get('cedula'),
-        telefono: f.get('telefono') || undefined, clave: f.get('clave'), consentimiento: f.get('consentimiento') === 'on',
-      },
-    });
-    errorEn('c-error');
-    e.target.reset();
-    aviso('Chofer registrado. Entrégale su correo y su contraseña para entrar.');
-    await cargarChoferes();
-  } catch (err) {
-    errorEn('c-error', err);
-  }
-};
-
-// ---------------------------------------------------------------- camiones
-async function cargarUnidades() {
-  const { unidades } = await api('/unidades');
-  datos.unidades = unidades;
-  // Km actual de cada cabezal (puede estar pendiente)
-  const km = {};
-  await Promise.all(unidades.filter((u) => u.rol === 'cabezal').map(async (u) => (km[u.id] = (await api(`/unidades/${u.id}`)).km)));
-  $('u-lista').innerHTML = unidades.length
-    ? unidades.map((u) => `
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-        <span class="font-mono font-black bg-white text-slate-900 px-2 py-0.5 rounded">${esc(u.placa)}</span>
-        <p class="text-white font-bold mt-2">${esc(u.rol === 'cabezal' ? 'Cabezal' : `Remolque ${u.tipo}`)} · ${esc(u.marca)} ${esc(u.modelo)} ${esc(u.anio || '')}</p>
-        ${u.atributos?.motor ? `<p class="text-xs text-cyan-300">Motor ${esc(u.atributos.motor)}</p>` : ''}
-        ${u.rol === 'cabezal' ? `<div class="flex items-center justify-between gap-2 mt-2 bg-slate-950 border border-slate-800 rounded-xl p-2">
-          <span class="text-sm ${km[u.id] == null ? 'text-amber-300 font-bold' : 'text-emerald-300 font-mono font-bold'}">${km[u.id] == null ? 'Km pendiente' : `${esc(miles(km[u.id]))} km`}</span>
-          <button data-km="${esc(u.id)}" data-placa="${esc(u.placa)}" data-actual="${km[u.id] ?? ''}" class="px-3 py-1.5 rounded-lg border border-cyan-500/40 text-cyan-300 text-sm font-bold">${km[u.id] == null ? 'Poner km' : 'Corregir km'}</button>
-        </div>` : ''}
-        <p class="text-xs text-slate-400">${esc(u.numEjes)} ejes · ${esc(u.numLlantas)} llantas${u.atributos?.capacidad_galones ? ` · ${esc(miles(u.atributos.capacidad_galones))} gal` : ''}</p>
-      </div>`).join('')
-    : '<p class="text-slate-400 italic">Aún no registras camiones.</p>';
-  // Poner o corregir el km (solo el dueño; queda registrado con el motivo)
-  $('u-lista').querySelectorAll('[data-km]').forEach((b) => (b.onclick = async () => {
-    const valor = prompt(`Kilometraje actual del cabezal ${b.dataset.placa}:`, b.dataset.actual);
-    if (valor === null) return;
-    const kmNuevo = Number(String(valor).replace(/\D/g, ''));
-    const motivo = b.dataset.actual ? prompt('¿Por qué lo corriges? (queda registrado)') : 'Kilometraje inicial';
-    if (!motivo) return;
-    try {
-      await api(`/unidades/${b.dataset.km}/km`, { metodo: 'POST', cuerpo: { km: kmNuevo, motivo } });
-      aviso('Kilometraje guardado');
-      await cargarUnidades();
-    } catch (err) {
-      aviso(err.message, 'error');
-    }
-  }));
-  const op = (lista) => lista.map((u) => `<option value="${esc(u.id)}">${esc(u.placa)} · ${esc(u.marca)}</option>`).join('');
-  document.querySelector('#a-form [name=cabezal]').innerHTML = op(unidades.filter((u) => u.rol === 'cabezal'));
-  document.querySelector('#a-form [name=remolque]').innerHTML = op(unidades.filter((u) => u.rol === 'remolque'));
-  document.querySelector('#s-form [name=unidad]').innerHTML = op(unidades);
-}
-
-const formU = $('u-form');
-formU.tipo.onchange = () => {
-  const cabezal = formU.tipo.value === 'tracto';
-  $('u-km').classList.toggle('hidden', !cabezal);
-  $('u-motor').classList.toggle('hidden', !cabezal);
-  $('u-comps').classList.toggle('hidden', formU.tipo.value !== 'tanquero');
-};
-formU.onsubmit = async (e) => {
-  e.preventDefault();
-  const f = new FormData(formU);
-  const num = (k) => (f.get(k) === '' ? undefined : Number(f.get(k)));
-  const cabezal = f.get('tipo') === 'tracto';
-  try {
-    await api('/unidades', {
-      metodo: 'POST',
-      cuerpo: {
-        rol: cabezal ? 'cabezal' : 'remolque', tipo: f.get('tipo'), placa: f.get('placa'), marca: f.get('marca'), modelo: f.get('modelo'),
-        anio: num('anio'), numEjes: num('numEjes'), numLlantas: num('numLlantas'),
-        kmInicial: cabezal ? num('kmInicial') : undefined,
-        atributos: cabezal && f.get('motor') ? { motor: String(f.get('motor')).trim() } : {},
-        compartimentos: f.get('tipo') === 'tanquero' ? String(f.get('compartimentos')).split(',').map((x) => Number(x.replace(/\D/g, ''))).filter((x) => !Number.isNaN(x)) : undefined,
-      },
-    });
-    errorEn('u-error');
-    formU.reset();
-    formU.tipo.onchange();
-    aviso('Unidad registrada con sus ejes, llantas y frenos');
-    await cargarUnidades();
-  } catch (err) {
-    errorEn('u-error', err);
-  }
-};
-
-$('a-form').onsubmit = async (e) => {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  try {
-    await api(`/unidades/${f.get('cabezal')}/acoplar`, { metodo: 'POST', cuerpo: { remolqueId: f.get('remolque') } });
-    aviso('Remolque enganchado');
-  } catch (err) {
-    aviso(err.message, 'error');
-  }
-};
-$('s-form').onsubmit = async (e) => {
-  e.preventDefault();
-  const f = new FormData(e.target);
-  try {
-    await api(`/unidades/${f.get('unidad')}/asignar`, { metodo: 'POST', cuerpo: { choferId: f.get('chofer') } });
-    aviso('Chofer asignado');
-    await cargarChoferes();
-  } catch (err) {
-    aviso(err.message, 'error');
-  }
-};
-
-// ---------------------------------------------------------------- inicio
-$('d-salir').onclick = async () => {
-  await api('/auth/salir', { metodo: 'POST' }).catch(() => {});
-  localStorage.removeItem('mi_trailer_token');
-  location.href = './index.html';
-};
-
-async function iniciar() {
-  if (!API || !localStorage.getItem('mi_trailer_token')) return (location.href = './index.html');
-  try {
-    const { usuario } = await api('/auth/yo');
-    if (usuario.rol !== 'dueno') return (location.href = './index.html');
-    $('d-usuario').textContent = `${usuario.nombre} · ${usuario.email}`;
-    pestana('reportes');
-    await cargarChoferes();
-    await Promise.all([cargarReportes(), cargarUnidades()]);
-  } catch (err) {
-    if (err.estado === 401) {
-      localStorage.removeItem('mi_trailer_token');
-      return (location.href = './index.html');
-    }
-    aviso(err.message || 'Sin conexión con el servidor', 'error');
-  }
-}
-iniciar();

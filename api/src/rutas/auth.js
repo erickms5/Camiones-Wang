@@ -1,15 +1,16 @@
-// Ingreso con correo y contraseña. El dueño crea su cuenta; a los choferes los registra el dueño
-// con una contraseña que les entrega (y que puede cambiar si la olvidan).
+// Ingreso con correo y contraseña. Nadie crea su propia cuenta: el administrador crea las de los dueños
+// y cada dueño las de sus choferes, con una contraseña que les entregan (y que pueden cambiar si la olvidan).
 import { Router } from 'express';
 import { z } from 'zod';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { rateLimit, ipKeyGenerator } from 'express-rate-limit';
-import { cuentas, sesiones, usuarios } from '../db/esquema.js';
+import { sesiones, usuarios } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
 import { mascaraCedula, hashClave, claveCorrecta } from '../seguridad.js';
 
-const email = z.string().trim().toLowerCase().email('Escribe un correo válido');
+export const email = z.string().trim().toLowerCase().email('Escribe un correo válido');
 export const clave = z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').max(100);
+export const claveDueno = z.string().min(8, 'La contraseña debe tener al menos 8 caracteres').max(100);
 const DIAS_SESION = 30;
 const MAX_FALLOS = 8; // intentos fallidos seguidos antes de pausar la cuenta
 const PAUSA_MIN = 15;
@@ -34,25 +35,12 @@ export function rutasAuth({ db, seguridad, autenticado, config }) {
     return { token, usuario: usuarioPublico(u, seguridad) };
   }
 
-  // Registro del dueño: crea su cuenta y entra de una vez
-  r.post('/registro', porCorreo, async (req, res) => {
-    const d = z.object({ email, nombre: z.string().trim().min(3).max(80), nombreCuenta: z.string().trim().min(2).max(80).optional(), clave }).parse(req.body);
-    const [existe] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.email, d.email));
-    if (existe) throw new ErrorHttp(409, 'Ese correo ya tiene cuenta. Entra con tu contraseña.');
-    const u = await db.transaction(async (tx) => {
-      const [cuenta] = await tx.insert(cuentas).values({ nombre: d.nombreCuenta || d.nombre }).returning();
-      const [nuevo] = await tx.insert(usuarios).values({ cuentaId: cuenta.id, email: d.email, nombre: d.nombre, rol: 'dueno', claveHash: hashClave(d.clave) }).returning();
-      return nuevo;
-    });
-    res.status(201).json(await abrirSesion(u));
-  });
-
   r.post('/entrar', porCorreo, async (req, res) => {
     const d = z.object({ email, clave: z.string().min(1, 'Escribe tu contraseña').max(100) }).parse(req.body);
     const [u] = await db.select().from(usuarios).where(and(eq(usuarios.email, d.email), eq(usuarios.activo, true)));
     // Contador por cuenta (no depende de la IP): tras varios fallos seguidos la cuenta se pausa unos minutos
     if (u?.bloqueadoHasta && u.bloqueadoHasta > new Date()) {
-      throw new ErrorHttp(429, `Demasiados intentos fallidos. Espera ${PAUSA_MIN} minutos o pide al dueño una contraseña nueva.`);
+      throw new ErrorHttp(429, `Demasiados intentos fallidos. Espera ${PAUSA_MIN} minutos o pide que te pongan una contraseña nueva.`);
     }
     // Mismo mensaje y mismo tiempo exista o no el correo
     if (!claveCorrecta(d.clave, u?.claveHash)) {

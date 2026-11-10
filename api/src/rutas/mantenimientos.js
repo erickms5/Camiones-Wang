@@ -1,19 +1,21 @@
 // Mantenimientos y sus evidencias (fotos o PDF de facturas con fecha y hora de subida).
 import express, { Router } from 'express';
 import { z } from 'zod';
-import { and, desc, eq, gte, isNull, lte } from 'drizzle-orm';
-import { acoplamientos, auditoria, evidencias, mantenimientos, odometro, unidades } from '../db/esquema.js';
+import { and, desc, eq, gt, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
+import { auditoria, evidencias, mantenimientos, odometro } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
 import { sha256 } from '../seguridad.js';
-import { unidadAccesible } from './unidades.js';
+import { idsAccesibles, unidadAccesible, vehiculoDe, kmActual } from '../flota.js';
 
 const dinero = z.number().min(0).max(1_000_000).default(0);
 const texto = (max) => z.string().trim().max(max).optional();
+const FORMAS_PAGO = ['efectivo', 'transferencia', 'cheque', 'credito'];
+const formaPago = z.enum(FORMAS_PAGO, { errorMap: () => ({ message: 'Forma de pago: efectivo, transferencia, cheque o crédito' }) });
 const TIPOS_ARCHIVO = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'];
 
 const esquemaMantenimiento = z.object({
   id: z.string().uuid().optional(),
-  unidadId: z.string().uuid().optional(),
+  unidadId: z.string().uuid({ message: 'Indica el vehículo del mantenimiento' }),
   fecha: z.string().date().refine((f) => f <= new Date().toISOString().slice(0, 10), 'La fecha no puede ser futura'),
   km: z.number().int().min(0).max(5_000_000),
   parte: z.string().trim().min(2).max(120),
@@ -21,18 +23,23 @@ const esquemaMantenimiento = z.object({
   provincia: texto(60), canton: texto(60),
   taller: texto(120), costoTaller: dinero,
   proveedor: texto(120), costoRepuestos: dinero, repuestosDetalle: texto(500),
+  // Cómo se pagó cada parte (el taller y los repuestos se pagan por separado)
+  pagoTaller: formaPago.optional(), pagoRepuestos: formaPago.optional(),
   notas: texto(500),
 });
 
-// Mantenimientos visibles: el dueño ve todos los de su cuenta; el chofer solo los suyos.
-function filtroVisible(usuario) {
+// Mantenimientos visibles: el dueño ve los de sus vehículos (y sus tanqueros); el chofer solo los suyos.
+export async function filtroVisible(db, usuario) {
   const base = eq(mantenimientos.cuentaId, usuario.cuentaId);
-  return usuario.rol === 'dueno' ? base : and(base, eq(mantenimientos.creadoPor, usuario.id));
+  if (usuario.rol !== 'dueno') return and(base, eq(mantenimientos.creadoPor, usuario.id));
+  const ids = await idsAccesibles(db, usuario);
+  if (!ids.length) return sql`false`;
+  return and(base, or(inArray(mantenimientos.vehiculoId, ids), inArray(mantenimientos.unidadId, ids)));
 }
 
 async function mantenimientoVisible(db, usuario, id) {
   if (!z.string().uuid().safeParse(id).success) throw new ErrorHttp(404, 'Mantenimiento no encontrado');
-  const [m] = await db.select().from(mantenimientos).where(and(eq(mantenimientos.id, id), filtroVisible(usuario)));
+  const [m] = await db.select().from(mantenimientos).where(and(eq(mantenimientos.id, id), await filtroVisible(db, usuario)));
   if (!m) throw new ErrorHttp(404, 'Mantenimiento no encontrado');
   return m;
 }
@@ -41,22 +48,9 @@ async function mantenimientoVisible(db, usuario, id) {
 // Si el trabajo es del remolque, cuenta el km del cabezal enganchado (el odómetro está en el cabezal).
 const SALTO_MAXIMO_KM = 60_000; // más que esto entre un mantenimiento y otro es casi seguro un error de tipeo
 
-async function cabezalDe(db, usuario, unidadId) {
-  const [u] = await db.select().from(unidades).where(eq(unidades.id, unidadId));
-  let cabezalId = u?.rol === 'cabezal' ? u.id : null;
-  if (u?.rol === 'remolque') {
-    const [a] = await db.select().from(acoplamientos).where(and(eq(acoplamientos.remolqueId, u.id), isNull(acoplamientos.hasta)));
-    cabezalId = a?.cabezalId || null;
-  }
-  if (!cabezalId) return null;
-  // Solo se toca el km de un cabezal al que la persona tiene acceso
-  try {
-    await unidadAccesible(db, usuario, cabezalId);
-  } catch {
-    return null;
-  }
-  const [ultimo] = await db.select().from(odometro).where(eq(odometro.unidadId, cabezalId)).orderBy(desc(odometro.registradoEn)).limit(1);
-  return { cabezalId, kmActual: ultimo?.km ?? null }; // null: el dueño aún no pone el km
+async function cabezalDe(db, unidad) {
+  const cabezalId = await vehiculoDe(db, unidad);
+  return cabezalId ? { cabezalId, kmActual: await kmActual(db, cabezalId) } : null; // kmActual null: el dueño aún no pone el km
 }
 
 async function actualizarKm(db, usuario, cab, km, mantenimientoId) {
@@ -65,14 +59,14 @@ async function actualizarKm(db, usuario, cab, km, mantenimientoId) {
   await db.insert(odometro).values({ unidadId: cab.cabezalId, km, fuente: `mantenimiento:${mantenimientoId}`, registradoPor: usuario.id });
 }
 
-export function rutasMantenimientos({ db, almacen }) {
+export function rutasMantenimientos({ db, almacen, soloDueno }) {
   const r = Router();
 
   r.post('/mantenimientos', async (req, res) => {
     const d = esquemaMantenimiento.parse(req.body);
-    if (d.unidadId) await unidadAccesible(db, req.usuario, d.unidadId);
+    const unidad = await unidadAccesible(db, req.usuario, d.unidadId);
     // El km no se puede editar después: se rechazan saltos imposibles para no dañarlo con un error de tipeo
-    const cab = d.unidadId ? await cabezalDe(db, req.usuario, d.unidadId) : null;
+    const cab = await cabezalDe(db, unidad);
     if (cab && cab.kmActual !== null && d.km > cab.kmActual + SALTO_MAXIMO_KM) {
       throw new ErrorHttp(400, `El kilometraje ${d.km.toLocaleString('es-EC')} es ${(d.km - cab.kmActual).toLocaleString('es-EC')} km mayor al actual (${cab.kmActual.toLocaleString('es-EC')}). Revisa que esté bien escrito.`);
     }
@@ -86,7 +80,7 @@ export function rutasMantenimientos({ db, almacen }) {
     }
     const [m] = await db.insert(mantenimientos).values({
       ...d, costoTaller: d.costoTaller.toFixed(2), costoRepuestos: d.costoRepuestos.toFixed(2),
-      cuentaId: req.usuario.cuentaId, creadoPor: req.usuario.id,
+      cuentaId: req.usuario.cuentaId, creadoPor: req.usuario.id, vehiculoId: cab?.cabezalId ?? null,
     }).returning();
     await actualizarKm(db, req.usuario, cab, d.km, m.id);
     await db.insert(auditoria).values({ cuentaId: req.usuario.cuentaId, usuarioId: req.usuario.id, entidad: 'mantenimiento', entidadId: m.id, accion: 'crear' });
@@ -94,8 +88,18 @@ export function rutasMantenimientos({ db, almacen }) {
   });
 
   r.get('/mantenimientos', async (req, res) => {
-    const q = z.object({ desde: z.string().date().optional(), hasta: z.string().date().optional(), chofer: z.string().uuid().optional() }).parse(req.query);
-    const cond = [filtroVisible(req.usuario)];
+    const q = z.object({
+      desde: z.string().date().optional(), hasta: z.string().date().optional(), chofer: z.string().uuid().optional(), vehiculo: z.string().uuid().optional(),
+      porPagar: z.enum(['si']).optional(), // solo lo que quedó a crédito y aún no se paga
+    }).parse(req.query);
+    const cond = [await filtroVisible(db, req.usuario)];
+    if (q.porPagar) {
+      cond.push(or(
+        and(eq(mantenimientos.pagoTaller, 'credito'), isNull(mantenimientos.tallerPagadoEn), gt(mantenimientos.costoTaller, '0')),
+        and(eq(mantenimientos.pagoRepuestos, 'credito'), isNull(mantenimientos.repuestosPagadoEn), gt(mantenimientos.costoRepuestos, '0')),
+      ));
+    }
+    if (q.vehiculo) cond.push(eq(mantenimientos.vehiculoId, q.vehiculo));
     if (q.desde) cond.push(gte(mantenimientos.fecha, q.desde));
     if (q.hasta) cond.push(lte(mantenimientos.fecha, q.hasta));
     if (q.chofer && req.usuario.rol === 'dueno') cond.push(eq(mantenimientos.creadoPor, q.chofer));
@@ -107,6 +111,19 @@ export function rutasMantenimientos({ db, almacen }) {
     const m = await mantenimientoVisible(db, req.usuario, req.params.id);
     const ev = await db.select().from(evidencias).where(eq(evidencias.mantenimientoId, m.id));
     res.json({ mantenimiento: m, evidencias: ev });
+  });
+
+  // El dueño marca como pagado lo que quedó a crédito (taller o repuestos, cada uno por su lado)
+  r.post('/mantenimientos/:id/pagos', soloDueno, async (req, res) => {
+    const m = await mantenimientoVisible(db, req.usuario, req.params.id);
+    const d = z.object({ concepto: z.enum(['taller', 'repuestos']), forma: z.enum(['efectivo', 'transferencia', 'cheque'], { errorMap: () => ({ message: 'Indica cómo se pagó: efectivo, transferencia o cheque' }) }) }).parse(req.body);
+    const taller = d.concepto === 'taller';
+    if ((taller ? m.pagoTaller : m.pagoRepuestos) !== 'credito') throw new ErrorHttp(400, 'Eso no quedó a crédito');
+    if (taller ? m.tallerPagadoEn : m.repuestosPagadoEn) throw new ErrorHttp(409, 'Ya estaba marcado como pagado');
+    const cambios = taller ? { tallerPagadoEn: new Date(), tallerPagadoCon: d.forma } : { repuestosPagadoEn: new Date(), repuestosPagadoCon: d.forma };
+    const [act] = await db.update(mantenimientos).set(cambios).where(eq(mantenimientos.id, m.id)).returning();
+    await db.insert(auditoria).values({ cuentaId: req.usuario.cuentaId, usuarioId: req.usuario.id, entidad: 'mantenimiento', entidadId: m.id, accion: 'pagar_credito', datos: d });
+    res.json({ mantenimiento: act });
   });
 
   // 1) Registrar la evidencia; 2) subir el archivo. Si el mantenimiento ya está en un reporte, solo como anexo posterior.
@@ -145,7 +162,7 @@ export function rutasMantenimientos({ db, almacen }) {
     if (!z.string().uuid().safeParse(req.params.id).success) throw new ErrorHttp(404, 'Evidencia no encontrada');
     const [fila] = await db.select({ ev: evidencias }).from(evidencias)
       .innerJoin(mantenimientos, eq(evidencias.mantenimientoId, mantenimientos.id))
-      .where(and(eq(evidencias.id, req.params.id), filtroVisible(req.usuario)));
+      .where(and(eq(evidencias.id, req.params.id), await filtroVisible(db, req.usuario)));
     if (!fila) throw new ErrorHttp(404, 'Evidencia no encontrada');
     return fila.ev;
   }

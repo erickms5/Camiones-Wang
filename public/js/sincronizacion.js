@@ -1,8 +1,13 @@
 // Conexión de «Mi Trailer» con el servidor (API Node.js + PostgreSQL).
-// - Ingreso con correo y contraseña (chofer y dueño; el dueño va a su panel).
+// - Ingreso con correo y contraseña (el chofer se queda aquí; el dueño y el administrador van a su panel).
 // - Todo se guarda primero en el teléfono y se envía con una cola: funciona sin señal.
 // - Mantenimientos, facturas (fotos/PDF), fichas de llantas y frenos, km y reportes.
 // Si no hay servidor configurado, la app sigue en modo demostración local.
+
+import { configVehiculo, partesDe, ejesDe, trabajosDe, unidadDeParte, OTRO_TRABAJO } from './catalogo.js';
+
+// Partes, ejes y trabajos del vehículo, disponibles para la pantalla principal (index.html)
+window.Flota = { configVehiculo, partesDe, ejesDe, trabajosDe, unidadDeParte, OTRO_TRABAJO };
 
 const CLAVE_TOKEN = 'mi_trailer_token';
 const CLAVE_COLA = 'mi_trailer_pendientes';
@@ -73,33 +78,62 @@ export async function api(ruta, { metodo = 'GET', cuerpo, archivo, tipo } = {}) 
 }
 
 // ---------------------------------------------------------------- sesión
+const PANELES = { dueno: './dueno.html', admin: './admin.html' };
+
 export async function iniciarSesionServidor(token) {
   localStorage.setItem(CLAVE_TOKEN, token);
   const { usuario } = await api('/auth/yo');
-  if (usuario.rol === 'dueno') {
+  if (PANELES[usuario.rol]) {
     escribir('mi_trailer_usuario', usuario);
-    location.href = './dueno.html';
+    location.href = PANELES[usuario.rol];
     return null;
   }
   const { unidades } = await api('/unidades');
+  // El vehículo que maneja: un cabezal (con su tanquero enganchado) o un camión con el tanque encima
   const cabezal = unidades.find((u) => u.rol === 'cabezal');
-  const remolqueAsignado = unidades.find((u) => u.rol === 'remolque');
-  if (!cabezal) throw new Error('Todavía no tienes un cabezal asignado. Pide al dueño que te lo asigne.');
+  if (!cabezal) throw new Error('Todavía no tienes un vehículo asignado. Pide al dueño que te lo asigne.');
   const det = await api(`/unidades/${cabezal.id}`);
-  const remolqueId = det.acople?.remolqueId || remolqueAsignado?.id;
-  const detRem = remolqueId ? await api(`/unidades/${remolqueId}`) : null;
+  const detRem = det.acople?.remolqueId ? await api(`/unidades/${det.acople.remolqueId}`).catch(() => null) : null;
+  const camion = cabezal.tipo === 'camion';
+  const conTanque = camion ? det : detRem;
+  const galonesDe = (d) => d?.componentes.filter((c) => c.tipo === 'compartimento').sort((a, b) => a.orden - b.orden).map((c) => c.capacidadGalones) || [];
 
-  // Partes del servidor que corresponden a cada llanta y freno del camión 3D
+  // Partes del servidor que corresponden a cada llanta y freno del camión 3D, y sus fichas ya guardadas
   const mapa = {};
+  const fichas = {};
   const mapear = (detalle, prefijo) => {
     if (!detalle) return;
     detalle.componentes.filter((c) => c.tipo === 'eje').forEach((eje) => {
-      detalle.componentes.filter((c) => c.padreId === eje.id && (c.tipo === 'llanta' || c.tipo === 'freno'))
-        .forEach((c) => (mapa[`${prefijo}-eje-${eje.posicion}|${c.tipo}|${c.posicion}`] = c.id));
+      detalle.componentes.filter((c) => c.padreId === eje.id && (c.tipo === 'llanta' || c.tipo === 'freno')).forEach((c) => {
+        const clave = `${prefijo}-eje-${eje.posicion}|${c.tipo}|${c.posicion}`;
+        mapa[clave] = c.id;
+        if (c.detalles && Object.keys(c.detalles).length) fichas[clave] = c.detalles;
+      });
     });
   };
   mapear(det, 'cab');
   mapear(detRem, 'rem');
+
+  // Otro chofer en este teléfono: no se mezclan los datos guardados del anterior.
+  // Mismo chofer con otro vehículo: solo se renuevan las fichas de llantas y frenos (son de cada vehículo).
+  const borrar = (claves) => claves.forEach((k) => localStorage.removeItem(k));
+  if (localStorage.getItem('mi_trailer_ultimo_usuario') !== usuario.id) {
+    borrar(['mi_trailer_maint', 'mi_trailer_reports', 'mi_trailer_detalles', CLAVE_DETALLES_ENVIADOS, CLAVE_COLA]);
+    if (window.app) Object.assign(window.app, { maintenances: [], reports: [] });
+  } else if (localStorage.getItem('mi_trailer_ultimo_vehiculo') !== cabezal.id) borrar(['mi_trailer_detalles', CLAVE_DETALLES_ENVIADOS]);
+  localStorage.setItem('mi_trailer_ultimo_usuario', usuario.id);
+  localStorage.setItem('mi_trailer_ultimo_vehiculo', cabezal.id);
+  // Fichas de llantas y frenos: las del servidor completan las del teléfono (gana la más reciente)
+  const locales = leer('mi_trailer_detalles', {});
+  const enviados = leer(CLAVE_DETALLES_ENVIADOS, {});
+  Object.entries(fichas).forEach(([clave, d]) => {
+    if (!locales[clave] || String(d.actualizado || '') > String(locales[clave].actualizado || '')) {
+      locales[clave] = d;
+      enviados[clave] = d.actualizado;
+    }
+  });
+  escribir('mi_trailer_detalles', locales);
+  escribir(CLAVE_DETALLES_ENVIADOS, enviados);
 
   return {
     placa: cabezal.placa,
@@ -108,21 +142,27 @@ export async function iniciarSesionServidor(token) {
     email: usuario.email,
     rol: usuario.rol,
     trailerModel: [cabezal.marca, cabezal.modelo, cabezal.anio].filter(Boolean).join(' '),
-    engine: cabezal.atributos?.motor || 'Motor',
+    engine: cabezal.atributos?.motor || '',
     odometro: det.km ?? 0, // null = el dueño aún no pone el km
+    vehiculo: {
+      modeloId: cabezal.atributos?.modeloId || null, tipo: camion ? 'camion' : 'tracto',
+      marca: cabezal.marca, modelo: cabezal.modelo, anio: cabezal.anio, motor: cabezal.atributos?.motor || '',
+      ejes: cabezal.numEjes, ejesTanquero: detRem?.unidad.numEjes || 0,
+      compartimentos: galonesDe(conTanque), conTanquero: !camion && !!detRem,
+    },
     servidor: {
+      usuarioId: usuario.id,
       cabezalId: cabezal.id,
       remolqueId: detRem?.unidad.id || null,
-      remolquePlaca: detRem?.unidad.placa || null,
       km: det.km || 0,
       componentes: mapa,
     },
-    compartimentos: detRem?.componentes.filter((c) => c.tipo === 'compartimento').sort((a, b) => a.orden - b.orden).map((c) => c.capacidadGalones) || null,
   };
 }
 
 // ---------------------------------------------------------------- cola de envío
 const cola = () => leer(CLAVE_COLA, []);
+export const pendientes = () => cola().length;
 export function encolar(tarea) {
   const c = cola();
   const clave = JSON.stringify(tarea);
@@ -131,15 +171,15 @@ export function encolar(tarea) {
   pintarEstado();
 }
 
-const parteDeRemolque = (parte) => /Remolque|Tanque/.test(parte);
-
 function datosMantenimiento(m, s) {
   return {
     id: m.id,
-    unidadId: parteDeRemolque(m.parte) && s.servidor.remolqueId ? s.servidor.remolqueId : s.servidor.cabezalId,
+    // El trabajo se guarda en el tanquero si la parte es suya; si no, en el cabezal o camión
+    unidadId: unidadDeParte(m.parte, s.vehiculo) === 'tanquero' && s.servidor.remolqueId ? s.servidor.remolqueId : s.servidor.cabezalId,
     fecha: m.fecha, km: m.km, parte: m.parte, trabajo: m.trabajo, provincia: m.provincia, canton: m.canton,
     taller: m.taller, costoTaller: Number(m.costoTaller) || 0, proveedor: m.proveedor,
     costoRepuestos: Number(m.costoRepuestos) || 0, repuestosDetalle: m.repuestosDetalle || undefined, notas: m.notas || undefined,
+    pagoTaller: m.pagoTaller || undefined, pagoRepuestos: m.pagoRepuestos || undefined,
   };
 }
 
@@ -147,13 +187,18 @@ function datosMantenimiento(m, s) {
 const evidenciasDe = (m) => [...(m.evidencias || []), ...(m.anexosPosteriores || []).map((a) => a.evidencia).filter(Boolean)];
 
 let enviando = false;
-export async function enviarPendientes(app) {
+export async function enviarPendientes(app, segundaPasada = false) {
   if (!app?.session?.servidor || !localStorage.getItem(CLAVE_TOKEN) || enviando || !navigator.onLine) return pintarEstado();
   enviando = true;
   pintarEstado('enviando');
   const s = app.session;
   try {
-    for (const t of cola()) {
+    // Dos pasadas: las facturas entran a la cola cuando su mantenimiento ya llegó al servidor
+    for (const t of [...cola(), null]) {
+      if (t === null) {
+        if (!segundaPasada && cola().length) { segundaPasada = true; enviando = false; return await enviarPendientes(app, true); }
+        break;
+      }
       const m = app.maintenances.find((x) => x.id === t.id);
       try {
         if (t.tipo === 'mantenimiento' && m) {
@@ -225,26 +270,45 @@ async function enviarDetalles(s) {
 }
 
 // Al entrar: traer los mantenimientos que ya están en el servidor (p. ej. desde otro teléfono)
-async function traerMantenimientos(app) {
+// Trae los mantenimientos del servidor (p. ej. registrados desde otro teléfono) y pone al día los que ya están aquí:
+// si entraron a un reporte y si el dueño ya pagó lo que quedó a crédito. «folios» = { idReporte: folio }.
+export async function actualizarMantenimientos(app, folios = null) {
   const { mantenimientos } = await api('/mantenimientos');
-  let nuevos = 0;
+  let cambios = 0;
   mantenimientos.forEach((m) => {
-    if (app.maintenances.some((x) => x.id === m.id)) return;
+    const delServidor = {
+      bloqueado: m.bloqueado, reporteId: m.reporteId || null,
+      pagoTaller: m.pagoTaller || null, pagoRepuestos: m.pagoRepuestos || null, tallerPagadoEn: m.tallerPagadoEn || null, repuestosPagadoEn: m.repuestosPagadoEn || null,
+    };
+    const local = app.maintenances.find((x) => x.id === m.id);
+    if (local) {
+      if (Object.entries(delServidor).some(([k, v]) => (local[k] ?? null) !== v)) cambios++;
+      Object.assign(local, delServidor);
+      return;
+    }
     const costoTaller = Number(m.costoTaller), costoRepuestos = Number(m.costoRepuestos);
     app.maintenances.push({
       id: m.id, fecha: m.fecha, km: m.km, parte: m.parte, trabajo: m.trabajo, provincia: m.provincia, canton: m.canton,
       taller: m.taller || 'No especificado', costoTaller, facturaTallerFile: null, proveedor: m.proveedor || 'No especificado',
       costoRepuestos, repuestosDetalle: m.repuestosDetalle || '', facturaRepuestosFile: null, costo: costoTaller + costoRepuestos,
-      notas: m.notas || '', anexosPosteriores: [], evidencias: [], bloqueado: m.bloqueado, reportFolio: null,
+      notas: m.notas || '', anexosPosteriores: [], evidencias: [], reportFolio: null, ...delServidor,
     });
-    nuevos++;
+    cambios++;
   });
-  if (nuevos) {
+  app.maintenances.forEach((m) => {
+    const folio = m.reporteId ? folios?.[m.reporteId] || m.reportFolio || 'reporte emitido' : null;
+    if (m.bloqueado && m.reportFolio !== folio && folio) {
+      m.reportFolio = folio;
+      cambios++;
+    }
+  });
+  if (cambios) {
     app.maintenances.sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
     app.saveStorage();
     app.refreshUI();
   }
 }
+const traerMantenimientos = actualizarMantenimientos;
 
 function sesionVencida(app) {
   localStorage.removeItem(CLAVE_TOKEN);
@@ -259,8 +323,8 @@ function pintarEstado(fase) {
   const b = document.getElementById('btn-sync-status');
   if (!b) return;
   const n = cola().length;
-  let color = 'bg-emerald-400', texto = 'Sincronizado';
-  if (!navigator.onLine) [color, texto] = ['bg-amber-400', n ? `Sin señal · ${n} por enviar` : 'Sin señal · guardado'];
+  let color = 'bg-emerald-400', texto = 'Enviado';
+  if (!navigator.onLine) [color, texto] = ['bg-amber-400', n ? `Sin señal · ${n} por enviar` : 'Sin señal'];
   else if (fase === 'enviando') [color, texto] = ['bg-cyan-400', 'Enviando…'];
   else if (n) [color, texto] = ['bg-amber-400', `${n} por enviar`];
   b.innerHTML = `<span class="w-2.5 h-2.5 rounded-full ${color} ${fase === 'enviando' ? 'animate-pulse' : ''}"></span><span>${esc(texto)}</span>`;
@@ -271,20 +335,29 @@ const campo = (id, etiqueta, tipo, extra = '') => `
   <div><label class="block text-slate-300 font-bold text-lg mb-1" for="${id}">${etiqueta}</label>
     <input id="${id}" type="${tipo}" ${extra} class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 px-4 text-lg text-white font-semibold focus:outline-none"></div>`;
 
+async function entrarALaApp(app, sesion, saludo) {
+  app.session = sesion;
+  app.saveStorage();
+  app.selectedPart = 'Motor';
+  if (saludo) app.switchView('dashboard');
+  app.refreshUI();
+  if (saludo) app.showToast(`¡Bienvenido, ${sesion.nombre}!`, 'success');
+  const marco = document.getElementById('frame-3d');
+  if (marco?.getAttribute('src')) marco.contentWindow?.location.reload();
+  await traerMantenimientos(app).catch(() => {});
+  enviarPendientes(app);
+}
+
 function pantallaIngreso(app) {
   const vista = document.getElementById('view-login');
   vista.innerHTML = `
     <div class="bg-slate-900 border-2 border-slate-800 rounded-3xl p-5 sm:p-8 max-w-lg mx-auto shadow-2xl">
       <div class="text-center mb-6">
         <div class="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-3 text-3xl"><i class="fa-solid fa-truck-moving"></i></div>
-        <h2 class="text-2xl sm:text-3xl font-extrabold text-white" id="ing-titulo">Entrar a Mi Trailer</h2>
-        <p class="text-slate-400 text-base mt-1" id="ing-ayuda">Escribe tu correo y tu contraseña.</p>
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-white">Entrar a Mi Trailer</h2>
+        <p class="text-slate-400 text-base mt-1">Escribe tu correo y tu contraseña.</p>
       </div>
       <form id="ing-form" class="space-y-5" novalidate>
-        <div id="ing-registro" class="hidden space-y-5">
-          ${campo('ing-nombre', 'Tu nombre completo', 'text', 'autocomplete="name"')}
-          ${campo('ing-empresa', 'Nombre de tu empresa o flota', 'text')}
-        </div>
         ${campo('ing-email', 'Correo electrónico', 'email', 'inputmode="email" autocomplete="username" required')}
         <div>
           <label class="block text-slate-300 font-bold text-lg mb-1" for="ing-clave">Contraseña</label>
@@ -292,33 +365,17 @@ function pantallaIngreso(app) {
             <input id="ing-clave" type="password" autocomplete="current-password" required class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3.5 pl-4 pr-24 text-lg text-white font-semibold focus:outline-none">
             <button type="button" id="ing-ver" class="absolute right-2 top-2 bottom-2 px-3 rounded-xl text-sm font-bold text-cyan-300 bg-slate-800">Mostrar</button>
           </div>
-          <p id="ing-clave-ayuda" class="text-xs text-slate-400 mt-1">Si eres chofer, te la da el dueño del camión.</p>
         </div>
         <p id="ing-error" class="hidden text-amber-400 font-bold" role="alert"></p>
         <button type="submit" id="ing-boton" class="touch-target w-full bg-emerald-500 hover:bg-emerald-600 active:scale-[0.98] text-slate-950 font-black text-xl py-4 rounded-2xl shadow-xl flex items-center justify-center gap-3">
-          <span id="ing-boton-texto">ENTRAR</span><i class="fa-solid fa-arrow-right"></i></button>
-        <button type="button" id="ing-cambiar" class="w-full text-center text-sm font-semibold text-cyan-400 underline py-2">¿Eres dueño y aún no tienes cuenta? Créala aquí</button>
+          <span>ENTRAR</span><i class="fa-solid fa-arrow-right"></i></button>
       </form>
     </div>`;
-  let registro = false;
   const $ = (id) => document.getElementById(id);
   const error = (msg) => {
     $('ing-error').textContent = msg || '';
     $('ing-error').classList.toggle('hidden', !msg);
   };
-  const modo = (esRegistro) => {
-    registro = esRegistro;
-    error('');
-    $('ing-registro').classList.toggle('hidden', !registro);
-    $('ing-titulo').textContent = registro ? 'Crear cuenta de dueño' : 'Entrar a Mi Trailer';
-    $('ing-ayuda').textContent = registro ? 'Con esta cuenta registras a tus choferes y camiones y ves sus reportes.' : 'Escribe tu correo y tu contraseña.';
-    $('ing-boton-texto').textContent = registro ? 'CREAR MI CUENTA' : 'ENTRAR';
-    $('ing-cambiar').textContent = registro ? 'Ya tengo cuenta: entrar' : '¿Eres dueño y aún no tienes cuenta? Créala aquí';
-    $('ing-clave').autocomplete = registro ? 'new-password' : 'current-password';
-    $('ing-clave-ayuda').textContent = registro ? 'Al menos 6 caracteres.' : 'Si eres chofer, te la da el dueño del camión.';
-    (registro ? $('ing-nombre') : $('ing-email')).focus();
-  };
-  $('ing-cambiar').onclick = () => modo(!registro);
   $('ing-ver').onclick = () => {
     const ver = $('ing-clave').type === 'password';
     $('ing-clave').type = ver ? 'text' : 'password';
@@ -329,26 +386,51 @@ function pantallaIngreso(app) {
     error('');
     const email = $('ing-email').value.trim().toLowerCase();
     const clave = $('ing-clave').value;
+    if (!email || !clave) return error('Escribe tu correo y tu contraseña.');
     $('ing-boton').disabled = true;
     try {
-      const r = registro
-        ? await api('/auth/registro', { metodo: 'POST', cuerpo: { email, clave, nombre: $('ing-nombre').value.trim(), nombreCuenta: $('ing-empresa').value.trim() || undefined } })
-        : await api('/auth/entrar', { metodo: 'POST', cuerpo: { email, clave } });
+      const r = await api('/auth/entrar', { metodo: 'POST', cuerpo: { email, clave } });
       const sesion = await iniciarSesionServidor(r.token);
-      if (!sesion) return; // dueño → su panel
-      app.session = sesion;
-      app.saveStorage();
-      app.switchView('dashboard');
-      app.refreshUI();
-      app.showToast(`¡Bienvenido, ${sesion.nombre}!`, 'success');
-      document.getElementById('frame-3d')?.contentWindow?.location.reload();
-      await traerMantenimientos(app).catch(() => {});
-      enviarPendientes(app);
+      if (!sesion) return; // dueño o administrador → su panel
+      await entrarALaApp(app, sesion, true);
     } catch (err) {
+      localStorage.removeItem(CLAVE_TOKEN); // no entró (p. ej. aún sin vehículo asignado): no queda una sesión a medias
       // Error de red (servidor apagado, sin señal o dirección no permitida): mensaje claro en vez de «Failed to fetch»
       error(err instanceof ErrorApi ? err.message : err instanceof TypeError ? 'No se pudo conectar con el servidor. Revisa tu señal o intenta en un momento.' : err.message);
     } finally {
       $('ing-boton').disabled = false;
+    }
+  };
+}
+
+// Cambio de la propia contraseña, dentro de «Mi cuenta»
+function cambioDeClave(app) {
+  const caja = document.getElementById('prof-clave-box');
+  if (!caja) return;
+  const entrada = (id, etiqueta, auto) => `<label class="block text-sm font-bold text-slate-300">${etiqueta}
+    <input id="${id}" type="password" autocomplete="${auto}" class="mt-1 w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-xl py-2.5 px-3 text-base text-white focus:outline-none"></label>`;
+  caja.innerHTML = `
+    <details class="bg-slate-950 rounded-2xl border border-slate-800">
+      <summary class="touch-target flex items-center gap-2 px-3 cursor-pointer font-bold text-cyan-300"><i class="fa-solid fa-key"></i> Cambiar mi contraseña</summary>
+      <form id="clave-form" class="p-3 pt-0 space-y-3" novalidate>
+        ${entrada('clave-actual', 'Contraseña actual', 'current-password')}
+        ${entrada('clave-nueva', 'Contraseña nueva (mínimo 6 caracteres)', 'new-password')}
+        <p id="clave-error" class="hidden text-amber-400 text-sm font-bold" role="alert"></p>
+        <button class="touch-target w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded-xl">Guardar contraseña</button>
+      </form>
+    </details>`;
+  document.getElementById('clave-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const err = document.getElementById('clave-error');
+    err.classList.add('hidden');
+    try {
+      await api('/auth/clave', { metodo: 'POST', cuerpo: { actual: document.getElementById('clave-actual').value, nueva: document.getElementById('clave-nueva').value } });
+      e.target.reset();
+      caja.querySelector('details').open = false;
+      app.showToast('Contraseña cambiada', 'success');
+    } catch (ex) {
+      err.textContent = ex instanceof ErrorApi ? ex.message : 'No se pudo conectar con el servidor.';
+      err.classList.remove('hidden');
     }
   };
 }
@@ -370,8 +452,12 @@ function conectar(app) {
   };
   document.getElementById('btn-sync-status')?.classList.replace('hidden', 'flex');
 
-  // El dueño no usa esta pantalla: va a su panel
-  if (app.session?.rol === 'dueno') location.href = './dueno.html';
+  cambioDeClave(app);
+  // Sin sesión del servidor no se muestra nada guardado de la demostración anterior
+  if (app.session && !app.session.servidor) {
+    app.session = null;
+    app.switchView('login');
+  }
 
   // Salir: cierra la sesión también en el servidor
   app.handleLogout = () => {
@@ -418,42 +504,39 @@ function conectar(app) {
     }
   };
 
-  // Reportes: se emiten en el servidor (folio y huella oficiales) y se muestran como antes
-  const conReporteServidor = (original, cuerpo) => async (...args) => {
-    if (!app.session?.servidor) return original(...args);
-    if (!navigator.onLine) return app.showToast('Necesitas señal para emitir el reporte oficial', 'warning');
-    await enviarPendientes(app);
-    if (cola().length) return app.showToast('Aún hay datos por enviar. Intenta de nuevo en un momento.', 'warning');
-    try {
-      const { reporte } = await api('/reportes', { metodo: 'POST', cuerpo: cuerpo(...args) });
-      original(...args);
-      document.getElementById('rep-folio').textContent = reporte.folio;
-      document.getElementById('rep-hash').textContent = reporte.hash;
-      if (reporte.tipo === 'mensual' && app.reports[0]) {
-        // El reporte local toma el folio y la huella oficiales del servidor
-        const folioLocal = app.reports[0].folio;
-        Object.assign(app.reports[0], { folio: reporte.folio, hash: reporte.hash });
-        app.maintenances.forEach((m) => {
-          if (m.reportFolio === folioLocal) m.reportFolio = reporte.folio;
-        });
-        app.saveStorage();
-      }
-    } catch (err) {
-      app.showToast(err.message || 'No se pudo emitir el reporte', 'warning');
+  // Lo que ya se envió al dueño no se borra desde el teléfono (el botón solo servía sin servidor)
+  const borrarOriginal = app.deleteMaintenance.bind(app);
+  app.deleteMaintenance = (id) => {
+    if (cola().some((t) => t.tipo === 'mantenimiento' && t.id === id)) {
+      escribir(CLAVE_COLA, cola().filter((t) => t.id !== id));
+      pintarEstado();
+      return borrarOriginal(id);
     }
+    app.showToast('Este mantenimiento ya se envió al dueño y no se puede borrar. Si hay un error, avísale.', 'warning');
   };
-  const mes = () => new Date().toISOString().slice(0, 7);
-  app.prepareMonthlyReportPreview = conReporteServidor(app.prepareMonthlyReportPreview.bind(app), () => ({ tipo: 'mensual', periodo: mes() }));
-  app.generateSingleMaintenanceReport = conReporteServidor(app.generateSingleMaintenanceReport.bind(app), (id) => ({ tipo: 'individual', mantenimientoId: id }));
+
+  // Reportes: se emiten y se consultan en el servidor (js/reportes-chofer.js)
+  import('./reportes-chofer.js').then((m) => m.conectarReportes(app)).catch(() => {});
 
   // Envíos automáticos
   window.addEventListener('online', () => enviarPendientes(app));
   window.addEventListener('offline', () => pintarEstado());
   window.addEventListener('storage', (ev) => ev.key === 'mi_trailer_detalles' && enviarPendientes(app));
   setInterval(() => enviarPendientes(app), 60_000);
-  if (app.session?.servidor) {
-    traerMantenimientos(app).catch(() => {});
-    enviarPendientes(app);
+  const token = localStorage.getItem(CLAVE_TOKEN);
+  if (token) {
+    // Al abrir la app se actualiza el vehículo y el km (el dueño pudo cambiarlos); sin señal sigue con lo guardado.
+    // Si quien tiene la sesión abierta es dueño o administrador, pasa directo a su panel.
+    const yaDentro = !!app.session?.servidor;
+    iniciarSesionServidor(token)
+      .then((sesion) => sesion && entrarALaApp(app, sesion, !yaDentro))
+      .catch((err) => {
+        if (err instanceof ErrorApi && err.estado === 401) return yaDentro ? sesionVencida(app) : localStorage.removeItem(CLAVE_TOKEN);
+        if (!yaDentro) return;
+        if (!(err instanceof ErrorApi) && !(err instanceof TypeError)) app.showToast(err.message, 'warning');
+        traerMantenimientos(app).catch(() => {});
+        enviarPendientes(app);
+      });
   }
   pintarEstado();
 }

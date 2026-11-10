@@ -1,11 +1,12 @@
-// El dueño registra a sus choferes; ellos entran con su email.
+// El dueño registra a los choferes de su empresa; ellos entran con su correo y contraseña.
 import { Router } from 'express';
 import { z } from 'zod';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { asignaciones, auditoria, sesiones, unidades, usuarios } from '../db/esquema.js';
 import { ErrorHttp } from '../app.js';
 import { usuarioPublico, clave } from './auth.js';
 import { hashClave } from '../seguridad.js';
+import { idsAccesibles } from '../flota.js';
 import { validarCedula, normalizarTelefono, validarNombre } from '../../../public/js/validaciones.js';
 
 const conValidador = (fn) => z.string().transform((v, ctx) => {
@@ -44,9 +45,11 @@ export function rutasChoferes({ db, seguridad, soloDueno }) {
 
   r.get('/', async (req, res) => {
     const lista = await db.select().from(usuarios).where(and(eq(usuarios.cuentaId, req.usuario.cuentaId), eq(usuarios.rol, 'chofer')));
-    const asig = await db.select({ usuarioId: asignaciones.usuarioId, placa: unidades.placa }).from(asignaciones)
+    // Se muestra el vehículo que maneja cada chofer solo si es de este dueño
+    const ids = await idsAccesibles(db, req.usuario);
+    const asig = ids.length ? await db.select({ usuarioId: asignaciones.usuarioId, placa: unidades.placa }).from(asignaciones)
       .innerJoin(unidades, eq(asignaciones.unidadId, unidades.id))
-      .where(and(eq(unidades.cuentaId, req.usuario.cuentaId), isNull(asignaciones.hasta)));
+      .where(and(inArray(unidades.id, ids), isNull(asignaciones.hasta))) : [];
     res.json({
       choferes: lista.map((u) => ({ ...usuarioPublico(u, seguridad), activo: u.activo, unidades: asig.filter((a) => a.usuarioId === u.id).map((a) => a.placa) })),
     });

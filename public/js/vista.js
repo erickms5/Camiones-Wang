@@ -18,12 +18,19 @@ const TANQUE = { xFrente: -2.05, xFondo: -12.65, y: 2.35, r: 1.0 };
 const EJES_CAB = [3.0, -1.5, -2.85];
 const EJES_REM = [-10.1, -11.35, -12.6];
 
+// Camión rígido (tanque sobre el mismo chasis): cabina sobre el motor, tanque más corto
+const TANQUE_CAMION = { xFrente: 1.75, xFondo: -3.85, y: 2.2, r: 0.88 };
+const ejesCamion = (n) => (n >= 3 ? [3.0, -1.75, -3.0] : [3.0, -2.3]);
+const esCamion = (u) => u?.tipo_unidad_id === 'camion';
+
 // Encuadres de cámara: objetivo y posición relativa
 const ENCUADRES = {
   todo: { objetivo: [-4.4, 1.7, 0], radio: 27, azimut: 0.95, polar: 1.2, estrecho: 1 },
   cab: { objetivo: [0.9, 1.7, 0], radio: 12.5, azimut: 1.08, polar: 1.25, estrecho: 0.5 },
   rem: { objetivo: [-7.3, 2.0, 0], radio: 17.5, azimut: 0.72, polar: 1.18, estrecho: 1 },
+  camion: { objetivo: [-0.1, 1.6, 0], radio: 16.5, azimut: 0.95, polar: 1.22, estrecho: 1 },
 };
+const encuadre = (foco) => (foco === 'cab' && esCamion(estado?.e?.cab) ? ENCUADRES.camion : ENCUADRES[foco]);
 
 const PUNTOS_CAB = {
   Motor: ['motor', [3.05, 1.6, 0.95]],
@@ -33,6 +40,16 @@ const PUNTOS_CAB = {
   'Eje trasero 1': ['eje-1', [EJES_CAB[1], 0.52, 1.42]],
   'Eje trasero 2': ['eje-2', [EJES_CAB[2], 0.52, 1.42]],
 };
+const puntosCamion = (ejes) => ({
+  Motor: ['motor', [3.0, 1.3, 0.75]],
+  'Transmisión': ['transmision', [1.75, 0.95, 0.6]],
+  Tanque: ['tanque', [-1.05, 3.15, 0.2]],
+  'Válvulas': ['valvulas', [-1.0, 1.0, 0.95]],
+  'Eje delantero': ['eje-0', [ejes[0], 0.5, 1.22]],
+  'Eje trasero': ['eje-1', [ejes[1], 0.5, 1.36]],
+  'Eje trasero 1': ['eje-1', [ejes[1], 0.5, 1.36]],
+  'Eje trasero 2': ['eje-2', [ejes[2] ?? ejes[1], 0.5, 1.36]],
+});
 const PUNTOS_REM = {
   'Quinta rueda': ['quinta', [-2.25, 1.32, 0.7]],
   Tanque: ['tanque', [-7.35, 3.45, 0.2]],
@@ -109,13 +126,20 @@ function armar(id) {
     puntos.push({ id: 'u-cab', grupo: 'todo', pos: [0.9, 3.95, 1.0], nombre: `Cabezal ${cab.placa}`, ir: 'cab', unidad: cab });
     puntos.push({ id: 'u-rem', grupo: 'todo', pos: [-7.35, 3.55, 0.6], nombre: `Remolque ${rem.placa}`, ir: 'rem', unidad: rem });
   }
+  let comps = [];
   if (cab) {
+    const tabla = esCamion(cab) ? puntosCamion(ejesCamion(cab.num_ejes)) : PUNTOS_CAB;
     componentesDe(cab.id).forEach((c) => {
-      const p = PUNTOS_CAB[c.nombre];
+      const p = tabla[c.nombre];
       if (p) puntos.push({ id: `cab-${p[0]}`, grupo: 'cab', pos: p[1], nombre: c.nombre, parte: `cab-${p[0]}`, unidad: cab, componente: c.nombre });
     });
+    if (esCamion(cab)) {
+      comps = compartimentosDe(cab.id);
+      tramosTanque(comps, TANQUE_CAMION).forEach((t, i) => {
+        puntos.push({ id: `cab-comp-${i}`, grupo: 'cab', pos: [(t.x0 + t.x1) / 2, TANQUE_CAMION.y + 0.15, 0.92], nombre: `Compartimento ${comps[i].orden}`, parte: `cab-comp-${i}`, unidad: cab, compartimento: comps[i] });
+      });
+    }
   }
-  let comps = [];
   if (rem) {
     componentesDe(rem.id).forEach((c) => {
       const p = PUNTOS_REM[c.nombre];
@@ -132,14 +156,14 @@ function armar(id) {
   return { u, cab, rem, comps, puntos, focoInicial: foco };
 }
 
-function tramosTanque(comps) {
+function tramosTanque(comps, medidas = TANQUE) {
   const gal = comps.map((c) => Number(c.capacidad_galones) || 0);
   const llenos = gal.filter((g) => g > 0);
   const ref = llenos.length ? llenos.reduce((a, b) => a + b, 0) / llenos.length : 1;
   const pesos = gal.map((g) => g || ref);
   const base = pesos.reduce((a, b) => a + b, 0) || 1;
-  const largo = TANQUE.xFrente - TANQUE.xFondo;
-  let x = TANQUE.xFrente;
+  const largo = medidas.xFrente - medidas.xFondo;
+  let x = medidas.xFrente;
   return pesos.map((p) => {
     const x0 = x;
     x -= (largo * p) / base;
@@ -300,7 +324,7 @@ function contenidoPanel(p, lado) {
     const u = p.unidad;
     const pl = plantilla(u.tipo_unidad_id);
     const km = kmCab(e);
-    return `${cabecera(u.rol === 'cabezal' ? 'Cabezal' : pl?.nombre || 'Remolque', u.placa, lado)}
+    return `${cabecera(esCamion(u) ? 'Camión' : u.rol === 'cabezal' ? 'Cabezal' : pl?.nombre || 'Remolque', u.placa, lado)}
       <div class="tos-p-cuerpo"><dl class="tos-datos">
         ${fila('Unidad', nombreUnidad(u))}
         ${fila('Kilometraje', km !== undefined ? `${miles(km)} km` : 'Sin registrar')}
@@ -362,9 +386,9 @@ function contenidoPanel(p, lado) {
   let cuerpo = `${extra && !esEje(p) ? extra : ''}
     <dl class="tos-datos">${datos}${servicio}</dl>
     ${esEje(p) ? extra : ''}
-    <h3 class="tos-p-sec">Intervalos de mantenimiento</h3>${intervalosHTML(u, partesIntervalo, 8)}`;
+    <h3 class="tos-p-sec">Intervalos sugeridos</h3>${intervalosHTML(u, partesIntervalo, 8)}`;
   if (esEje(p) && estado.detalle?.eje === p.id) cuerpo = formularioDetalle(estado.detalle) + cuerpo;
-  const sub = n === 'Motor' && a.motor ? a.motor : `${u.rol === 'cabezal' ? 'Cabezal' : 'Remolque'} ${u.placa}`;
+  const sub = n === 'Motor' && a.motor ? a.motor : `${esCamion(u) ? 'Camión' : u.rol === 'cabezal' ? 'Cabezal' : 'Remolque'} ${u.placa || ''}`;
   return `${cabecera(n === 'Llantas' ? 'Neumáticos' : n, sub, lado)}<div class="tos-p-cuerpo">${cuerpo}</div>`;
 }
 
@@ -657,6 +681,73 @@ function construirCabezal(f) {
   ruedas(f, 'cab-eje-2', EJES_CAB[2], 1.25, true);
 }
 
+// Tanque del camión rígido, con sus compartimentos proporcionales a los galones
+function construirTanqueCamion(f, comps) {
+  const { xFrente, xFondo, y, r } = TANQUE_CAMION;
+  const largo = xFrente - xFondo;
+  const perfil = [];
+  const a = 0.4;
+  for (let i = 0; i <= 10; i++) { const t = (i / 10) * (Math.PI / 2); perfil.push(new T.Vector2(r * Math.sin(t), -largo / 2 - a * Math.cos(t))); }
+  for (let i = 10; i >= 0; i--) { const t = (i / 10) * (Math.PI / 2); perfil.push(new T.Vector2(r * Math.sin(t), largo / 2 + a * Math.cos(t))); }
+  f.pieza('cab-tanque', new T.LatheGeometry(perfil, 36).rotateZ(Math.PI / 2), { x: (xFrente + xFondo) / 2, y, densidad: 26, umbral: 40 });
+  // anillos de refuerzo y pasarela
+  for (let i = 0; i <= 5; i++) {
+    const x = xFrente - (largo * i) / 5;
+    const anillo = [];
+    for (let k = 0; k <= 36; k++) { const t = (k / 36) * Math.PI * 2; anillo.push([x, y + r * Math.cos(t), r * Math.sin(t)]); }
+    f.linea('cab-tanque', anillo);
+  }
+  [0.4, -0.4].forEach((z) => f.linea('cab-tanque', [[xFrente - 0.3, y + r + 0.3, z], [xFondo + 0.3, y + r + 0.3, z]]));
+  tramosTanque(comps, TANQUE_CAMION).forEach((t, i) => {
+    const clave = `cab-comp-${i}`;
+    f.parte(clave, 'cab');
+    const vacio = !(Number(comps[i].capacidad_galones) > 0);
+    f.pieza(clave, cilX(r * 1.012, t.x0 - t.x1, 36).deleteAttribute('normal'), { x: (t.x0 + t.x1) / 2, y, densidad: vacio ? 6 : 14, umbral: 80, opacidad: vacio ? 0.4 : 1 });
+    f.pieza(clave, new T.CylinderGeometry(0.24, 0.24, 0.16, 18), { x: (t.x0 + t.x1) / 2, y: y + r + 0.06, densidad: 60 }); // boca de carga
+    if (i > 0) {
+      const anillo = [];
+      for (let k = 0; k <= 40; k++) { const a2 = (k / 40) * Math.PI * 2; anillo.push([t.x0, y + r * 1.02 * Math.cos(a2), r * 1.02 * Math.sin(a2)]); }
+      f.linea(clave, anillo);
+    }
+    // válvula de descarga de cada compartimento
+    f.pieza('cab-valvulas', caja(0.2, 0.22, 0.2), { x: (t.x0 + t.x1) / 2, y: 1.08, z: 0.9, densidad: 80 });
+  });
+  f.pieza('cab-valvulas', cilX(0.07, largo * 0.8, 10), { x: (xFrente + xFondo) / 2, y: 1.0, z: 0.9, densidad: 30 });
+}
+
+// Camión rígido: cabina sobre el motor, chasis largo y el tanque encima
+function construirCamion(f, cab, comps) {
+  const ejes = ejesCamion(cab.num_ejes);
+  ['cab-cuerpo', 'cab-motor', 'cab-transmision', 'cab-tanque', 'cab-valvulas', ...ejes.map((_, i) => `cab-eje-${i}`)].forEach((k) => f.parte(k, 'cab'));
+  // cabina frontal (perfil lateral extruido), paragolpes y faros
+  f.pieza('cab-cuerpo', extruir([[4.05, 1.0], [4.05, 2.05], [3.8, 3.0], [3.72, 3.12, 3.5, 3.12], [2.3, 3.12], [2.2, 3.1, 2.2, 3.0], [2.2, 1.0]], 2.3, 0.06), { densidad: 45, umbral: 20 });
+  f.pieza('cab-cuerpo', caja(0.24, 0.32, 2.4), { x: 4.1, y: 0.8, densidad: 40 });
+  [1, -1].forEach((s) => f.pieza('cab-cuerpo', caja(0.14, 0.18, 0.4), { x: 4.08, y: 1.2, z: s * 0.85, densidad: 60 }));
+  for (let i = -4; i <= 4; i++) f.linea('cab-cuerpo', [[4.08, 1.35, i * 0.12], [4.08, 1.8, i * 0.12]]);
+  // parabrisas, ventanas, puertas y espejos
+  f.linea('cab-cuerpo', [[4.04, 2.1, -1.02], [4.04, 2.1, 1.02], [3.82, 2.95, 1.02], [3.82, 2.95, -1.02]], true);
+  [1, -1].forEach((s) => {
+    const z = s * 1.17;
+    f.linea('cab-cuerpo', [[3.75, 2.15, z], [3.6, 2.92, z], [2.75, 2.92, z], [2.75, 2.15, z]], true);
+    f.linea('cab-cuerpo', [[3.85, 1.15, z], [3.85, 2.08, z], [2.65, 2.08, z], [2.65, 1.15, z]], true);
+    f.pieza('cab-cuerpo', caja(0.08, 0.5, 0.18), { x: 3.95, y: 2.4, z: s * 1.42, densidad: 60 });
+    f.pieza('cab-cuerpo', new T.TorusGeometry(0.66, 0.05, 6, 22, Math.PI), { x: ejes[0], y: 0.52, z: s * 1.13, densidad: 30 });
+    // largueros del chasis
+    f.pieza('cab-cuerpo', caja(8.0, 0.24, 0.12), { x: -0.05, y: 0.98, z: s * 0.46, densidad: 25 });
+  });
+  f.pieza('cab-cuerpo', cilX(0.3, 0.9), { x: 1.2, y: 0.72, z: -1.0, densidad: 50 }); // tanque de diésel del camión
+  // soportes del tanque sobre el chasis y parachoques trasero
+  [1.3, -0.4, -2.1, -3.5].forEach((x) => f.pieza('cab-cuerpo', caja(0.14, 0.2, 1.5), { x, y: 1.2, densidad: 30 }));
+  f.pieza('cab-cuerpo', caja(0.18, 0.16, 2.3), { x: -4.1, y: 0.8, densidad: 30 });
+  // motor bajo la cabina, caja de cambios y cardán
+  f.pieza('cab-motor', caja(1.15, 0.7, 0.85), { x: 3.0, y: 1.25, densidad: 80 });
+  for (let i = 0; i < 6; i++) f.pieza('cab-motor', caja(0.14, 0.1, 0.45), { x: 2.55 + i * 0.18, y: 1.68, sinPuntos: true });
+  f.pieza('cab-transmision', cilX(0.2, 0.9), { x: 1.75, y: 0.95, densidad: 80 });
+  f.pieza('cab-transmision', cilX(0.06, 1.3 - ejes[1], 8), { x: (1.3 + ejes[1]) / 2, y: 0.8, densidad: 25 });
+  construirTanqueCamion(f, comps);
+  ejes.forEach((x, i) => ruedas(f, `cab-eje-${i}`, x, i === 0 ? 1.08 : 1.2, i > 0, 0.5));
+}
+
 function construirRemolque(f, rem, comps, enganchado) {
   const p = plantilla(rem.tipo_unidad_id);
   ['rem-cuerpo', 'rem-tanque', 'rem-valvulas', 'rem-quinta', 'rem-eje-0', 'rem-eje-1', 'rem-eje-2', 'rem-piso', 'rem-twist', 'rem-puertas', 'rem-frio'].forEach((k) => f.parte(k, 'rem'));
@@ -807,11 +898,12 @@ async function iniciar3D() {
   fabrica.unidadGrupo('cab', raiz);
   fabrica.unidadGrupo('rem', raiz);
   const e = estado.e;
-  if (e.cab) construirCabezal(fabrica);
+  if (esCamion(e.cab)) construirCamion(fabrica, e.cab, e.comps);
+  else if (e.cab) construirCabezal(fabrica);
   if (e.rem) construirRemolque(fabrica, e.rem, e.comps, !!e.cab);
   const particulas = construirEntorno(escena, sprite);
 
-  const orb = { ...ENCUADRES[estado.foco], objetivo: new T.Vector3(...ENCUADRES[estado.foco].objetivo) };
+  const orb = { ...encuadre(estado.foco), objetivo: new T.Vector3(...encuadre(estado.foco).objetivo) };
   const tres = { renderer, escena, camara, fabrica, particulas, orb, anim: null, ultimoToque: 0, raf: 0, vivo: true };
   estado.tres = tres;
 
@@ -848,7 +940,7 @@ async function iniciar3D() {
     } else if (punteros.size === 2) {
       const [a, b] = [...punteros.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      const base = ENCUADRES[estado.foco].radio;
+      const base = encuadre(estado.foco).radio;
       orb.radio = Math.min(base * 1.6, Math.max(base * 0.55, (radioInicial * distInicial) / Math.max(d, 1)));
     }
   });
@@ -868,7 +960,7 @@ async function iniciar3D() {
   canvas.addEventListener('pointercancel', soltar);
   canvas.addEventListener('wheel', (ev) => {
     ev.preventDefault();
-    const base = ENCUADRES[estado.foco].radio;
+    const base = encuadre(estado.foco).radio;
     orb.radio = Math.min(base * 1.6, Math.max(base * 0.55, orb.radio * (1 + Math.sign(ev.deltaY) * 0.08)));
     tres.ultimoToque = performance.now();
   }, { passive: false });
@@ -890,7 +982,7 @@ async function iniciar3D() {
     }
     const balanceo = !reducir && t - tres.ultimoToque > 4000 && !tres.anim ? Math.sin(t / 4000) * 0.07 : 0;
     const az = orb.azimut + balanceo;
-    const radio = orb.radio * Math.pow(Math.max(1, 1.45 / camara.aspect), ENCUADRES[estado.foco].estrecho);
+    const radio = orb.radio * Math.pow(Math.max(1, 1.45 / camara.aspect), encuadre(estado.foco).estrecho);
     camara.position.set(
       orb.objetivo.x + radio * Math.sin(orb.polar) * Math.sin(az),
       orb.objetivo.y + radio * Math.cos(orb.polar),
@@ -935,7 +1027,7 @@ async function iniciar3D() {
 function encuadrar(foco) {
   const t = estado.tres;
   if (!t) return;
-  const destino = ENCUADRES[foco];
+  const destino = encuadre(foco);
   t.anim = {
     t0: performance.now(),
     de: { objetivo: t.orb.objetivo.clone(), radio: t.orb.radio, azimut: t.orb.azimut, polar: t.orb.polar },
@@ -1103,7 +1195,7 @@ export async function montarVista() {
   await iniciar3D();
   if (estado?.tres) {
     // arrancar sin animación en el encuadre inicial
-    const d = ENCUADRES[estado.foco];
+    const d = encuadre(estado.foco);
     Object.assign(estado.tres.orb, { radio: d.radio, azimut: d.azimut, polar: d.polar });
     estado.tres.orb.objetivo.set(...d.objetivo);
     estado.tres.anim = null;

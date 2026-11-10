@@ -11,6 +11,7 @@ import { rutasChoferes } from './rutas/choferes.js';
 import { rutasUnidades } from './rutas/unidades.js';
 import { rutasMantenimientos } from './rutas/mantenimientos.js';
 import { rutasReportes } from './rutas/reportes.js';
+import { rutasAdmin } from './rutas/admin.js';
 
 export class ErrorHttp extends Error {
   constructor(estado, mensaje) {
@@ -44,15 +45,19 @@ export function crearApp(dep) {
 
   const autenticado = (req, _res, next) => (req.usuario ? next() : next(new ErrorHttp(401, 'Inicia sesión para continuar')));
   const soloDueno = (req, _res, next) => (req.usuario?.rol === 'dueno' ? next() : next(new ErrorHttp(403, 'Solo el dueño puede hacer esto')));
+  const soloAdmin = (req, _res, next) => (req.usuario?.rol === 'admin' ? next() : next(new ErrorHttp(403, 'Solo el administrador puede hacer esto')));
+  // Dueños y choferes trabajan dentro de su empresa; el administrador usa solo su propio panel
+  const deEmpresa = (req, _res, next) => (req.usuario?.cuentaId ? next() : next(new ErrorHttp(403, 'Usa el panel de administración')));
   const limiteAuth = rateLimit({ windowMs: 15 * 60 * 1000, limit: config.prod ? 20 : 1000, standardHeaders: 'draft-8', legacyHeaders: false });
 
   const ctx = { ...dep, autenticado, soloDueno };
   app.get('/salud', (_req, res) => res.json({ ok: true }));
   app.use('/auth', limiteAuth, rutasAuth(ctx));
-  app.use('/choferes', autenticado, rutasChoferes(ctx));
-  app.use('/unidades', autenticado, rutasUnidades(ctx));
-  app.use('/', autenticado, rutasMantenimientos(ctx));
-  app.use('/reportes', autenticado, rutasReportes(ctx));
+  app.use('/admin', autenticado, soloAdmin, rutasAdmin(ctx));
+  app.use('/choferes', autenticado, deEmpresa, rutasChoferes(ctx));
+  app.use('/reportes', autenticado, deEmpresa, rutasReportes(ctx));
+  app.use('/', autenticado, deEmpresa, rutasUnidades(ctx));
+  app.use('/', autenticado, deEmpresa, rutasMantenimientos(ctx));
 
   app.use((_req, _res, next) => next(new ErrorHttp(404, 'No encontrado')));
   // eslint-disable-next-line no-unused-vars

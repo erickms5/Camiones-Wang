@@ -8,6 +8,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- FontAwesome for robust vehicle and mechanic icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="./css/menu.css">
+  <link rel="stylesheet" href="./css/reporte.css">
   
   <script>
     tailwind.config = {
@@ -101,34 +103,54 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
 
-  <!-- Top App Bar: Simple, Clear & High Contrast -->
+  <!-- Barra superior: botón del menú, nombre de la sección y estado de envío -->
   <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-md">
-    <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center text-white shadow-lg shadow-emerald-900/30">
-          <i class="fa-solid fa-truck-moving text-2xl"></i>
-        </div>
-        <div>
-          <h1 class="text-xl sm:text-2xl font-black tracking-wide text-white flex items-center gap-2">
-            MI TRAILER
-            <span class="text-xs bg-emerald-500/20 text-emerald-400 font-semibold px-2 py-0.5 rounded-full border border-emerald-500/30">PWA</span>
-          </h1>
-          <p id="header-cabezal-info" class="text-xs text-slate-400 font-medium">Placa: ABC-1234 • Chofer Activo</p>
-        </div>
+    <div class="max-w-4xl mx-auto px-3 sm:px-4 py-2.5 flex items-center gap-3">
+      <button id="btn-menu" type="button" onclick="app.toggleMenu(true)" aria-label="Abrir el menú" aria-controls="menu-lateral" aria-expanded="false"
+              class="touch-target shrink-0 rounded-xl bg-slate-800 border border-slate-700 text-white flex items-center justify-center">
+        <i class="fa-solid fa-bars text-2xl"></i>
+      </button>
+      <div class="min-w-0 flex-1">
+        <h1 id="titulo-vista" class="text-xl sm:text-2xl font-black tracking-wide text-white truncate">MI TRAILER</h1>
+        <p id="header-cabezal-info" class="text-xs text-slate-400 font-medium truncate"></p>
       </div>
-
-      <!-- Quick Session / Logout / Demo Switch -->
-      <div class="flex items-center gap-2">
-        <button id="btn-sync-status" class="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">
-          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Modo Offline Listo</span>
-        </button>
-        <button id="btn-perfil" onclick="app.openProfileModal()" class="touch-target p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl flex items-center justify-center text-lg" title="Perfil y Vehículo">
-          <i class="fa-solid fa-id-card text-xl"></i>
-        </button>
-      </div>
+      <button id="btn-sync-status" type="button" class="hidden shrink-0 items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+        <span>Listo</span>
+      </button>
     </div>
   </header>
+
+  <!-- Menú lateral desplegable (lado izquierdo) -->
+  <div id="menu-fondo" onclick="app.toggleMenu(false)" class="fixed inset-0 bg-black/70 z-40 hidden"></div>
+  <aside id="menu-lateral" aria-label="Menú principal" class="fixed inset-y-0 left-0 w-72 max-w-[85vw] bg-slate-900 border-r border-slate-800 z-50 flex flex-col shadow-2xl">
+    <div class="p-4 flex items-center gap-3 border-b border-slate-800">
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center text-white shrink-0">
+        <i class="fa-solid fa-truck-moving text-xl"></i>
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-lg font-black tracking-wide text-white leading-tight">MI TRAILER</p>
+        <p id="menu-nombre" class="text-xs text-slate-400 truncate"></p>
+      </div>
+      <button id="menu-cerrar" type="button" onclick="app.toggleMenu(false)" aria-label="Cerrar el menú" class="touch-target text-slate-400 hover:text-white text-2xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+    <div class="px-4 py-3 border-b border-slate-800 bg-slate-950/60">
+      <span id="menu-placa" class="font-mono font-black bg-white text-slate-900 px-2 py-0.5 rounded text-sm"></span>
+      <p id="menu-vehiculo" class="text-xs text-slate-400 mt-1.5"></p>
+    </div>
+    <nav class="flex-1 overflow-y-auto p-3 space-y-1">
+      <button type="button" class="menu-item" data-vista="dashboard" onclick="app.switchView('dashboard')"><i class="fa-solid fa-house"></i><span>Inicio</span></button>
+      <button type="button" class="menu-item" data-vista="truck" onclick="app.switchView('truck')"><i class="fa-solid fa-truck"></i><span>Mi camión</span></button>
+      <button type="button" class="menu-item" data-vista="history" onclick="app.switchView('history')"><i class="fa-solid fa-clock-rotate-left"></i><span>Historial</span></button>
+      <button type="button" class="menu-item" data-vista="reports" onclick="app.switchView('reports')"><i class="fa-solid fa-file-contract"></i><span>Reportes</span></button>
+      <button type="button" class="menu-item" onclick="app.toggleMenu(false); app.openProfileModal()"><i class="fa-solid fa-id-card"></i><span>Mi cuenta</span></button>
+    </nav>
+    <div class="p-3 border-t border-slate-800">
+      <button type="button" class="menu-item salir" onclick="app.handleLogout()"><i class="fa-solid fa-right-from-bracket"></i><span>Cerrar sesión</span></button>
+    </div>
+  </aside>
 
   <!-- Main App Container -->
   <main class="flex-1 max-w-4xl w-full mx-auto p-3 sm:p-5 pb-24">
@@ -226,27 +248,22 @@
             <i class="fa-solid fa-arrow-right"></i>
           </button>
 
-          <button type="button" onclick="app.loadDemoSeedData()" class="w-full text-center text-sm font-semibold text-cyan-400 hover:text-cyan-300 underline py-2">
-            ¿Deseas probar con datos de ejemplo precargados? Toca aquí
-          </button>
         </form>
       </div>
     </section>
 
-    <!-- VIEW 2: TRAILER & DASHBOARD ("Mi Trailer") -->
+    <!-- VISTA: INICIO (resumen corto; el resto está en el menú lateral) -->
     <section id="view-dashboard" class="space-y-4">
-      
+
       <!-- Card: Estado del Odómetro y Acceso rápido -->
       <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span class="text-xs uppercase tracking-wider font-bold text-slate-400">Kilometraje actual del Cabezal</span>
+          <span class="text-xs uppercase tracking-wider font-bold text-slate-400">Kilometraje actual</span>
           <div class="flex items-baseline gap-2 mt-0.5">
-            <span id="dash-km" class="text-3xl sm:text-4xl font-black font-mono text-emerald-400">184,520</span>
+            <span id="dash-km" class="text-3xl sm:text-4xl font-black font-mono text-emerald-400">—</span>
             <span class="text-base text-slate-400 font-bold">km</span>
           </div>
-          <span id="dash-placa" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-            Placa: ABC-1234 (Detroit Diesel)
-          </span>
+          <span id="dash-placa" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700"></span>
         </div>
 
         <!-- Botón Gran Registro Directo -->
@@ -256,15 +273,44 @@
         </button>
       </div>
 
+      <!-- Vehículo asignado -->
+      <div id="inicio-vehiculo" class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl"></div>
+
+      <!-- Accesos rápidos -->
+      <div class="grid grid-cols-3 gap-3">
+        <button type="button" onclick="app.switchView('truck')" class="touch-target bg-slate-900 border border-slate-800 hover:border-emerald-500 rounded-2xl p-3 flex flex-col items-center gap-1.5 text-slate-200 font-bold">
+          <i class="fa-solid fa-truck text-2xl text-emerald-400"></i><span class="text-sm">Mi camión</span>
+        </button>
+        <button type="button" onclick="app.switchView('history')" class="touch-target bg-slate-900 border border-slate-800 hover:border-emerald-500 rounded-2xl p-3 flex flex-col items-center gap-1.5 text-slate-200 font-bold">
+          <i class="fa-solid fa-clock-rotate-left text-2xl text-cyan-400"></i><span class="text-sm">Historial</span>
+        </button>
+        <button type="button" onclick="app.switchView('reports')" class="touch-target bg-slate-900 border border-slate-800 hover:border-emerald-500 rounded-2xl p-3 flex flex-col items-center gap-1.5 text-slate-200 font-bold">
+          <i class="fa-solid fa-file-contract text-2xl text-amber-400"></i><span class="text-sm">Reportes</span>
+        </button>
+      </div>
+
+      <!-- Últimos trabajos -->
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-bold text-white">Últimos mantenimientos</h2>
+          <button type="button" onclick="app.switchView('history')" class="text-sm font-bold text-cyan-400 px-2 py-2">Ver todos ›</button>
+        </div>
+        <div id="inicio-ultimos" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- VISTA: MI CAMIÓN (3D o lista de partes) -->
+    <section id="view-truck" class="hidden space-y-4">
+
       <!-- Card: Silueta Gráfica e Interactiva del Trailer -->
       <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl relative">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div>
             <h2 class="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
               <i class="fa-solid fa-truck text-emerald-400"></i>
-              Mi Trailer Interactivo
+              Mi camión
             </h2>
-            <p class="text-sm text-slate-400">Toca cualquier parte del camión o remolque para ver su estado o registrar un servicio.</p>
+            <p class="text-sm text-slate-400">Toca una parte para ver su último trabajo o registrar un mantenimiento.</p>
           </div>
 
 
@@ -285,7 +331,7 @@
           <p class="text-xs text-center text-slate-500 mb-1 flex items-center justify-center gap-1">
             <i class="fa-solid fa-hand-pointer text-cyan-400"></i> Arrastra para girar. Toca un punto, una llanta o un freno:
           </p>
-          <iframe id="frame-3d" src="./camion3d.html?embebido=1" title="Camión en 3D" class="w-full block rounded-2xl" style="height:640px;border:0;background:#050c14"></iframe>
+          <iframe id="frame-3d" data-src="./camion3d.html?embebido=1" title="Camión en 3D" class="w-full block rounded-2xl" style="height:640px;border:0;background:#050c14"></iframe>
         </div>
 
         <!-- MODO 2: LISTA ACCESIBLE (Texto grande >= 20px, fácil para adultos mayores) -->
@@ -301,8 +347,8 @@
             </div>
             <div>
               <span class="text-xs uppercase text-slate-400 font-bold">Elemento Seleccionado</span>
-              <h3 id="selected-part-name" class="text-xl font-bold text-white">Motor Detroit</h3>
-              <p id="selected-part-status" class="text-sm text-emerald-400 font-medium">Último cambio: 12 Oct 2026 (180,000 km)</p>
+              <h3 id="selected-part-name" class="text-xl font-bold text-white">Motor</h3>
+              <p id="selected-part-status" class="text-sm text-emerald-400 font-medium"></p>
             </div>
           </div>
           <button id="btn-part-maintenance" onclick="app.openNewMaintenanceModalForPart()" class="touch-target w-full sm:w-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-6 py-3 rounded-xl flex items-center justify-center gap-2 shadow">
@@ -312,6 +358,11 @@
         </div>
       </div>
 
+    </section>
+
+    <!-- VISTA: HISTORIAL -->
+    <section id="view-history" class="hidden space-y-4">
+
       <!-- Historial de Mantenimientos Recientes -->
       <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl">
         <div class="flex items-center justify-between mb-4">
@@ -320,7 +371,7 @@
               <i class="fa-solid fa-clock-rotate-left text-cyan-400"></i>
               Historial de Mantenimientos
             </h2>
-            <p class="text-xs text-slate-400">Mantenimientos guardados en este dispositivo.</p>
+            <p class="text-xs text-slate-400">Todos los trabajos registrados, del más reciente al más antiguo.</p>
           </div>
           <span id="history-count-badge" class="px-3 py-1 bg-slate-800 text-cyan-400 font-bold text-xs rounded-full border border-slate-700">
             0 Registros
@@ -353,16 +404,13 @@
         <!-- Filtros de periodo mensual -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950 p-4 rounded-2xl border border-slate-800 mb-6">
           <div>
-            <label class="block text-slate-400 text-sm font-bold mb-1">Seleccionar Mes del Reporte:</label>
+            <label class="block text-slate-400 text-sm font-bold mb-1">Mes del reporte:</label>
             <select id="report-select-month" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-lg font-bold text-white focus:outline-none focus:border-emerald-500">
-              <option value="10">Noviembre 2026 (Actual)</option>
-              <option value="9">Octubre 2026</option>
-              <option value="8">Septiembre 2026</option>
             </select>
           </div>
           <div>
-            <label class="block text-slate-400 text-sm font-bold mb-1">Trailer Registrado:</label>
-            <input type="text" id="report-trailer-display" disabled value="Cabezal ABC-1234 + Remolque Cisterna" class="w-full bg-slate-900/50 border border-slate-800 rounded-xl p-3 text-base text-slate-300 font-bold">
+            <label class="block text-slate-400 text-sm font-bold mb-1">Vehículo:</label>
+            <input type="text" id="report-trailer-display" disabled value="" class="w-full bg-slate-900/50 border border-slate-800 rounded-xl p-3 text-base text-slate-300 font-bold">
           </div>
         </div>
 
@@ -379,27 +427,11 @@
 
   </main>
 
-  <!-- BOTTOM NAVIGATION BAR (Accessible, large touch buttons) -->
-  <nav class="fixed bottom-0 inset-x-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-20 shadow-2xl">
-    <div class="max-w-md mx-auto grid grid-cols-3 gap-1 px-3 py-2">
-      <button id="nav-btn-trailer" onclick="app.switchView('dashboard')" class="touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-emerald-400 font-bold transition-colors">
-        <i class="fa-solid fa-truck text-xl mb-1"></i>
-        <span class="text-xs">Mi Trailer</span>
-      </button>
-
-      <button id="nav-btn-new" onclick="app.openNewMaintenanceModal()" class="touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-slate-400 hover:text-white font-bold transition-colors">
-        <div class="w-10 h-10 -mt-5 rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-lg text-lg">
-          <i class="fa-solid fa-plus"></i>
-        </div>
-        <span class="text-xs mt-1">Registrar</span>
-      </button>
-
-      <button id="nav-btn-reports" onclick="app.switchView('reports')" class="touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-slate-400 hover:text-white font-bold transition-colors">
-        <i class="fa-solid fa-file-contract text-xl mb-1"></i>
-        <span class="text-xs">Reportes</span>
-      </button>
-    </div>
-  </nav>
+  <!-- Botón flotante: registrar un mantenimiento desde cualquier sección -->
+  <button id="fab-nuevo" type="button" onclick="app.openNewMaintenanceModal()" aria-label="Registrar un mantenimiento"
+          class="fixed bottom-5 right-4 z-20 touch-target px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-base shadow-2xl shadow-emerald-900/50 flex items-center gap-2 active:scale-95 transition-transform">
+    <i class="fa-solid fa-plus text-xl"></i><span>Registrar</span>
+  </button>
 
   <!-- ==================== MODALES ==================== -->
 
@@ -425,24 +457,8 @@
       <form id="form-maintenance" onsubmit="app.handleSaveMaintenance(event)" class="space-y-4">
         <!-- Parte Afectada -->
         <div>
-          <label class="block text-slate-300 font-bold text-base mb-1">Parte del Trailer <span class="text-emerald-400">*</span></label>
+          <label class="block text-slate-300 font-bold text-base mb-1" for="maint-part">Parte del vehículo <span class="text-emerald-400">*</span></label>
           <select id="maint-part" required onchange="app.toggleEjeSelect()" class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
-            <option value="Motor Detroit">Motor Detroit</option>
-            <option value="Caja de Cambios">Caja de Cambios (Transmisión)</option>
-            <option value="Eje Delantero Cabezal">Eje Delantero Cabezal (Dirección)</option>
-            <option value="Eje Trasero 1 Cabezal">Eje Trasero 1 Cabezal</option>
-            <option value="Eje Trasero 2 Cabezal">Eje Trasero 2 Cabezal</option>
-            <option value="Tanque - Compartimento 1">Tanque - Compartimento 1 (3,000 Gal)</option>
-            <option value="Tanque - Compartimento 2">Tanque - Compartimento 2 (2,000 Gal)</option>
-            <option value="Tanque - Compartimento 3">Tanque - Compartimento 3 (2,000 Gal)</option>
-            <option value="Tanque - Compartimento 4">Tanque - Compartimento 4 (3,000 Gal)</option>
-            <option value="Eje 1 Remolque">Eje 1 Remolque</option>
-            <option value="Eje 2 Remolque">Eje 2 Remolque</option>
-            <option value="Eje 3 Remolque">Eje 3 Remolque</option>
-            <option value="Llantas">Llantas</option>
-            <option value="Frenos">Frenos</option>
-            <option value="Quinta Rueda">Quinta Rueda / Enganche</option>
-            <option value="General / Eléctrico / Engrase">General / Lavado / Engrase / Eléctrico</option>
           </select>
         </div>
 
@@ -450,35 +466,22 @@
         <div id="maint-eje-box" class="hidden">
           <label class="block text-slate-300 font-bold text-base mb-1" for="maint-eje">¿En qué eje? <span class="text-emerald-400">*</span></label>
           <select id="maint-eje" class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
-            <option value="Todos los ejes">Todos los ejes</option>
-            <option value="Eje Delantero Cabezal">Eje Delantero Cabezal</option>
-            <option value="Eje Trasero 1 Cabezal">Eje Trasero 1 Cabezal</option>
-            <option value="Eje Trasero 2 Cabezal">Eje Trasero 2 Cabezal</option>
-            <option value="Eje 1 Remolque">Eje 1 Remolque</option>
-            <option value="Eje 2 Remolque">Eje 2 Remolque</option>
-            <option value="Eje 3 Remolque">Eje 3 Remolque</option>
           </select>
         </div>
 
         <!-- Tipo de Trabajo -->
         <div>
-          <label class="block text-slate-300 font-bold text-base mb-1">Tipo de Trabajo Realizado <span class="text-emerald-400">*</span></label>
-          <select id="maint-job" required class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
-            <option value="Cambio de Aceite y Filtros">Cambio de Aceite y Filtros</option>
-            <option value="Calibración y Cambio de Frenos">Calibración y Cambio de Frenos</option>
-            <option value="Engrase General y Puntos">Engrase General y Puntos</option>
-            <option value="Rotación / Reencauche de Llantas">Rotación / Reencauche de Llantas</option>
-            <option value="Prueba Hidrostática / Válvulas Tanque">Prueba Hidrostática / Válvulas Tanque</option>
-            <option value="Reparación Eléctrica / Luces">Reparación Eléctrica / Luces</option>
-            <option value="Revisión Mecánica Preventiva">Revisión Mecánica Preventiva</option>
-            <option value="Otro Trabajo">Otro Trabajo</option>
+          <label class="block text-slate-300 font-bold text-base mb-1" for="maint-job">Trabajo realizado <span class="text-emerald-400">*</span></label>
+          <select id="maint-job" required onchange="app.toggleOtroTrabajo()" class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
           </select>
+          <input type="text" id="maint-job-otro" maxlength="110" placeholder="Escribe qué trabajo se hizo"
+                 class="hidden mt-2 w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-semibold focus:outline-none focus:border-emerald-500">
         </div>
 
         <!-- Kilometraje y Fecha -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label class="block text-slate-300 font-bold text-base mb-1">Kilometraje Cabezal <span class="text-emerald-400">*</span></label>
+            <label class="block text-slate-300 font-bold text-base mb-1" for="maint-km">Kilometraje <span class="text-emerald-400">*</span></label>
             <div class="relative">
               <input type="number" id="maint-km" required min="1"
                      class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3 px-4 text-xl font-mono font-bold text-emerald-400 focus:outline-none">
@@ -549,6 +552,17 @@
             </div>
           </div>
 
+          <!-- Forma de pago (independiente de la otra parte) -->
+          <div>
+            <label class="block text-slate-300 font-bold text-sm mb-1" for="maint-pago-taller">¿Cómo se pagó la mano de obra?</label>
+            <select id="maint-pago-taller" class="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-xl py-2.5 px-3 text-base font-bold text-white focus:outline-none">
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+              <option value="cheque">Cheque</option>
+              <option value="credito">Crédito (queda por pagar)</option>
+            </select>
+          </div>
+
           <!-- Factura del Taller -->
           <div>
             <label class="block text-xs font-bold text-slate-400 mb-1">Factura de Mano de Obra (Taller):</label>
@@ -589,6 +603,17 @@
             <label class="block text-slate-300 font-bold text-sm mb-1">Detalle de Repuestos comprados (nombre y cantidad)</label>
             <input type="text" id="maint-repuestos-detalle" placeholder="Ej: 2 Filtros de aceite Detroit, 1 Galón refrigerante Delo"
                    class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-xl py-2 px-3.5 text-sm text-white focus:outline-none">
+          </div>
+
+          <!-- Forma de pago (independiente de la otra parte) -->
+          <div>
+            <label class="block text-slate-300 font-bold text-sm mb-1" for="maint-pago-repuestos">¿Cómo se pagaron los repuestos?</label>
+            <select id="maint-pago-repuestos" class="w-full bg-slate-900 border border-slate-700 focus:border-cyan-500 rounded-xl py-2.5 px-3 text-base font-bold text-white focus:outline-none">
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+              <option value="cheque">Cheque</option>
+              <option value="credito">Crédito (queda por pagar)</option>
+            </select>
           </div>
 
           <!-- Factura del Repuesto -->
@@ -719,12 +744,12 @@
         <!-- Ficha de Datos del Vehículo y Conductor -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-100 p-4 rounded-xl text-xs">
           <div>
-            <span class="font-bold text-slate-500 block">PLACA CABEZAL:</span>
+            <span class="font-bold text-slate-500 block">PLACA:</span>
             <span id="rep-placa" class="text-sm font-black text-slate-900 font-mono">ABC-1234</span>
           </div>
           <div>
             <span class="font-bold text-slate-500 block">MODELO / MOTOR:</span>
-            <span class="text-sm font-bold text-slate-900">Freightliner Columbia</span>
+            <span id="rep-modelo" class="text-sm font-bold text-slate-900"></span>
           </div>
           <div>
             <span class="font-bold text-slate-500 block">CHOFER RESPONSABLE:</span>
@@ -806,9 +831,9 @@
 
   <!-- MODAL 3: PERFIL DE CHOFER Y CONFIGURACIÓN -->
   <div id="modal-profile" class="fixed inset-0 bg-black/80 z-50 hidden backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-4">
       <div class="flex items-center justify-between">
-        <h3 class="text-xl font-bold text-white">Ficha del Trailer y Conductor</h3>
+        <h3 class="text-xl font-bold text-white">Mi cuenta</h3>
         <button onclick="app.closeProfileModal()" class="text-slate-400 hover:text-white text-xl">
           <i class="fa-solid fa-xmark"></i>
         </button>
@@ -816,9 +841,9 @@
 
       <div class="space-y-3 text-sm">
         <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800">
-          <span class="text-xs text-slate-400 block font-bold">CABEZAL ASIGNADO:</span>
+          <span class="text-xs text-slate-400 block font-bold">VEHÍCULO ASIGNADO:</span>
           <span id="prof-placa" class="text-lg font-black font-mono text-emerald-400">ABC-1234</span>
-          <p class="text-xs text-slate-400">Freightliner Columbia 2020 • Motor Detroit DD15</p>
+          <p id="prof-modelo" class="text-xs text-slate-400"></p>
         </div>
 
         <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800">
@@ -829,11 +854,14 @@
         </div>
 
         <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800">
-          <span class="text-xs text-slate-400 block font-bold">REMOLQUE:</span>
-          <span class="text-base font-bold text-white">Cisterna de Combustible (4 Compartimentos)</span>
-          <p class="text-xs text-slate-400">Capacidad Total: 10,000 Galones (3,000 + 2,000 + 2,000 + 3,000)</p>
+          <span class="text-xs text-slate-400 block font-bold">TANQUE:</span>
+          <span id="prof-tanque" class="text-base font-bold text-white"></span>
+          <p id="prof-tanque-detalle" class="text-xs text-slate-400"></p>
         </div>
       </div>
+
+      <!-- Cambio de contraseña (lo llena js/sincronizacion.js cuando hay servidor) -->
+      <div id="prof-clave-box"></div>
 
       <div class="pt-2 flex flex-col gap-2">
         <button onclick="app.handleLogout()" class="touch-target w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-2xl font-bold py-3">
@@ -869,27 +897,12 @@
       "Chimborazo": ["Riobamba", "Alausí", "Guano", "Colta"]
     };
 
-    /**
-     * Trailer parts catalog based on documentation (RF-51, RF-52)
-     */
-    const TRAILER_PARTS = [
-      { id: "Motor Detroit", name: "Motor Detroit DD15", type: "Cabezal", icon: "fa-engine" },
-      { id: "Caja de Cambios", name: "Caja de Cambios (Eaton)", type: "Cabezal", icon: "fa-gear" },
-      { id: "Eje Delantero Cabezal", name: "Eje Delantero (Dirección, Llantas y Frenos)", type: "Cabezal", icon: "fa-arrows-split-up-and-left" },
-      { id: "Eje Trasero 1 Cabezal", name: "Eje Trasero 1 Cabezal (Llantas y Frenos)", type: "Cabezal", icon: "fa-circle-notch" },
-      { id: "Eje Trasero 2 Cabezal", name: "Eje Trasero 2 Cabezal (Llantas y Frenos)", type: "Cabezal", icon: "fa-circle-notch" },
-      { id: "Quinta Rueda", name: "Quinta Rueda / Enganche", type: "Conexión", icon: "fa-link" },
-      { id: "Tanque - Compartimento 1", name: "Tanque Comp. 1 (3,000 Gal)", type: "Remolque", icon: "fa-cubes" },
-      { id: "Tanque - Compartimento 2", name: "Tanque Comp. 2 (2,000 Gal)", type: "Remolque", icon: "fa-cubes" },
-      { id: "Tanque - Compartimento 3", name: "Tanque Comp. 3 (2,000 Gal)", type: "Remolque", icon: "fa-cubes" },
-      { id: "Tanque - Compartimento 4", name: "Tanque Comp. 4 (3,000 Gal)", type: "Remolque", icon: "fa-cubes" },
-      { id: "Eje 1 Remolque", name: "Eje 1 Remolque (Llantas y Frenos)", type: "Remolque", icon: "fa-dharmachakra" },
-      { id: "Eje 2 Remolque", name: "Eje 2 Remolque (Llantas y Frenos)", type: "Remolque", icon: "fa-dharmachakra" },
-      { id: "Eje 3 Remolque", name: "Eje 3 Remolque (Llantas y Frenos)", type: "Remolque", icon: "fa-dharmachakra" },
-      { id: "Llantas", name: "Llantas (elige el eje al registrar)", type: "General", icon: "fa-circle-dot" },
-      { id: "Frenos", name: "Frenos (elige el eje al registrar)", type: "General", icon: "fa-compact-disc" },
-      { id: "General / Eléctrico / Engrase", name: "Revisión General / Engrase / Luces", type: "General", icon: "fa-screwdriver-wrench" }
-    ];
+    // Las partes, los ejes y los trabajos salen del vehículo asignado (js/catalogo.js → window.Flota):
+    // cabezal con tanquero o camión con el tanque encima, cada modelo con sus propias partes.
+    const esc = (t) => String(t ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    // Fecha de hoy según el reloj del teléfono (no la de Londres: de noche en Ecuador ya sería «mañana»)
+    const hoyLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 
     /**
      * Application State Store (Persists in LocalStorage)
@@ -900,7 +913,7 @@
         this.maintenances = [];
         this.reports = [];
         this.feedbackList = [];
-        this.selectedPart = "Motor Detroit";
+        this.selectedPart = "Motor";
         this.lastLocation = { provincia: "Loja", canton: "Loja" };
         this.selectedTallerFile = null;
         this.selectedRepuestosFile = null;
@@ -925,7 +938,7 @@
         }
 
         // Set today's date in maintenance form
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = hoyLocal();
         const dateInput = document.getElementById('maint-date');
         if (dateInput) {
           dateInput.value = todayStr;
@@ -960,108 +973,6 @@
         } catch (e) {
           console.error("Storage saving error:", e);
         }
-      }
-
-      loadDemoSeedData() {
-        this.session = {
-          placa: "ABC-1234",
-          nombre: "Manuel Antonio Benítez",
-          cedula: "1104928374",
-          email: "chofer.benitez@transporte.ec",
-          trailerModel: "Freightliner Columbia 2020",
-          engine: "Detroit Diesel DD15",
-          odometro: 184520
-        };
-
-        this.maintenances = [
-          {
-            id: 'm-101',
-            fecha: '2026-10-14',
-            km: 180000,
-            parte: 'Motor Detroit',
-            trabajo: 'Cambio de Aceite y Filtros',
-            provincia: 'Pichincha',
-            canton: 'Quito',
-            taller: 'Taller Diesel Pichincha',
-            costoTaller: 80.00,
-            facturaTallerFile: 'factura_mano_obra_001.pdf',
-            proveedor: 'Distribuidora Detroit Sur',
-            costoRepuestos: 265.50,
-            repuestosDetalle: '4 Galones 15W40 Mobil + 2 filtros combustible',
-            facturaRepuestosFile: 'factura_repuestos_oct.jpg',
-            costo: 345.50,
-            notas: 'Filtro primario y secundario cambiados.',
-            anexosPosteriores: [],
-            bloqueado: true,
-            reportFolio: 'REP-2026-001'
-          },
-          {
-            id: 'm-102',
-            fecha: '2026-10-28',
-            km: 182100,
-            parte: 'Eje Trasero 1 Cabezal',
-            trabajo: 'Calibración y Cambio de Frenos',
-            provincia: 'Guayas',
-            canton: 'Guayaquil',
-            taller: 'Frenos y Muelles del Puerto',
-            costoTaller: 70.00,
-            facturaTallerFile: 'factura_taller_frenos.pdf',
-            proveedor: 'Repuestos Pesados Guayas',
-            costoRepuestos: 110.00,
-            repuestosDetalle: '4 zapatas de freno posteriores',
-            facturaRepuestosFile: null,
-            costo: 180.00,
-            notas: 'Rectificación de tambor.',
-            anexosPosteriores: [],
-            bloqueado: true,
-            reportFolio: 'REP-2026-001'
-          },
-          {
-            id: 'm-103',
-            fecha: '2026-11-04',
-            km: 184520,
-            parte: 'General / Eléctrico / Engrase',
-            trabajo: 'Engrase General y Puntos',
-            provincia: 'Loja',
-            canton: 'Loja',
-            taller: 'Lubricadora San Cayetano',
-            costoTaller: 45.00,
-            facturaTallerFile: null,
-            proveedor: 'Lubricantes y Grasas Loja',
-            costoRepuestos: 0.00,
-            repuestosDetalle: 'Grasa EP2 para chasis y quinta rueda',
-            facturaRepuestosFile: null,
-            costo: 45.00,
-            notas: 'Engrase completo de corona, crucetas y quinta rueda.',
-            anexosPosteriores: [],
-            bloqueado: false,
-            reportFolio: null
-          }
-        ];
-
-        this.reports = [
-          {
-            folio: 'REP-2026-001',
-            mes: 'Octubre 2026',
-            fechaGenerado: '01/11/2026',
-            hash: '7a9c8f102e3b4a5d89f1a23c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e',
-            totalCosto: 525.50,
-            mantenimientoIds: ['m-101', 'm-102']
-          }
-        ];
-
-        this.feedbackList = [
-          {
-            fecha: '08/11/2026',
-            facilidad: 'Muy Fácil',
-            comentario: 'Separar repuestos de taller era justo lo que necesitábamos. Se entiende clarito.'
-          }
-        ];
-
-        this.saveStorage();
-        this.switchView('dashboard');
-        this.refreshUI();
-        this.showToast('¡Datos demo cargados con 4 compartimentos y separación Taller/Repuestos!', 'success');
       }
 
       bindEvents() {
@@ -1106,31 +1017,108 @@
         }
       }
 
+      // Vehículo de la sesión y sus partes (ver js/catalogo.js)
+      vehiculo() { return window.Flota.configVehiculo(this.session?.vehiculo); }
+      partes() { return window.Flota.partesDe(this.session?.vehiculo); }
+
       renderTrailerAccessibleList() {
         const container = document.getElementById('trailer-list-container');
         if (!container) return;
 
-        container.innerHTML = TRAILER_PARTS.map(part => {
+        let grupo = null;
+        container.innerHTML = this.partes().map(part => {
           const lastMaint = this.getLastMaintenanceForPart(part.id);
           const statusText = lastMaint ? `${lastMaint.fecha} (${lastMaint.km.toLocaleString()} km)` : 'Sin mantenimientos registrados';
           const isSelected = this.selectedPart === part.id;
-          return `
-            <div onclick="app.selectPart('${part.id}')" class="p-3.5 rounded-2xl border-2 ${isSelected ? 'border-emerald-400 bg-slate-800' : 'border-slate-800 bg-slate-950'} cursor-pointer flex items-center justify-between transition-all">
-              <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-emerald-400 text-lg">
-                  <i class="fa-solid ${part.icon}"></i>
+          const titulo = part.grupo !== grupo ? `<h3 class="sm:col-span-2 text-xs uppercase tracking-wider font-black text-slate-400 mt-2">${esc(part.grupo)}</h3>` : '';
+          grupo = part.grupo;
+          return `${titulo}
+            <div onclick="app.selectPart('${esc(part.id)}')" class="p-3.5 rounded-2xl border-2 ${isSelected ? 'border-emerald-400 bg-slate-800' : 'border-slate-800 bg-slate-950'} cursor-pointer flex items-center justify-between transition-all">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 shrink-0 rounded-xl bg-slate-800 flex items-center justify-center text-emerald-400 text-lg">
+                  <i class="fa-solid ${part.icono}"></i>
                 </div>
-                <div>
-                  <h4 class="font-bold text-base text-white">${part.name}</h4>
-                  <p class="text-xs text-slate-400">${statusText}</p>
+                <div class="min-w-0">
+                  <h4 class="font-bold text-base text-white">${esc(part.nombre)}</h4>
+                  <p class="text-xs text-slate-400">${esc(statusText)}</p>
                 </div>
               </div>
-              <span class="text-xs px-2.5 py-1 rounded-full ${isSelected ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400 font-bold'}">
+              <span class="text-xs px-2.5 py-1 rounded-full shrink-0 ${isSelected ? 'bg-emerald-500 text-slate-950 font-black' : 'bg-slate-800 text-slate-400 font-bold'}">
                 ${isSelected ? 'Activo' : 'Tocar'}
               </span>
             </div>
           `;
         }).join('');
+      }
+
+      // Partes, ejes y trabajos del formulario según el vehículo
+      poblarFormulario() {
+        const opciones = (lista) => lista.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('');
+        const part = document.getElementById('maint-part');
+        const eje = document.getElementById('maint-eje');
+        if (!part || !eje) return;
+        const firma = JSON.stringify(this.vehiculo());
+        if (part.dataset.firma !== firma) {
+          part.innerHTML = opciones(this.partes().map(p => [p.id, p.nombre]));
+          eje.innerHTML = opciones([['Todos los ejes', 'Todos los ejes'], ...window.Flota.ejesDe(this.session?.vehiculo).map(e => [e.id, e.id])]);
+          part.dataset.firma = firma;
+        }
+      }
+
+      poblarTrabajos() {
+        const job = document.getElementById('maint-job');
+        const part = document.getElementById('maint-part')?.value;
+        if (!job || job.dataset.parte === part) return;
+        job.innerHTML = window.Flota.trabajosDe(part, this.session?.vehiculo).map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+        job.dataset.parte = part;
+        this.toggleOtroTrabajo();
+      }
+
+      toggleOtroTrabajo() {
+        const otro = document.getElementById('maint-job-otro');
+        const es = document.getElementById('maint-job')?.value === window.Flota.OTRO_TRABAJO;
+        if (!otro) return;
+        otro.classList.toggle('hidden', !es);
+        otro.required = es;
+        if (!es) otro.value = '';
+      }
+
+      toggleMenu(abrir) {
+        document.body.classList.toggle('menu-abierto', !!abrir);
+        document.getElementById('menu-fondo')?.classList.toggle('hidden', !abrir);
+        document.getElementById('btn-menu')?.setAttribute('aria-expanded', String(!!abrir));
+      }
+
+      // Pantalla de inicio: vehículo asignado y últimos trabajos
+      renderInicio() {
+        const s = this.session;
+        const caja = document.getElementById('inicio-vehiculo');
+        const ultimos = document.getElementById('inicio-ultimos');
+        if (!s || !caja || !ultimos) return;
+        const v = this.vehiculo();
+        const total = v.compartimentos.reduce((a, b) => a + b, 0);
+        const conTanque = v.tipo === 'camion' || v.conTanquero;
+        caja.innerHTML = `
+          <div class="flex items-start gap-3">
+            <div class="w-12 h-12 shrink-0 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center text-2xl"><i class="fa-solid ${v.tipo === 'camion' ? 'fa-truck' : 'fa-truck-moving'}"></i></div>
+            <div class="min-w-0 flex-1">
+              <span class="text-xs uppercase tracking-wider font-bold text-slate-400">${v.tipo === 'camion' ? 'Camión tanquero' : 'Cabezal con tanquero'}</span>
+              <p class="text-lg font-black text-white leading-tight">${esc(s.trailerModel || '')}</p>
+              <p class="text-sm text-slate-400">${esc(s.engine ? 'Motor ' + s.engine : '')}</p>
+            </div>
+          </div>
+          ${conTanque ? `<div class="mt-3">
+            <div class="flex items-baseline justify-between text-xs font-bold text-slate-400 mb-1"><span>Tanque · adelante → atrás</span><span class="text-cyan-300">${total.toLocaleString()} gal</span></div>
+            <div class="flex gap-1">${v.compartimentos.map((g, i) => `<div style="flex:${g}" class="bg-cyan-500/15 border border-cyan-500/40 rounded-lg py-1.5 text-center"><span class="block text-[10px] text-slate-400 font-bold">${i + 1}</span><span class="block text-sm font-black font-mono text-cyan-200">${g.toLocaleString()}</span></div>`).join('')}</div>
+          </div>` : '<p class="mt-3 text-sm text-amber-300 font-bold">Sin tanquero enganchado. Avisa al dueño.</p>'}`;
+        ultimos.innerHTML = this.maintenances.length ? this.maintenances.slice(0, 3).map(m => `
+          <button type="button" onclick="app.switchView('history')" class="w-full text-left p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="font-bold text-white truncate">${esc(m.trabajo)}</p>
+              <p class="text-xs text-slate-400 truncate">${esc(m.parte)} · ${esc(m.fecha)} · ${Number(m.km).toLocaleString()} km</p>
+            </div>
+            <span class="font-mono font-black text-emerald-400 shrink-0">$${Number(m.costo || 0).toFixed(2)}</span>
+          </button>`).join('') : '<p class="text-sm text-slate-400 bg-slate-950 border border-slate-800 rounded-2xl p-4">Todavía no hay mantenimientos. Toca <strong class="text-emerald-400">Registrar</strong> para guardar el primero.</p>';
       }
 
       setTrailerDisplayMode(mode) {
@@ -1154,6 +1142,7 @@
       }
 
       selectPart(partId) {
+        if (!this.partes().some(p => p.id === partId)) partId = this.partes()[0].id;
         this.selectedPart = partId;
         
         document.querySelectorAll('.truck-part').forEach(el => el.classList.remove('active'));
@@ -1188,7 +1177,7 @@
 
       getMaxKm() {
         if (!this.session) return 0;
-        let km = this.session.odometro || 180000;
+        let km = this.session.odometro || 0;
         this.maintenances.forEach(m => {
           if (m.km > km) km = m.km;
         });
@@ -1218,7 +1207,7 @@
           cedula,
           email,
           trailerModel: "Freightliner Columbia 2020",
-          engine: "Detroit Diesel DD15",
+          engine: "",
           odometro: kmInicial
         };
 
@@ -1239,39 +1228,26 @@
       }
 
       switchView(viewName) {
-        const viewLogin = document.getElementById('view-login');
-        const viewDash = document.getElementById('view-dashboard');
-        const viewReports = document.getElementById('view-reports');
+        const titulos = { dashboard: 'Inicio', truck: 'Mi camión', history: 'Historial', reports: 'Reportes' };
+        if (viewName !== 'login' && !titulos[viewName]) viewName = 'dashboard';
+        ['login', ...Object.keys(titulos)].forEach(v => document.getElementById('view-' + v)?.classList.toggle('hidden', v !== viewName));
+        document.body.classList.toggle('con-menu', viewName !== 'login');
+        this.toggleMenu(false);
+        this.currentView = viewName;
+        document.querySelectorAll('#menu-lateral [data-vista]').forEach(b => b.classList.toggle('activo', b.dataset.vista === viewName));
+        const titulo = document.getElementById('titulo-vista');
+        if (titulo) titulo.textContent = titulos[viewName] || 'MI TRAILER';
 
-        const navTrailer = document.getElementById('nav-btn-trailer');
-        const navReports = document.getElementById('nav-btn-reports');
-
-        [navTrailer, navReports].forEach(btn => {
-          if (btn) btn.className = "touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-slate-400 hover:text-white font-bold transition-colors";
-        });
-
-        if (viewName === 'login') {
-          viewLogin.classList.remove('hidden');
-          viewDash.classList.add('hidden');
-          viewReports.classList.add('hidden');
-          document.querySelector('nav').classList.add('hidden');
-          return;
+        if (viewName === 'truck') {
+          // El camión 3D se carga recién la primera vez que se abre esta sección (ahorra datos y batería)
+          const frame = document.getElementById('frame-3d');
+          if (frame && !frame.getAttribute('src')) frame.src = frame.dataset.src;
+          else if (frame?.contentWindow) {
+            frame.contentWindow.postMessage({ origen: 'mi-trailer', tipo: 'datos' }, location.origin);
+            frame.contentWindow.dispatchEvent(new Event('resize'));
+          }
         }
-
-        document.querySelector('nav').classList.remove('hidden');
-
-        if (viewName === 'dashboard') {
-          viewLogin.classList.add('hidden');
-          viewDash.classList.remove('hidden');
-          viewReports.classList.add('hidden');
-          if (navTrailer) navTrailer.className = "touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-emerald-400 font-bold transition-colors";
-        } else if (viewName === 'reports') {
-          viewLogin.classList.add('hidden');
-          viewDash.classList.add('hidden');
-          viewReports.classList.remove('hidden');
-          if (navReports) navReports.className = "touch-target flex flex-col items-center justify-center p-2 rounded-2xl text-emerald-400 font-bold transition-colors";
-          this.renderReportsList();
-        }
+        if (viewName === 'reports') this.renderReportsList();
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -1279,15 +1255,34 @@
       refreshUI() {
         if (!this.session) return;
 
-        const headerInfo = document.getElementById('header-cabezal-info');
-        if (headerInfo) headerInfo.textContent = `Placa: ${this.session.placa} • Chofer: ${this.session.nombre}`;
+        const v = this.vehiculo();
+        const total = v.compartimentos.reduce((a, b) => a + b, 0);
+        const conTanque = v.tipo === 'camion' || v.conTanquero;
+        const modelo = this.session.trailerModel || '';
+        const poner = (id, texto) => { const el = document.getElementById(id); if (el) el.textContent = texto; };
+        poner('header-cabezal-info', `${this.session.placa} · ${modelo}`);
+        poner('menu-nombre', this.session.nombre);
+        poner('menu-placa', this.session.placa);
+        poner('menu-vehiculo', `${modelo}${conTanque ? ` · ${total.toLocaleString()} gal` : ''}`);
+        poner('prof-modelo', [modelo, this.session.engine ? `Motor ${this.session.engine}` : ''].filter(Boolean).join(' • '));
+        poner('prof-tanque', conTanque ? `Tanque de combustible (${v.compartimentos.length} compartimentos)` : 'Sin tanquero enganchado');
+        poner('prof-tanque-detalle', conTanque ? `Capacidad total: ${total.toLocaleString()} galones (${v.compartimentos.map(g => g.toLocaleString()).join(' + ')})` : '');
+        poner('rep-modelo', modelo);
+        const repVehiculo = document.getElementById('report-trailer-display');
+        if (repVehiculo) repVehiculo.value = `${this.session.placa} · ${modelo}`;
+        const mes = document.getElementById('report-select-month');
+        if (mes && !mes.options.length) {
+          const nombre = new Date().toLocaleDateString('es-EC', { month: 'long', year: 'numeric' });
+          mes.innerHTML = `<option>${esc(nombre.charAt(0).toUpperCase() + nombre.slice(1))} (actual)</option>`;
+        }
+        this.poblarFormulario();
 
         const currentKm = this.getMaxKm();
         const kmEl = document.getElementById('dash-km');
         if (kmEl) kmEl.textContent = currentKm.toLocaleString();
 
         const placaEl = document.getElementById('dash-placa');
-        if (placaEl) placaEl.textContent = `Placa: ${this.session.placa} (${this.session.trailerModel || 'Freightliner'})`;
+        if (placaEl) placaEl.textContent = `Placa: ${this.session.placa}`;
 
         const profPlaca = document.getElementById('prof-placa');
         const profNombre = document.getElementById('prof-nombre');
@@ -1298,8 +1293,9 @@
         if (profCedula) profCedula.textContent = `Cédula: ${this.maskCedula(this.session.cedula)} (Cifrada en reposo)`;
         if (profEmail) profEmail.textContent = this.session.email;
 
-        this.selectPart(this.selectedPart || "Motor Detroit");
+        this.selectPart(this.selectedPart || "Motor");
         this.renderHistory();
+        this.renderInicio();
         this.renderFeedbackHistory();
       }
 
@@ -1310,9 +1306,11 @@
         const kmInput = document.getElementById('maint-km');
         if (kmInput) kmInput.value = this.getMaxKm();
 
+        this.poblarFormulario();
         const partSelect = document.getElementById('maint-part');
         if (partSelect && this.selectedPart) {
           partSelect.value = this.selectedPart;
+          if (!partSelect.value) partSelect.selectedIndex = 0;
         }
         this.toggleEjeSelect();
 
@@ -1330,6 +1328,7 @@
         const lblRep = document.getElementById('label-factura-repuestos');
         if (lblRep) lblRep.innerHTML = '⚠️ Sin factura de repuestos';
 
+        ['maint-pago-taller', 'maint-pago-repuestos'].forEach(id => { const el = document.getElementById(id); if (el) el.value = 'efectivo'; });
         this.calculateTotalCost();
         modal.classList.remove('hidden');
       }
@@ -1338,6 +1337,7 @@
         const part = document.getElementById('maint-part')?.value;
         const box = document.getElementById('maint-eje-box');
         if (box) box.classList.toggle('hidden', part !== 'Llantas' && part !== 'Frenos');
+        this.poblarTrabajos();
       }
 
       openNewMaintenanceModalForPart() {
@@ -1399,7 +1399,8 @@
         if (this.evidPendiente) await this.evidPendiente.catch(() => this.showToast('No se pudo guardar una factura en el teléfono', 'warning'));
         let part = document.getElementById('maint-part').value;
         if (part === 'Llantas' || part === 'Frenos') part = `${part} - ${document.getElementById('maint-eje').value}`;
-        const job = document.getElementById('maint-job').value;
+        let job = document.getElementById('maint-job').value;
+        if (job === window.Flota.OTRO_TRABAJO) job = document.getElementById('maint-job-otro')?.value.trim() || job;
         const km = parseInt(document.getElementById('maint-km').value, 10);
         const date = document.getElementById('maint-date').value;
         const provincia = document.getElementById('maint-provincia').value;
@@ -1415,14 +1416,14 @@
         const notas = document.getElementById('maint-notas').value.trim();
         const totalCosto = costoTaller + costoRepuestos;
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = hoyLocal();
         if (date > todayStr) {
           this.showToast('No se permiten mantenimientos con fecha futura', 'warning');
           return;
         }
 
         const currentMax = this.getMaxKm();
-        if (km < currentMax) {
+        if (currentMax > 0 && km < currentMax) {
           const proceed = confirm(`Atención: El kilometraje ingresado (${km.toLocaleString()} km) es MENOR al odómetro actual (${currentMax.toLocaleString()} km). ¿Deseas guardar de todas formas?`);
           if (!proceed) return;
         }
@@ -1444,6 +1445,9 @@
           facturaRepuestosFile: this.selectedRepuestosFile,
           costo: totalCosto,
           notas: notas,
+          // Solo cuenta la forma de pago de lo que tuvo costo
+          pagoTaller: costoTaller > 0 ? document.getElementById('maint-pago-taller').value : null,
+          pagoRepuestos: costoRepuestos > 0 ? document.getElementById('maint-pago-repuestos').value : null,
           anexosPosteriores: [],
           evidencias: [this.selectedTallerEvid, this.selectedRepuestosEvid].filter(Boolean),
           bloqueado: false,
@@ -1515,6 +1519,16 @@
         this.showToast('¡Anexo posterior registrado e incorporado al expediente!', 'success');
       }
 
+      // Etiqueta de la forma de pago; lo que quedó a crédito se resalta hasta que el dueño lo paga
+      pagoHTML(forma, pagadoEn) {
+        const nombres = { efectivo: 'Efectivo', transferencia: 'Transferencia', cheque: 'Cheque', credito: 'Crédito' };
+        if (!nombres[forma]) return '';
+        if (forma !== 'credito') return `<span class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300">${nombres[forma]}</span>`;
+        return pagadoEn
+          ? '<span class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">Crédito · ya pagado</span>'
+          : '<span class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/50">Crédito · por pagar</span>';
+      }
+
       renderHistory() {
         const listContainer = document.getElementById('maintenance-history-list');
         const countBadge = document.getElementById('history-count-badge');
@@ -1527,7 +1541,7 @@
             <div class="text-center py-8 bg-slate-950 rounded-2xl border border-slate-800 p-4">
               <i class="fa-solid fa-clipboard-list text-3xl text-slate-600 mb-2"></i>
               <p class="text-base text-slate-300 font-bold">No hay mantenimientos registrados todavía.</p>
-              <p class="text-xs text-slate-500 mt-1">Presiona "NUEVO MANTENIMIENTO" o toca una parte del camión.</p>
+              <p class="text-xs text-slate-500 mt-1">Toca «Registrar» para guardar el primero.</p>
             </div>
           `;
           return;
@@ -1543,7 +1557,7 @@
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                   <span class="px-2.5 py-1 rounded-xl text-xs font-black bg-slate-800 text-emerald-400 font-mono">
-                    ${m.fecha}
+                    ${esc(m.fecha)}
                   </span>
                   <span class="text-xs font-mono font-bold text-slate-400">
                     ${m.km.toLocaleString()} KM
@@ -1553,7 +1567,7 @@
                 <div class="flex items-center gap-1.5">
                   ${m.bloqueado ? `
                     <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center gap-1">
-                      <i class="fa-solid fa-lock text-[10px]"></i> Congelado (${m.reportFolio})
+                      <i class="fa-solid fa-lock text-[10px]"></i> Congelado (${esc(m.reportFolio)})
                     </span>
                   ` : `
                     <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400">
@@ -1565,8 +1579,8 @@
 
               <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-1">
                 <div>
-                  <h4 class="text-lg font-black text-white">${m.trabajo}</h4>
-                  <p class="text-xs text-emerald-400 font-semibold">${m.parte} • ${m.canton}, ${m.provincia}</p>
+                  <h4 class="text-lg font-black text-white">${esc(m.trabajo)}</h4>
+                  <p class="text-xs text-emerald-400 font-semibold">${esc(m.parte)} • ${esc(m.canton)}, ${esc(m.provincia)}</p>
                 </div>
                 <div class="text-left sm:text-right">
                   <span class="text-lg font-black font-mono text-emerald-400">
@@ -1580,27 +1594,27 @@
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
                 <div>
                   <span class="text-slate-400 font-bold block"><i class="fa-solid fa-wrench text-emerald-400 mr-1"></i> Taller / Mano Obra:</span>
-                  <span class="text-slate-200">${m.taller} ($${costoTaller.toFixed(2)})</span>
+                  <span class="text-slate-200">${esc(m.taller)} ($${costoTaller.toFixed(2)})${costoTaller > 0 ? this.pagoHTML(m.pagoTaller, m.tallerPagadoEn) : ''}</span>
                   <div class="mt-0.5">
                     ${m.facturaTallerFile ? 
-                      `<span class="text-emerald-400 font-bold text-[11px]"><i class="fa-solid fa-file-invoice"></i> ${m.facturaTallerFile}</span>` : 
+                      `<span class="text-emerald-400 font-bold text-[11px]"><i class="fa-solid fa-file-invoice"></i> ${esc(m.facturaTallerFile)}</span>` : 
                       `<span class="text-amber-400 text-[11px] font-bold">⚠️ Falta Factura Taller</span>`}
                   </div>
                 </div>
 
                 <div>
                   <span class="text-slate-400 font-bold block"><i class="fa-solid fa-box text-cyan-400 mr-1"></i> Almacén Repuestos:</span>
-                  <span class="text-slate-200">${m.proveedor} ($${costoRep.toFixed(2)})</span>
+                  <span class="text-slate-200">${esc(m.proveedor)} ($${costoRep.toFixed(2)})${costoRep > 0 ? this.pagoHTML(m.pagoRepuestos, m.repuestosPagadoEn) : ''}</span>
                   <div class="mt-0.5">
                     ${m.facturaRepuestosFile ? 
-                      `<span class="text-cyan-400 font-bold text-[11px]"><i class="fa-solid fa-receipt"></i> ${m.facturaRepuestosFile}</span>` : 
+                      `<span class="text-cyan-400 font-bold text-[11px]"><i class="fa-solid fa-receipt"></i> ${esc(m.facturaRepuestosFile)}</span>` : 
                       `<span class="text-amber-400 text-[11px] font-bold">⚠️ Falta Factura Repuestos</span>`}
                   </div>
                 </div>
               </div>
 
-              ${m.repuestosDetalle ? `<p class="text-xs text-slate-300 bg-slate-900/50 p-2 rounded-xl"><strong>Piezas:</strong> ${m.repuestosDetalle}</p>` : ''}
-              ${m.notas ? `<p class="text-xs text-slate-400 italic">"${m.notas}"</p>` : ''}
+              ${m.repuestosDetalle ? `<p class="text-xs text-slate-300 bg-slate-900/50 p-2 rounded-xl"><strong>Piezas:</strong> ${esc(m.repuestosDetalle)}</p>` : ''}
+              ${m.notas ? `<p class="text-xs text-slate-400 italic">"${esc(m.notas)}"</p>` : ''}
 
               <!-- Anexos Posteriores Registrados -->
               ${anexosCount > 0 ? `
@@ -1610,8 +1624,8 @@
                   </span>
                   ${m.anexosPosteriores.map(a => `
                     <div class="flex items-center justify-between text-[11px] text-slate-300">
-                      <span>• ${a.tipo}: <strong>${a.archivo}</strong></span>
-                      <span class="font-mono text-slate-500">${a.fechaCarga}</span>
+                      <span>• ${esc(a.tipo)}: <strong>${esc(a.archivo)}</strong></span>
+                      <span class="font-mono text-slate-500">${esc(a.fechaCarga)}</span>
                     </div>
                   `).join('')}
                 </div>

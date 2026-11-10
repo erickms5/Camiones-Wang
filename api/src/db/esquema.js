@@ -8,20 +8,21 @@ import {
 const id = () => uuid('id').primaryKey().defaultRandom();
 const creadoEn = () => timestamp('creado_en', { withTimezone: true }).notNull().defaultNow();
 
-export const rolUsuario = pgEnum('rol_usuario', ['dueno', 'chofer']);
+export const rolUsuario = pgEnum('rol_usuario', ['dueno', 'chofer', 'admin']);
 export const rolUnidad = pgEnum('rol_unidad', ['cabezal', 'remolque']);
 
-// Cuenta del dueño: agrupa sus camiones y sus choferes
+// Cuenta = empresa de transporte: agrupa sus dueños, sus camiones y sus choferes.
+// Cada empresa está aislada de las demás: agregar otra no toca los datos de las que ya existen.
 export const cuentas = pgTable('cuentas', {
   id: id(),
   nombre: text('nombre').notNull(),
   creadoEn: creadoEn(),
 });
 
-// Dueños y choferes. Todos entran con un código enviado a su email.
+// Administrador (sin empresa: da soporte a todas), dueños y choferes. Entran con correo y contraseña.
 export const usuarios = pgTable('usuarios', {
   id: id(),
-  cuentaId: uuid('cuenta_id').notNull().references(() => cuentas.id),
+  cuentaId: uuid('cuenta_id').references(() => cuentas.id), // vacío solo para el administrador
   email: text('email').notNull(),
   nombre: text('nombre').notNull(),
   rol: rolUsuario('rol').notNull(),
@@ -39,16 +40,6 @@ export const usuarios = pgTable('usuarios', {
   uniqueIndex('usuarios_cedula_cuenta_unica').on(t.cuentaId, t.cedulaHash),
 ]);
 
-export const codigosAcceso = pgTable('codigos_acceso', {
-  id: id(),
-  email: text('email').notNull(),
-  codigoHash: text('codigo_hash').notNull(),
-  expiraEn: timestamp('expira_en', { withTimezone: true }).notNull(),
-  intentos: integer('intentos').notNull().default(0),
-  usado: boolean('usado').notNull().default(false),
-  creadoEn: creadoEn(),
-}, (t) => [index('codigos_email').on(t.email)]);
-
 export const sesiones = pgTable('sesiones', {
   id: id(),
   usuarioId: uuid('usuario_id').notNull().references(() => usuarios.id),
@@ -57,13 +48,14 @@ export const sesiones = pgTable('sesiones', {
   creadoEn: creadoEn(),
 }, (t) => [uniqueIndex('sesiones_token_unico').on(t.tokenHash)]);
 
-// Cabezales y remolques. El id puede venir del teléfono (sin conexión) para no duplicar al sincronizar.
+// Unidades con placa: cabezal (tipo «tracto»), su tanquero (rol remolque) o camión rígido con el tanque
+// encima (rol cabezal, tipo «camion»). «atributos.modeloId» apunta al catálogo de la flota.
 export const unidades = pgTable('unidades', {
   id: id(),
   cuentaId: uuid('cuenta_id').notNull().references(() => cuentas.id),
   rol: rolUnidad('rol').notNull(),
-  tipo: text('tipo').notNull(), // tracto, tanquero, plataforma, furgon, otro
-  placa: text('placa').notNull(),
+  tipo: text('tipo').notNull(), // tracto, camion, tanquero
+  placa: text('placa'), // el tanquero no lleva placa: se identifica por la de su cabezal
   marca: text('marca').notNull(),
   modelo: text('modelo').notNull(),
   anio: integer('anio'),
@@ -74,6 +66,13 @@ export const unidades = pgTable('unidades', {
   creadoEn: creadoEn(),
   actualizadoEn: timestamp('actualizado_en', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('unidades_placa_unica').on(t.placa)]);
+
+// Dueños de cada unidad: un vehículo puede tener varios dueños y cada dueño ve solo los suyos.
+export const propietarios = pgTable('propietarios', {
+  usuarioId: uuid('usuario_id').notNull().references(() => usuarios.id),
+  unidadId: uuid('unidad_id').notNull().references(() => unidades.id),
+  desde: timestamp('desde', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.usuarioId, t.unidadId] })]);
 
 export const acoplamientos = pgTable('acoplamientos', {
   id: id(),
@@ -132,6 +131,8 @@ export const mantenimientos = pgTable('mantenimientos', {
   id: id(), // generado en el teléfono: reintentos sin duplicar
   cuentaId: uuid('cuenta_id').notNull().references(() => cuentas.id),
   unidadId: uuid('unidad_id').references(() => unidades.id),
+  // Vehículo al que cuenta el trabajo: el mismo cabezal/camión, o el cabezal que llevaba enganchado el tanquero
+  vehiculoId: uuid('vehiculo_id').references(() => unidades.id),
   creadoPor: uuid('creado_por').notNull().references(() => usuarios.id),
   fecha: date('fecha').notNull(),
   km: integer('km').notNull(),
@@ -144,6 +145,14 @@ export const mantenimientos = pgTable('mantenimientos', {
   proveedor: text('proveedor'),
   costoRepuestos: numeric('costo_repuestos', { precision: 10, scale: 2 }).notNull().default('0'),
   repuestosDetalle: text('repuestos_detalle'),
+  // Forma de pago de cada parte por separado: efectivo, transferencia, cheque o credito.
+  // Lo que queda a crédito es una deuda hasta que el dueño la marca como pagada («…PagadoEn»).
+  pagoTaller: text('pago_taller'),
+  tallerPagadoEn: timestamp('taller_pagado_en', { withTimezone: true }),
+  tallerPagadoCon: text('taller_pagado_con'),
+  pagoRepuestos: text('pago_repuestos'),
+  repuestosPagadoEn: timestamp('repuestos_pagado_en', { withTimezone: true }),
+  repuestosPagadoCon: text('repuestos_pagado_con'),
   notas: text('notas'),
   bloqueado: boolean('bloqueado').notNull().default(false), // incluido en un reporte congelado
   reporteId: uuid('reporte_id'),
@@ -180,6 +189,7 @@ export const reportes = pgTable('reportes', {
   tipo: text('tipo').notNull(), // mensual, individual
   periodo: text('periodo'), // AAAA-MM
   choferId: uuid('chofer_id').references(() => usuarios.id),
+  vehiculoId: uuid('vehiculo_id').references(() => unidades.id), // cada dueño ve los reportes de sus vehículos
   generadoPor: uuid('generado_por').notNull().references(() => usuarios.id),
   generadoEn: timestamp('generado_en', { withTimezone: true }).notNull().defaultNow(),
   total: numeric('total', { precision: 12, scale: 2 }).notNull(),
