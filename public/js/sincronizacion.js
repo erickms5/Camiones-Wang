@@ -12,7 +12,7 @@ window.Flota = { configVehiculo, partesDe, ejesDe, trabajosDe, unidadDeParte, OT
 const CLAVE_TOKEN = 'mi_trailer_token';
 const CLAVE_COLA = 'mi_trailer_pendientes';
 const CLAVE_DETALLES_ENVIADOS = 'mi_trailer_detalles_enviados';
-const API_PRODUCCION = ''; // se completa al publicar el servidor (ej. https://mi-trailer-api.onrender.com)
+const API_PRODUCCION = 'https://mi-trailer-api.onrender.com'; // servidor publicado en Render
 
 const leer = (k, def) => {
   try {

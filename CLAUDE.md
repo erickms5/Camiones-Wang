@@ -34,7 +34,7 @@ wrangler.jsonc → publicación de public/ en Cloudflare
 - `js/sincronizacion.js`: conecta la demo con la API. Ingreso (correo + contraseña; sin registro propio),
   cola sin conexión (`mi_trailer_pendientes`), envío de mantenimientos, facturas y fichas, y refresco del
   vehículo/km al abrir. Dueño y administrador pasan a su panel.
-  - `API_PRODUCCION` está **vacío** hasta publicar el servidor (la web pública queda en modo local).
+  - `API_PRODUCCION`: el servidor publicado en Render (`https://mi-trailer-api.onrender.com`).
   - `SERVIDORES_PERMITIDOS`: la dirección del servidor solo puede ser una de la lista.
 - `js/reporte.js` + `css/reporte.css`: **hoja del reporte** compartida por chofer y dueño, siempre desde
   los datos congelados del servidor. Las fotos van dentro del reporte; cada factura en PDF se dibuja
@@ -120,10 +120,8 @@ El navegador integrado de Claude Code no tiene WebGL: para ver el 3D usar Chromi
 - [ ] **Confirmar con el cliente**: que el «FBR» es Chevrolet **FVR**; que el Hino y el Chevrolet son de
       2 ejes (6 llantas); el motor de cada uno; y el nombre de
       la empresa (hoy «Camiones Wang», se cambia en el panel del administrador).
-- [ ] **Publicar el servidor en Render**: crear el Blueprint (New → Blueprint → este repo → Apply) y
-      poner `ADMIN_EMAIL` y `ADMIN_CLAVE` en sus variables. Luego: la URL en `API_PRODUCCION`
-      (`public/js/sincronizacion.js`), subir `CACHE` en `sw.js`, `npm run deploy`, y entrar como
-      administrador para crear las cuentas de los dueños.
+- [x] Servidor publicado en Render (Blueprint, plan gratuito): `https://mi-trailer-api.onrender.com`, y la app
+      conectada a él. Las cuentas de los dueños las crea el administrador desde su panel.
 - [ ] Antes de datos reales: pasar la base y el servidor de Render a plan pagado (la base gratuita se
       borra a los ~30 días y el servidor gratuito se duerme).
 - [ ] Validar los intervalos de mantenimiento de cada modelo con su manual (hoy son referenciales).

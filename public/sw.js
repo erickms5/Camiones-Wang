@@ -1,5 +1,5 @@
 // Funcionamiento sin conexión: primero la red, y si no hay señal, la copia guardada.
-const CACHE = 'mi-trailer-v19';
+const CACHE = 'mi-trailer-v20';
 const ARCHIVOS = [
   './', './index.html', './camion3d.html', './css/app.css', './css/menu.css', './css/reporte.css', './icono.svg',
   './js/camion3d.js', './js/evidencias.js', './js/sincronizacion.js', './dueno.html', './js/dueno.js', './admin.html', './js/admin.js', './js/panel.js', './js/reporte.js', './js/reportes-chofer.js', './js/vista.js', './js/consultas.js', './js/store.js', './js/plantillas.js', './js/catalogo.js',
