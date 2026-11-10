@@ -1424,7 +1424,7 @@
 
         const currentMax = this.getMaxKm();
         if (currentMax > 0 && km < currentMax) {
-          const proceed = confirm(`Atención: El kilometraje ingresado (${km.toLocaleString()} km) es MENOR al odómetro actual (${currentMax.toLocaleString()} km). ¿Deseas guardar de todas formas?`);
+          const proceed = this.kmMenorConfirmado || confirm(`Atención: El kilometraje ingresado (${km.toLocaleString()} km) es MENOR al odómetro actual (${currentMax.toLocaleString()} km). ¿Deseas guardar de todas formas?`);
           if (!proceed) return;
         }
 
