@@ -1,9 +1,17 @@
-# Camiones Wang · Registro de unidades
+# Camiones Wang · Mi Trailer
 
-Prototipo web (PWA) del módulo de registro de vehículo y conductor: cabezal, tanquero con compartimentos y conductor.
-Funciona sin internet y guarda los datos en el teléfono.
+App de mantenimientos para choferes de tráiler (cabezal + tanquero) y panel para el dueño del camión.
 
-**Web:** https://app.camiones-wang.workers.dev
+- **App (web/PWA):** https://app.camiones-wang.workers.dev — hoy en modo demostración hasta publicar el servidor.
+- **Servidor:** Node.js + PostgreSQL en la carpeta `api/` (se publica en Render con `render.yaml`).
+- **Para Claude Code:** leer `CLAUDE.md` (reglas, estado y pendientes del proyecto).
+
+## Qué hace
+- **Chofer:** entra con correo y contraseña, ve su camión en 3D (cada eje, llanta y freno se toca),
+  registra mantenimientos con fotos de facturas (con fecha y hora de subida) y genera reportes.
+  Funciona sin señal: lo guarda en el teléfono y lo envía al volver la conexión.
+- **Dueño:** registra choferes (con su contraseña) y camiones, engancha remolques, asigna choferes,
+  pone o corrige el kilometraje y ve los reportes de todos sus choferes con sus facturas.
 
 ## Estructura
 
