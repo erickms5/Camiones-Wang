@@ -161,6 +161,8 @@ export async function iniciarSesionServidor(token) {
 }
 
 // ---------------------------------------------------------------- cola de envío
+// Pregunta de confirmación dentro de la app (las ventanas del navegador no aparecen en todos los teléfonos)
+export const preguntar = async (...datos) => (await import('./panel.js')).confirmar(...datos);
 const cola = () => leer(CLAVE_COLA, []);
 export const pendientes = () => cola().length;
 export function encolar(tarea) {
@@ -460,9 +462,12 @@ function conectar(app) {
   }
 
   // Salir: cierra la sesión también en el servidor
-  app.handleLogout = () => {
-    if (!confirm('¿Deseas cerrar la sesión en este teléfono?')) return;
-    if (cola().length && !confirm('Hay datos que aún no se enviaron al servidor. Si sales ahora se quedan en este teléfono. ¿Salir igual?')) return;
+  app.handleLogout = async () => {
+    app.toggleMenu(false);
+    const texto = cola().length
+      ? 'Hay datos que aún no se enviaron al servidor. Si sales ahora se quedan guardados en este teléfono.'
+      : 'Para volver a entrar necesitarás tu correo y tu contraseña.';
+    if (!(await preguntar('¿Cerrar la sesión?', texto, 'Cerrar sesión', true))) return;
     api('/auth/salir', { metodo: 'POST' }).catch(() => {});
     localStorage.removeItem(CLAVE_TOKEN);
     app.session = null;
@@ -482,8 +487,19 @@ function conectar(app) {
       e?.preventDefault?.();
       return app.showToast(`El km ${km.toLocaleString('es-EC')} es mucho mayor al actual (${actual.toLocaleString('es-EC')}). Revisa que esté bien escrito.`, 'warning');
     }
+    // Un km menor al actual (trabajo anotado con atraso) se confirma en pantalla
+    const mayor = app.getMaxKm();
+    if (mayor > 0 && km < mayor && e?.target?.checkValidity?.() !== false) {
+      e?.preventDefault?.();
+      if (!(await preguntar('Kilometraje menor al actual', `Escribiste ${km.toLocaleString('es-EC')} km y el vehículo ya marca ${mayor.toLocaleString('es-EC')} km. ¿Guardar de todas formas?`, 'Sí, guardar'))) return;
+      app.kmMenorConfirmado = true;
+    }
     const antes = app.maintenances[0]?.id;
-    await guardarOriginal(e);
+    try {
+      await guardarOriginal(e);
+    } finally {
+      app.kmMenorConfirmado = false;
+    }
     const m = app.maintenances[0];
     if (m && m.id !== antes && app.session?.servidor) {
       encolar({ tipo: 'mantenimiento', id: m.id });
@@ -505,12 +521,15 @@ function conectar(app) {
   };
 
   // Lo que ya se envió al dueño no se borra desde el teléfono (el botón solo servía sin servidor)
-  const borrarOriginal = app.deleteMaintenance.bind(app);
-  app.deleteMaintenance = (id) => {
+  app.deleteMaintenance = async (id) => {
     if (cola().some((t) => t.tipo === 'mantenimiento' && t.id === id)) {
+      if (!(await preguntar('¿Borrar este mantenimiento?', 'Todavía no se envió al dueño: se borra de este teléfono.', 'Borrar', true))) return;
       escribir(CLAVE_COLA, cola().filter((t) => t.id !== id));
       pintarEstado();
-      return borrarOriginal(id);
+      app.maintenances = app.maintenances.filter((m) => m.id !== id);
+      app.saveStorage();
+      app.refreshUI();
+      return app.showToast('Mantenimiento eliminado', 'info');
     }
     app.showToast('Este mantenimiento ya se envió al dueño y no se puede borrar. Si hay un error, avísale.', 'warning');
   };

@@ -1,7 +1,7 @@
 // Reportes del chofer (con servidor): emite el reporte del mes que elija y consulta los ya emitidos,
 // de este mes o de cualquier mes anterior. El reporte se abre desde los datos congelados del servidor,
 // con las fotos de las facturas adentro y las facturas en PDF como hojas adicionales.
-import { api, ErrorApi, enviarPendientes, pendientes, actualizarMantenimientos } from './sincronizacion.js';
+import { api, ErrorApi, enviarPendientes, pendientes, actualizarMantenimientos, preguntar } from './sincronizacion.js';
 import { abrirReporte, nombreMes } from './reporte.js';
 
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -121,7 +121,7 @@ export function conectarReportes(app) {
   $('rc-emitir').onclick = async () => {
     const periodo = mes.value;
     const n = sinReporte().length;
-    if (!confirm(`¿Emitir el reporte de ${nombreMes(periodo)} con ${n} ${n === 1 ? 'mantenimiento' : 'mantenimientos'}?\n\nQueda congelado: lo que registres después de este mes irá en otro reporte.`)) return;
+    if (!(await preguntar(`¿Emitir el reporte de ${nombreMes(periodo)}?`, `Entra${n === 1 ? '' : 'n'} ${n} ${n === 1 ? 'mantenimiento' : 'mantenimientos'}. Queda congelado: lo que registres después de este mes irá en otro reporte.`, 'Emitir reporte'))) return;
     $('rc-emitir').disabled = true;
     await emitir({ tipo: 'mensual', periodo, unidadId: app.session.servidor.cabezalId });
     pintar();

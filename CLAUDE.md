@@ -63,7 +63,7 @@ wrangler.jsonc → publicación de public/ en Cloudflare
   (`src/flota.js` → `idsAccesibles`). El tanquero enganchado va con su cabezal.
 - Vehículos solo desde el catálogo (`crearVehiculo`): arma ejes → llantas y frenos, y compartimentos.
   El tanquero no lleva placa propia: se identifica por la de su cabezal.
-- `src/flota-inicial.js`: con la base vacía registra la flota del primer cliente (km pendiente, sin
+- `src/flota-inicial.js`: con la base vacía registra la flota del primer cliente (ZAA-2010 con 300.630 km, los otros con km pendiente; sin
   cuentas de personas). `FLOTA_INICIAL=no` la omite.
 - Contraseñas con scrypt; pausa de 15 min tras 8 fallos. Cédula cifrada AES-256-GCM (`CEDULA_CLAVE`, no
   cambiarla nunca en producción) + HMAC para duplicados.

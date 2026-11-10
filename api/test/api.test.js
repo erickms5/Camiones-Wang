@@ -51,7 +51,7 @@ test('la flota del cliente queda registrada sola, con el km pendiente, y no se r
   assert.equal(await asegurarFlotaInicial(db, {}, null), null); // ya hay empresa: no duplica
   const det = await t.admin.get(`/admin/cuentas/${cuenta.id}`).expect(200);
   assert.deepEqual(det.body.vehiculos.map((v) => [v.placa, v.marca, v.modelo, v.anio, v.km]), [
-    ['LBA-2603', 'Hino', 'GH', 2010, null], ['LBA-5785', 'Chevrolet', 'FVR', 2011, null], ['ZAA-2010', 'Freightliner', 'Columbia', 2020, null],
+    ['LBA-2603', 'Hino', 'GH', 2010, null], ['LBA-5785', 'Chevrolet', 'FVR', 2011, null], ['ZAA-2010', 'Freightliner', 'Columbia', 2020, 300630],
   ]);
   assert.equal(det.body.duenos.length, 0); // sin cuentas de ejemplo: las crea el administrador
   assert.equal(det.body.vehiculos[2].tanquero.placa, null);
