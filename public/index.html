@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="./css/menu.css">
   <link rel="stylesheet" href="./css/reporte.css">
+  <link rel="stylesheet" href="./css/accesible.css">
   
   <script>
     tailwind.config = {
@@ -101,14 +102,14 @@
     }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+<body class="app-chofer bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
 
   <!-- Barra superior: botón del menú, nombre de la sección y estado de envío -->
   <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-30 shadow-md">
     <div class="max-w-4xl mx-auto px-3 sm:px-4 py-2.5 flex items-center gap-3">
       <button id="btn-menu" type="button" onclick="app.toggleMenu(true)" aria-label="Abrir el menú" aria-controls="menu-lateral" aria-expanded="false"
-              class="touch-target shrink-0 rounded-xl bg-slate-800 border border-slate-700 text-white flex items-center justify-center">
-        <i class="fa-solid fa-bars text-2xl"></i>
+              class="touch-target shrink-0 rounded-xl bg-slate-800 border border-slate-700 text-white flex flex-col items-center justify-center px-2">
+        <i class="fa-solid fa-bars text-2xl"></i><span class="texto-icono">Menú</span>
       </button>
       <div class="min-w-0 flex-1">
         <h1 id="titulo-vista" class="text-xl sm:text-2xl font-black tracking-wide text-white truncate">MI TRAILER</h1>
@@ -132,8 +133,8 @@
         <p class="text-lg font-black tracking-wide text-white leading-tight">MI TRAILER</p>
         <p id="menu-nombre" class="text-xs text-slate-400 truncate"></p>
       </div>
-      <button id="menu-cerrar" type="button" onclick="app.toggleMenu(false)" aria-label="Cerrar el menú" class="touch-target text-slate-400 hover:text-white text-2xl">
-        <i class="fa-solid fa-xmark"></i>
+      <button id="menu-cerrar" type="button" onclick="app.toggleMenu(false)" aria-label="Cerrar el menú" class="touch-target text-slate-300 hover:text-white text-2xl">
+        <i class="fa-solid fa-xmark"></i><span class="texto-icono">Cerrar</span>
       </button>
     </div>
     <div class="px-4 py-3 border-b border-slate-800 bg-slate-950/60">
@@ -462,8 +463,8 @@
             <p class="text-xs text-slate-400">Guarda en segundos. Funciona sin internet.</p>
           </div>
         </div>
-        <button onclick="app.closeMaintenanceModal()" class="touch-target text-slate-400 hover:text-white text-2xl p-2">
-          <i class="fa-solid fa-xmark"></i>
+        <button type="button" onclick="app.closeMaintenanceModal()" class="touch-target text-slate-300 hover:text-white text-2xl p-2">
+          <i class="fa-solid fa-xmark"></i><span class="texto-icono">Cerrar</span>
         </button>
       </div>
 
@@ -494,13 +495,15 @@
                      class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3 px-4 text-xl font-mono font-bold text-emerald-400 focus:outline-none">
               <span class="absolute right-4 top-3.5 text-xs text-slate-400 font-bold">KM</span>
             </div>
-            <p id="km-warning-hint" class="text-xs text-amber-400 mt-1 hidden">⚠️ El kilometraje ingresado es menor al registrado.</p>
+            <p id="km-warning-hint" class="text-xs text-amber-400 mt-1 hidden">El kilometraje es menor al actual. Si el trabajo es de una fecha anterior, cambia la fecha.</p>
           </div>
 
           <div>
-            <label class="block text-slate-300 font-bold text-base mb-1">Fecha del Trabajo <span class="text-emerald-400">*</span></label>
+            <label class="block text-slate-300 font-bold text-base mb-1" for="maint-date">Fecha del trabajo <span class="text-emerald-400">*</span></label>
+            <!-- «Hoy» por defecto; «Cambiar fecha» ofrece Ayer, La semana pasada o Elegir fecha (nunca futura) -->
+            <div id="maint-fecha-box"></div>
             <input type="date" id="maint-date" required
-                   class="w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3 px-4 text-base font-bold text-white focus:outline-none">
+                   class="hidden mt-2 w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3 px-4 text-xl font-bold text-white focus:outline-none">
           </div>
         </div>
 
@@ -668,8 +671,8 @@
             <p class="text-xs text-slate-400">Anexo posterior al reporte (inmutable)</p>
           </div>
         </div>
-        <button onclick="app.closePostEvidenceModal()" class="text-slate-400 hover:text-white text-2xl">
-          <i class="fa-solid fa-xmark"></i>
+        <button type="button" onclick="app.closePostEvidenceModal()" class="touch-target text-slate-300 hover:text-white text-2xl">
+          <i class="fa-solid fa-xmark"></i><span class="texto-icono">Cerrar</span>
         </button>
       </div>
 
@@ -725,8 +728,8 @@
           <button onclick="app.simulateShareWhatsapp()" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
             <i class="fa-brands fa-whatsapp text-lg"></i> <span>Enviar al Dueño</span>
           </button>
-          <button onclick="app.closeReportModal()" class="touch-target text-slate-400 hover:text-white text-2xl p-2 ml-1">
-            <i class="fa-solid fa-xmark"></i>
+          <button type="button" onclick="app.closeReportModal()" class="touch-target text-slate-300 hover:text-white text-2xl p-2 ml-1">
+            <i class="fa-solid fa-xmark"></i><span class="texto-icono">Cerrar</span>
           </button>
         </div>
       </div>
@@ -841,8 +844,8 @@
     <div class="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full max-h-[92vh] overflow-y-auto p-6 shadow-2xl space-y-4">
       <div class="flex items-center justify-between">
         <h3 class="text-xl font-bold text-white">Mi cuenta</h3>
-        <button onclick="app.closeProfileModal()" class="text-slate-400 hover:text-white text-xl">
-          <i class="fa-solid fa-xmark"></i>
+        <button type="button" onclick="app.closeProfileModal()" class="touch-target text-slate-300 hover:text-white text-2xl">
+          <i class="fa-solid fa-xmark"></i><span class="texto-icono">Cerrar</span>
         </button>
       </div>
 
@@ -1438,7 +1441,7 @@
 
         const todayStr = hoyLocal();
         if (date > todayStr) {
-          this.showToast('No se permiten mantenimientos con fecha futura', 'warning');
+          this.showToast('La fecha no puede ser futura. Elige hoy o un día anterior.', 'warning');
           return;
         }
 
@@ -1672,8 +1675,8 @@
                     <i class="fa-solid fa-file-pdf text-emerald-400"></i> Reporte
                   </button>
                   ${!m.bloqueado ? `
-                    <button onclick="app.deleteMaintenance('${m.id}')" class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs" title="Eliminar servicio">
-                      <i class="fa-solid fa-trash-can"></i>
+                    <button onclick="app.deleteMaintenance('${m.id}')" class="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 font-bold text-xs" title="Borrar este mantenimiento">
+                      <i class="fa-solid fa-trash-can"></i> <span>Borrar</span>
                     </button>
                   ` : ''}
                 </div>

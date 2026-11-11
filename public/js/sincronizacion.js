@@ -5,6 +5,7 @@
 // Si no hay servidor configurado, la app sigue en modo demostración local.
 
 import { configVehiculo, partesDe, ejesDe, trabajosDe, unidadDeParte, OTRO_TRABAJO } from './catalogo.js';
+import { hoyEcuador } from './viajes-logica.js';
 
 // Partes, ejes y trabajos del vehículo, disponibles para la pantalla principal (index.html)
 window.Flota = { configVehiculo, partesDe, ejesDe, trabajosDe, unidadDeParte, OTRO_TRABAJO };
@@ -499,21 +500,31 @@ function conectar(app) {
       e?.preventDefault?.();
       return app.showToast(`El km ${km.toLocaleString('es-EC')} es mucho mayor al actual (${actual.toLocaleString('es-EC')}). Revisa que esté bien escrito.`, 'warning');
     }
-    // Un km menor al actual (trabajo anotado con atraso) se confirma en pantalla
+    // Km menor al actual. Con fecha anterior es un registro retroactivo: se acepta sin preguntar y no cambia el km
+    // actual. Con fecha de hoy lo más probable es un error de tipeo: se confirma en pantalla.
     const mayor = app.getMaxKm();
+    let retroactivo = false;
     if (mayor > 0 && km < mayor && e?.target?.checkValidity?.() !== false) {
       e?.preventDefault?.();
-      if (!(await preguntar('Kilometraje menor al actual', `Escribiste ${km.toLocaleString('es-EC')} km y el vehículo ya marca ${mayor.toLocaleString('es-EC')} km. ¿Guardar de todas formas?`, 'Sí, guardar'))) return;
+      const fecha = document.getElementById('maint-date')?.value;
+      if (fecha && fecha < hoyEcuador()) retroactivo = true;
+      else if (!(await preguntar('Kilometraje menor al actual', `Escribiste ${km.toLocaleString('es-EC')} km y el vehículo ya marca ${mayor.toLocaleString('es-EC')} km. Si el trabajo es de otro día, cancela y cambia la fecha. ¿Guardar de todas formas?`, 'Sí, guardar'))) return;
       app.kmMenorConfirmado = true;
     }
-    const antes = app.maintenances[0]?.id;
+    const antes = new Set(app.maintenances.map((x) => x.id));
     try {
       await guardarOriginal(e);
     } finally {
       app.kmMenorConfirmado = false;
     }
-    const m = app.maintenances[0];
-    if (m && m.id !== antes && app.session?.servidor) {
+    const m = app.maintenances.find((x) => !antes.has(x.id));
+    if (!m) return;
+    // El historial va del más reciente al más antiguo, también cuando se anota algo de una fecha anterior
+    app.maintenances.sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+    app.saveStorage();
+    app.refreshUI();
+    if (retroactivo) app.showToast('Este registro es de una fecha anterior; no cambia tu kilometraje actual', 'info');
+    if (app.session?.servidor) {
       encolar({ tipo: 'mantenimiento', id: m.id });
       enviarPendientes(app);
     }
@@ -551,6 +562,8 @@ function conectar(app) {
   // «¿Qué se hizo?» con varios trabajos por visita, y viajes y tanqueos
   import('./trabajos-visita.js').then((m) => m.conectarTrabajos(app)).catch((e) => console.error(e));
   import('./viajes.js').then((m) => m.conectarViajes(app)).catch((e) => console.error(e));
+  // Mantenimiento en pasos (una tarea por pantalla) y fecha con atajos; va después de «¿Qué se hizo?»
+  import('./trabajos-visita.js').then(() => import('./mantenimiento-pasos.js')).then((m) => m.conectarPasos(app)).catch((e) => console.error(e));
 
   // Envíos automáticos
   window.addEventListener('online', () => enviarPendientes(app));
