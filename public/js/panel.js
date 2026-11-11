@@ -70,7 +70,7 @@ export function dialogo({ titulo, texto = '', campos = [], boton = 'Guardar', pe
         return `<label class="block text-sm font-bold text-slate-300">${esc(c.etiqueta)}
           <select id="${id}" name="${esc(c.nombre)}" class="${entrada}">${c.opciones.map(([v, t]) => `<option value="${esc(v)}" ${String(c.valor ?? '') === String(v) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>${ayuda}</label>`;
       }
-      const tipos = { correo: 'type="email" inputmode="email" autocomplete="off"', numero: 'type="text" inputmode="numeric"', clave: 'type="text" autocomplete="off" spellcheck="false"', secreta: 'type="password" autocomplete="off"' };
+      const tipos = { correo: 'type="email" inputmode="email" autocomplete="off"', numero: 'type="text" inputmode="numeric"', clave: 'type="text" autocomplete="off" spellcheck="false"', secreta: 'type="password" autocomplete="off"', fecha: 'type="date"', hora: 'type="time"', decimal: 'type="text" inputmode="decimal"' };
       return `<label class="block text-sm font-bold text-slate-300">${esc(c.etiqueta)}${c.opcional ? ' <span class="font-normal text-slate-500">(opcional)</span>' : ''}
         <input id="${id}" name="${esc(c.nombre)}" ${tipos[c.tipo] || 'type="text"'} value="${esc(c.valor ?? '')}" placeholder="${esc(c.ejemplo || '')}" class="${entrada} ${c.tipo === 'clave' || c.mono ? 'font-mono' : ''}">${ayuda}</label>`;
     };
