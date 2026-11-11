@@ -34,4 +34,8 @@ Si alguna no es la deseada, se cambia aquí y en el código.
 | D26 | Coincidencia de lugares | Al comparar nombres se ignoran también los espacios («La Toma» = «latoma»). | Pedido del encargo: mayúsculas, tildes y espacios. |
 | D27 | Otro trabajo | Un trabajo escrito a mano se guarda en «General» con la clave `otro`. | Mantiene una sola casilla de texto libre, simple de usar. |
 | D28 | Hora del teléfono | La app usa la fecha y la hora de Ecuador aunque el teléfono tenga otra zona. | Coincide con el servidor y con la bitácora. |
+| D29 | Una tarea por pantalla | El mantenimiento se reparte en 4 pasos (qué se hizo · km, fecha y lugar · taller · repuestos y notas) sin rehacer el formulario original. | Regla del proyecto: no rehacer `index.html`. |
+| D30 | Tamaño de letra | Texto de lectura a 20 px; etiquetas y distintivos a 18 px. La hoja del reporte conserva sus tamaños (es un documento para imprimir). | «Texto base ≥ 20 px» sin romper la hoja impresa ni los distintivos. |
+| D31 | Alcance de la accesibilidad | Se aplicó a la app del chofer. Los paneles del dueño y del administrador y el camión 3D no se cambiaron. | El requisito nace del chofer de edad avanzada; «Mi camión» ya tiene la alternativa «Ver como lista». |
+| D32 | Km menor con fecha de hoy | Se pregunta antes de guardar (lo más probable es un error de tipeo). Con fecha anterior no se pregunta: es retroactivo. | El encargo pide no bloquear los registros de fecha anterior. |
 | D22 | «Limpieza interna» | El catálogo nuevo por grupos no incluye limpieza de compartimentos. | Fuera de alcance de la iteración. |

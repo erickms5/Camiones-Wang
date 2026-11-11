@@ -107,3 +107,19 @@ Bloque 2
 9. `fix(mantenimiento):` atajos de fecha y registro retroactivo sin bloqueo.
 10. `fix(accesibilidad):` tamaños de texto y de botones, teclado numérico, textos junto a íconos.
 11. `fix:` desviaciones restantes de esta auditoría.
+
+## Estado de las desviaciones al cerrar el bloque 2
+
+| N.º | Desviación | Estado |
+|---|---|---|
+| 1 | `docs/requisitos/` no existe | **Pendiente**: falta que se entregue la documentación. |
+| 2 | «Siempre cabezal + remolque» frente a camiones rígidos | Resuelta por decisión D2 (se mantiene la flota real). |
+| 3 | Roles y varios vehículos ya en producción | Sin cambios (D3). |
+| 4 | Service worker | Solo versión y lista de archivos (D4). |
+| 5 | Sin linter ni build | `npm run lint` agregado; sin build (D5). |
+| 6 | Sin `AGENTS.md` | Creado. |
+| 7 | Un solo trabajo por mantenimiento; sin filtros | Corregido en el bloque 1. |
+| 8 | Sin viajes, tanqueos ni lugares | Corregido en el bloque 1. |
+| 9 | Fechas en UTC | Corregido: hora de Ecuador en servidor y app (D10, D28). |
+| 10 | Textos pequeños y botones bajos | Corregido en la app del chofer (`public/css/accesible.css`); paneles sin cambios (D31). |
+| 11 | Fecha pasada sin atajos; km menor como pregunta | Corregido: «Cambiar fecha» con atajos y registro retroactivo sin bloqueo. |

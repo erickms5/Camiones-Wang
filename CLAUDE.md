@@ -140,7 +140,10 @@ El navegador integrado de Claude Code no tiene WebGL: para ver el 3D usar Chromi
 - [x] Reportes desde el servidor con fotos y PDF dentro, imprimibles; reportes por mes.
 - [x] Iteración 2, bloque 1: visitas con varios trabajos, viajes, tanqueos y su sección en los reportes
       (ver `docs/auditoria-iteracion2.md` y `docs/DECISIONES.md`).
-- [ ] Iteración 2, bloque 2: atajos de fecha en mantenimientos y accesibilidad (texto ≥ 20 px, botones ≥ 56 px).
+- [x] Iteración 2, bloque 2: mantenimiento en 4 pasos con fecha por atajos (`js/mantenimiento-pasos.js`), registro
+      retroactivo sin bloqueo y accesibilidad de la app del chofer (`css/accesible.css`: texto ≥ 20 px, botones ≥ 56 px).
+- [x] Panel del dueño: sección «Viajes y tanqueos» (solo consulta).
+- [ ] Publicar la iteración 2: unir `iteracion-2` a `main` (la migración 0007 se aplica sola al arrancar el servidor).
 - [ ] Falta la carpeta `docs/requisitos/` que cita el encargo de la iteración 2 (pedirla).
 - [ ] **Confirmar con el cliente**: que el «FBR» es Chevrolet **FVR**; que el Hino y el Chevrolet son de
       2 ejes (6 llantas); el motor de cada uno; y el nombre de
