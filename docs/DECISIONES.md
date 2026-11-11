@@ -28,4 +28,10 @@ Si alguna no es la deseada, se cambia aquí y en el código.
 | D19 | Edición de viajes y tanqueos | El teléfono vuelve a enviar el registro completo con el mismo identificador; el servidor lo actualiza si no está bloqueado y deja el cambio en auditoría. | Idempotente y sin duplicados sin conexión. |
 | D20 | Km por galón | Se calcula y se guarda en los datos congelados (`kmPorGalon`), pero la hoja no lo muestra. | Pedido del encargo. |
 | D21 | Panel del dueño | El dueño ve viajes y tanqueos dentro de los reportes; no se agregó una sección propia. | No se pidió; evita ampliar alcance. |
+| D23 | Km pendiente y viajes | Si el dueño aún no pone el km del vehículo, terminar un viaje no lo fija; se avisa. | Regla vigente: el punto de partida del km lo pone solo el dueño. |
+| D24 | Salto de km | Un km de salida o de llegada más de 60.000 km por encima del actual se rechaza como error de tipeo. | Misma regla que ya tienen los mantenimientos. |
+| D25 | «Copiar mensaje» | El mensaje sale en líneas: viaje, una línea por producto, km y tanqueos. | El encargo pide una línea por producto; así se lee mejor al pegarlo en un chat. |
+| D26 | Coincidencia de lugares | Al comparar nombres se ignoran también los espacios («La Toma» = «latoma»). | Pedido del encargo: mayúsculas, tildes y espacios. |
+| D27 | Otro trabajo | Un trabajo escrito a mano se guarda en «General» con la clave `otro`. | Mantiene una sola casilla de texto libre, simple de usar. |
+| D28 | Hora del teléfono | La app usa la fecha y la hora de Ecuador aunque el teléfono tenga otra zona. | Coincide con el servidor y con la bitácora. |
 | D22 | «Limpieza interna» | El catálogo nuevo por grupos no incluye limpieza de compartimentos. | Fuera de alcance de la iteración. |

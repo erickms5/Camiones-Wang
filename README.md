@@ -67,3 +67,16 @@ Publicación manual, si hace falta:
 ```bash
 npx wrangler@4 deploy
 ```
+
+## Iteración 2: visitas con varios trabajos, viajes y tanqueos
+
+- **Mantenimiento = visita al taller.** En «¿Qué se hizo?» se marcan todos los trabajos de la visita, agrupados
+  por parte (Motor, Caja, Frenos, Ejes y llantas, Suspensión, Sistema eléctrico, Tanque y válvulas, General). El
+  catálogo está en `public/js/catalogo-trabajos.js`.
+- **Viajes**: botón «Viaje» en el inicio. Tres pasos (datos, carga, kilometraje y guía); el viaje queda abierto con
+  los botones «Tanqueé» y «Terminar viaje». En «Viajes y tanqueos» se pasan viajes ya terminados en una sola
+  pantalla y se consulta el historial.
+- **Tanqueos**: combustible que consume el camión; se ligan al viaje abierto o quedan en el vehículo.
+- **Reportes**: el mensual agrega la sección «Viajes» (columnas de la bitácora de la compañía), «Tanqueos fuera de
+  viaje» y los totales del mes. Hay reporte individual de viaje.
+- Comandos: `npm run lint` (sintaxis) y `npm test`. Decisiones por defecto en `docs/DECISIONES.md`.
