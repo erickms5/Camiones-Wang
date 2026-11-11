@@ -2,7 +2,7 @@
 // Las migraciones SQL se generan con `npm run db:generar` en la carpeta drizzle/.
 import { sql } from 'drizzle-orm';
 import {
-  customType, pgTable, pgEnum, uuid, text, integer, boolean, timestamp, date, numeric, jsonb, uniqueIndex, index, primaryKey,
+  customType, pgTable, pgEnum, uuid, text, integer, boolean, timestamp, date, numeric, jsonb, uniqueIndex, index, primaryKey, check,
 } from 'drizzle-orm/pg-core';
 
 const id = () => uuid('id').primaryKey().defaultRandom();
@@ -159,6 +159,97 @@ export const mantenimientos = pgTable('mantenimientos', {
   creadoEn: creadoEn(),
 }, (t) => [index('mant_cuenta_fecha').on(t.cuentaId, t.fecha)]);
 
+// Trabajos de una visita al taller: un mantenimiento puede incluir varios trabajos sobre varias partes.
+// «tipo_trabajo_id» es la clave del catálogo (public/js/catalogo-trabajos.js); parte y trabajo guardan el texto tal como se vio.
+export const mantenimientoTrabajos = pgTable('mantenimiento_trabajos', {
+  id: id(),
+  mantenimientoId: uuid('mantenimiento_id').notNull().references(() => mantenimientos.id),
+  tipoTrabajoId: text('tipo_trabajo_id').notNull(),
+  componenteId: uuid('componente_id').references(() => componentes.id),
+  parte: text('parte').notNull(),
+  trabajo: text('trabajo').notNull(),
+  nota: text('nota'),
+  orden: integer('orden').notNull().default(0),
+}, (t) => [index('mant_trabajos_mantenimiento').on(t.mantenimientoId)]);
+
+// Lugares de carga y de destino que cada chofer va escribiendo en sus viajes (la lista empieza vacía).
+export const lugares = pgTable('lugares', {
+  id: id(),
+  usuarioId: uuid('usuario_id').notNull().references(() => usuarios.id),
+  nombre: text('nombre').notNull(),
+  nombreNormalizado: text('nombre_normalizado').notNull(), // sin mayúsculas, tildes ni espacios: evita duplicados
+  tipo: text('tipo'), // estacion, gasolinera, minera, otro
+  usadoComoCarga: boolean('usado_como_carga').notNull().default(false),
+  usadoComoDestino: boolean('usado_como_destino').notNull().default(false),
+  vecesUsado: integer('veces_usado').notNull().default(0),
+  activo: boolean('activo').notNull().default(true),
+  creadoEn: creadoEn(),
+}, (t) => [uniqueIndex('lugares_usuario_nombre_unico').on(t.usuarioId, t.nombreNormalizado)]);
+
+// Viajes: salen de una estación de carga hacia gasolineras o mineras y regresan vacíos.
+// El vehículo es el cabezal (con su tanquero en «remolque_id») o el camión con el tanque encima.
+export const viajes = pgTable('viajes', {
+  id: id(), // generado en el teléfono: reintentos sin duplicar
+  cuentaId: uuid('cuenta_id').notNull().references(() => cuentas.id),
+  cabezalId: uuid('cabezal_id').notNull().references(() => unidades.id),
+  remolqueId: uuid('remolque_id').references(() => unidades.id),
+  creadoPor: uuid('creado_por').notNull().references(() => usuarios.id),
+  fechaSalida: date('fecha_salida').notNull(),
+  horaSalida: text('hora_salida').notNull(), // HH:MM, hora de Ecuador
+  fechaRetorno: date('fecha_retorno'),
+  horaRetorno: text('hora_retorno'),
+  origenId: uuid('origen_id').notNull().references(() => lugares.id),
+  destinoId: uuid('destino_id').notNull().references(() => lugares.id),
+  kmSalida: integer('km_salida').notNull(),
+  kmLlegada: integer('km_llegada'),
+  estado: text('estado').notNull().default('abierto'), // abierto | cerrado
+  notas: text('notas'),
+  bloqueado: boolean('bloqueado').notNull().default(false), // incluido en un reporte congelado
+  reporteId: uuid('reporte_id'),
+  activo: boolean('activo').notNull().default(true), // baja lógica: nada se borra
+  creadoEn: creadoEn(),
+  actualizadoEn: timestamp('actualizado_en', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('viajes_cuenta_fecha').on(t.cuentaId, t.fechaSalida),
+  // Solo un viaje abierto por vehículo
+  uniqueIndex('viajes_un_abierto_por_vehiculo').on(t.cabezalId).where(sql`estado = 'abierto' and activo`),
+]);
+
+// Carga del viaje: hasta 3 productos, cada uno con sus galones y su número de guía
+export const viajeProductos = pgTable('viaje_productos', {
+  id: id(),
+  viajeId: uuid('viaje_id').notNull().references(() => viajes.id),
+  producto: text('producto').notNull(), // diesel | super | ecopais
+  galones: integer('galones').notNull(),
+  numeroGuia: text('numero_guia').notNull(),
+}, (t) => [uniqueIndex('viaje_producto_unico').on(t.viajeId, t.producto)]);
+
+// Opcional: en qué compartimentos fue cada producto en ese viaje
+export const viajeCompartimentos = pgTable('viaje_compartimentos', {
+  viajeId: uuid('viaje_id').notNull().references(() => viajes.id),
+  componenteId: uuid('componente_id').notNull().references(() => componentes.id),
+  producto: text('producto').notNull(),
+}, (t) => [primaryKey({ columns: [t.viajeId, t.componenteId] })]);
+
+// Tanqueos: combustible que consume el camión. Con viaje abierto se ligan a él; si no, quedan en el vehículo.
+export const tanqueos = pgTable('tanqueos', {
+  id: id(), // generado en el teléfono
+  cuentaId: uuid('cuenta_id').notNull().references(() => cuentas.id),
+  cabezalId: uuid('cabezal_id').notNull().references(() => unidades.id),
+  viajeId: uuid('viaje_id').references(() => viajes.id),
+  creadoPor: uuid('creado_por').notNull().references(() => usuarios.id),
+  fechaHora: timestamp('fecha_hora', { withTimezone: true }).notNull(),
+  galones: numeric('galones', { precision: 8, scale: 2 }).notNull(),
+  lugar: text('lugar'),
+  km: integer('km'),
+  costo: numeric('costo', { precision: 10, scale: 2 }),
+  bloqueado: boolean('bloqueado').notNull().default(false),
+  reporteId: uuid('reporte_id'),
+  activo: boolean('activo').notNull().default(true),
+  creadoEn: creadoEn(),
+  actualizadoEn: timestamp('actualizado_en', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('tanqueos_cabezal_fecha').on(t.cabezalId, t.fechaHora)]);
+
 // Partes afectadas por un mantenimiento (ej. frenos de varios ejes)
 export const mantenimientoComponentes = pgTable('mantenimiento_componentes', {
   mantenimientoId: uuid('mantenimiento_id').notNull().references(() => mantenimientos.id),
@@ -168,8 +259,10 @@ export const mantenimientoComponentes = pgTable('mantenimiento_componentes', {
 // Facturas y fotos. El archivo vive en el almacenamiento (disco o R2); aquí su huella y la hora de subida.
 export const evidencias = pgTable('evidencias', {
   id: id(),
-  mantenimientoId: uuid('mantenimiento_id').notNull().references(() => mantenimientos.id),
-  categoria: text('categoria').notNull(), // Factura de Taller, Factura de Repuestos, anexo…
+  // Una evidencia pertenece a un mantenimiento o a un viaje, nunca a ambos
+  mantenimientoId: uuid('mantenimiento_id').references(() => mantenimientos.id),
+  viajeId: uuid('viaje_id').references(() => viajes.id),
+  categoria: text('categoria').notNull(), // Factura de Taller, Factura de Repuestos, Guía, anexo…
   nombreArchivo: text('nombre_archivo').notNull(),
   mime: text('mime').notNull(),
   tamano: integer('tamano'),
@@ -179,7 +272,7 @@ export const evidencias = pgTable('evidencias', {
   subidoPor: uuid('subido_por').notNull().references(() => usuarios.id),
   subidoEn: timestamp('subido_en', { withTimezone: true }),
   creadoEn: creadoEn(),
-});
+}, () => [check('evidencias_un_solo_origen', sql`(mantenimiento_id is null) <> (viaje_id is null)`)]);
 
 // Reportes congelados: copia de los datos + hash SHA-256. Lo posterior se agrega como anexo.
 export const reportes = pgTable('reportes', {
@@ -196,6 +289,17 @@ export const reportes = pgTable('reportes', {
   hash: text('hash').notNull(),
   datos: jsonb('datos').notNull(),
 }, (t) => [uniqueIndex('reportes_folio_unico').on(t.cuentaId, t.folio)]);
+
+// Viajes y tanqueos congelados en cada reporte
+export const reporteViajes = pgTable('reporte_viajes', {
+  reporteId: uuid('reporte_id').notNull().references(() => reportes.id),
+  viajeId: uuid('viaje_id').notNull().references(() => viajes.id),
+}, (t) => [primaryKey({ columns: [t.reporteId, t.viajeId] })]);
+
+export const reporteTanqueos = pgTable('reporte_tanqueos', {
+  reporteId: uuid('reporte_id').notNull().references(() => reportes.id),
+  tanqueoId: uuid('tanqueo_id').notNull().references(() => tanqueos.id),
+}, (t) => [primaryKey({ columns: [t.reporteId, t.tanqueoId] })]);
 
 export const auditoria = pgTable('auditoria', {
   id: id(),
