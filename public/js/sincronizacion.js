@@ -118,7 +118,7 @@ export async function iniciarSesionServidor(token) {
   // Mismo chofer con otro vehículo: solo se renuevan las fichas de llantas y frenos (son de cada vehículo).
   const borrar = (claves) => claves.forEach((k) => localStorage.removeItem(k));
   if (localStorage.getItem('mi_trailer_ultimo_usuario') !== usuario.id) {
-    borrar(['mi_trailer_maint', 'mi_trailer_reports', 'mi_trailer_detalles', CLAVE_DETALLES_ENVIADOS, CLAVE_COLA]);
+    borrar(['mi_trailer_maint', 'mi_trailer_reports', 'mi_trailer_detalles', CLAVE_DETALLES_ENVIADOS, CLAVE_COLA, 'mi_trailer_viajes', 'mi_trailer_tanqueos', 'mi_trailer_lugares']);
     if (window.app) Object.assign(window.app, { maintenances: [], reports: [] });
   } else if (localStorage.getItem('mi_trailer_ultimo_vehiculo') !== cabezal.id) borrar(['mi_trailer_detalles', CLAVE_DETALLES_ENVIADOS]);
   localStorage.setItem('mi_trailer_ultimo_usuario', usuario.id);
@@ -165,6 +165,9 @@ export async function iniciarSesionServidor(token) {
 export const preguntar = async (...datos) => (await import('./panel.js')).confirmar(...datos);
 const cola = () => leer(CLAVE_COLA, []);
 export const pendientes = () => cola().length;
+export const enCola = (prueba) => cola().some(prueba);
+// Otros módulos registran aquí cómo se envía cada tipo de tarea: manejadores.viaje = async (tarea, app) => …
+export const manejadores = {};
 export function encolar(tarea) {
   const c = cola();
   const clave = JSON.stringify(tarea);
@@ -174,10 +177,13 @@ export function encolar(tarea) {
 }
 
 function datosMantenimiento(m, s) {
+  // Una visita con varios trabajos se guarda en el cabezal o camión (puede mezclar partes del tanquero)
+  const visita = Array.isArray(m.trabajos) && m.trabajos.length ? m.trabajos.map((t) => ({ tipoTrabajoId: t.tipoTrabajoId, parte: t.parte, trabajo: t.trabajo, nota: t.nota || undefined })) : undefined;
   return {
     id: m.id,
-    // El trabajo se guarda en el tanquero si la parte es suya; si no, en el cabezal o camión
-    unidadId: unidadDeParte(m.parte, s.vehiculo) === 'tanquero' && s.servidor.remolqueId ? s.servidor.remolqueId : s.servidor.cabezalId,
+    // Registro anterior (un solo trabajo): en el tanquero si la parte es suya; si no, en el cabezal o camión
+    unidadId: !visita && unidadDeParte(m.parte, s.vehiculo) === 'tanquero' && s.servidor.remolqueId ? s.servidor.remolqueId : s.servidor.cabezalId,
+    trabajos: visita,
     fecha: m.fecha, km: m.km, parte: m.parte, trabajo: m.trabajo, provincia: m.provincia, canton: m.canton,
     taller: m.taller, costoTaller: Number(m.costoTaller) || 0, proveedor: m.proveedor,
     costoRepuestos: Number(m.costoRepuestos) || 0, repuestosDetalle: m.repuestosDetalle || undefined, notas: m.notas || undefined,
@@ -203,6 +209,8 @@ export async function enviarPendientes(app, segundaPasada = false) {
       }
       const m = app.maintenances.find((x) => x.id === t.id);
       try {
+        // Viajes, tanqueos y sus fotos: los envía js/viajes.js
+        if (manejadores[t.tipo]) await manejadores[t.tipo](t, app);
         if (t.tipo === 'mantenimiento' && m) {
           await api('/mantenimientos', { metodo: 'POST', cuerpo: datosMantenimiento(m, s) });
           if (s.servidor.km && m.km > s.servidor.km) s.servidor.km = m.km; // el servidor sube el km (si el dueño ya lo puso)
@@ -286,11 +294,15 @@ export async function actualizarMantenimientos(app, folios = null) {
     if (local) {
       if (Object.entries(delServidor).some(([k, v]) => (local[k] ?? null) !== v)) cambios++;
       Object.assign(local, delServidor);
+      if (!local.trabajos?.length && m.trabajos?.length) {
+        local.trabajos = m.trabajos;
+        cambios++;
+      }
       return;
     }
     const costoTaller = Number(m.costoTaller), costoRepuestos = Number(m.costoRepuestos);
     app.maintenances.push({
-      id: m.id, fecha: m.fecha, km: m.km, parte: m.parte, trabajo: m.trabajo, provincia: m.provincia, canton: m.canton,
+      id: m.id, fecha: m.fecha, km: m.km, parte: m.parte, trabajo: m.trabajo, trabajos: m.trabajos || undefined, provincia: m.provincia, canton: m.canton,
       taller: m.taller || 'No especificado', costoTaller, facturaTallerFile: null, proveedor: m.proveedor || 'No especificado',
       costoRepuestos, repuestosDetalle: m.repuestosDetalle || '', facturaRepuestosFile: null, costo: costoTaller + costoRepuestos,
       notas: m.notas || '', anexosPosteriores: [], evidencias: [], reportFolio: null, ...delServidor,
@@ -536,6 +548,9 @@ function conectar(app) {
 
   // Reportes: se emiten y se consultan en el servidor (js/reportes-chofer.js)
   import('./reportes-chofer.js').then((m) => m.conectarReportes(app)).catch(() => {});
+  // «¿Qué se hizo?» con varios trabajos por visita, y viajes y tanqueos
+  import('./trabajos-visita.js').then((m) => m.conectarTrabajos(app)).catch((e) => console.error(e));
+  import('./viajes.js').then((m) => m.conectarViajes(app)).catch((e) => console.error(e));
 
   // Envíos automáticos
   window.addEventListener('online', () => enviarPendientes(app));

@@ -144,6 +144,7 @@
       <button type="button" class="menu-item" data-vista="dashboard" onclick="app.switchView('dashboard')"><i class="fa-solid fa-house"></i><span>Inicio</span></button>
       <button type="button" class="menu-item" data-vista="truck" onclick="app.switchView('truck')"><i class="fa-solid fa-truck"></i><span>Mi camión</span></button>
       <button type="button" class="menu-item" data-vista="history" onclick="app.switchView('history')"><i class="fa-solid fa-clock-rotate-left"></i><span>Historial</span></button>
+      <button type="button" class="menu-item" data-vista="trips" onclick="app.switchView('trips')"><i class="fa-solid fa-route"></i><span>Viajes y tanqueos</span></button>
       <button type="button" class="menu-item" data-vista="reports" onclick="app.switchView('reports')"><i class="fa-solid fa-file-contract"></i><span>Reportes</span></button>
       <button type="button" class="menu-item" onclick="app.toggleMenu(false); app.openProfileModal()"><i class="fa-solid fa-id-card"></i><span>Mi cuenta</span></button>
     </nav>
@@ -266,12 +267,21 @@
           <span id="dash-placa" class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700"></span>
         </div>
 
-        <!-- Botón Gran Registro Directo -->
-        <button onclick="app.openNewMaintenanceModal()" class="touch-target bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-lg px-5 py-3.5 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center gap-2.5 active:scale-95 transition-transform">
-          <i class="fa-solid fa-circle-plus text-2xl"></i>
-          <span>NUEVO MANTENIMIENTO</span>
-        </button>
+        <!-- Registro directo: mantenimiento o viaje -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:w-auto">
+          <button onclick="app.openNewMaintenanceModal()" class="min-h-[56px] bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xl px-5 py-3.5 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2.5 active:scale-95 transition-transform">
+            <i class="fa-solid fa-screwdriver-wrench text-2xl"></i>
+            <span>MANTENIMIENTO</span>
+          </button>
+          <button onclick="window.Viajes?.nuevo()" class="min-h-[56px] bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xl px-5 py-3.5 rounded-2xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2.5 active:scale-95 transition-transform">
+            <i class="fa-solid fa-route text-2xl"></i>
+            <span>VIAJE</span>
+          </button>
+        </div>
       </div>
+
+      <!-- Viaje abierto («Tanqueé» y «Terminar viaje») o botón para anotar un tanqueo (lo pinta js/viajes.js) -->
+      <div id="inicio-viaje"></div>
 
       <!-- Vehículo asignado -->
       <div id="inicio-vehiculo" class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl"></div>
@@ -384,6 +394,9 @@
       </div>
     </section>
 
+    <!-- VISTA: VIAJES Y TANQUEOS (la pinta js/viajes.js) -->
+    <section id="view-trips" class="hidden space-y-4"></section>
+
     <!-- VIEW 3: REPORTES (Inmutables, Folio, Mensual / Individual) -->
     <section id="view-reports" class="hidden space-y-5">
       <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl">
@@ -455,27 +468,21 @@
       </div>
 
       <form id="form-maintenance" onsubmit="app.handleSaveMaintenance(event)" class="space-y-4">
-        <!-- Parte Afectada -->
-        <div>
-          <label class="block text-slate-300 font-bold text-base mb-1" for="maint-part">Parte del vehículo <span class="text-emerald-400">*</span></label>
-          <select id="maint-part" required onchange="app.toggleEjeSelect()" class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
-          </select>
-        </div>
+        <!-- ¿Qué se hizo?: una visita al taller con varios trabajos sobre varias partes (lo pinta js/trabajos-visita.js) -->
+        <div id="maint-trabajos" class="space-y-3"></div>
 
-        <!-- Eje de las llantas o frenos -->
+        <!-- Eje de los frenos o de las llantas (aparece al marcar un trabajo de esas partes) -->
         <div id="maint-eje-box" class="hidden">
-          <label class="block text-slate-300 font-bold text-base mb-1" for="maint-eje">¿En qué eje? <span class="text-emerald-400">*</span></label>
-          <select id="maint-eje" class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
+          <label class="block text-slate-300 font-bold text-lg mb-1" for="maint-eje">¿En qué eje fue el trabajo de frenos o llantas?</label>
+          <select id="maint-eje" class="w-full min-h-[56px] bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-xl text-white font-bold focus:outline-none focus:border-emerald-500">
           </select>
         </div>
 
-        <!-- Tipo de Trabajo -->
-        <div>
-          <label class="block text-slate-300 font-bold text-base mb-1" for="maint-job">Trabajo realizado <span class="text-emerald-400">*</span></label>
-          <select id="maint-job" required onchange="app.toggleOtroTrabajo()" class="w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-bold focus:outline-none focus:border-emerald-500">
-          </select>
-          <input type="text" id="maint-job-otro" maxlength="110" placeholder="Escribe qué trabajo se hizo"
-                 class="hidden mt-2 w-full bg-slate-950 border-2 border-slate-700 rounded-2xl py-3 px-4 text-lg text-white font-semibold focus:outline-none focus:border-emerald-500">
+        <!-- Listas de la versión anterior (una parte y un trabajo): ocultas, las reemplaza «¿Qué se hizo?» -->
+        <div class="hidden" aria-hidden="true">
+          <select id="maint-part" tabindex="-1" onchange="app.toggleEjeSelect()"></select>
+          <select id="maint-job" tabindex="-1" onchange="app.toggleOtroTrabajo()"></select>
+          <input type="text" id="maint-job-otro" tabindex="-1" maxlength="110">
         </div>
 
         <!-- Kilometraje y Fecha -->
@@ -1079,7 +1086,6 @@
         const es = document.getElementById('maint-job')?.value === window.Flota.OTRO_TRABAJO;
         if (!otro) return;
         otro.classList.toggle('hidden', !es);
-        otro.required = es;
         if (!es) otro.value = '';
       }
 
@@ -1114,7 +1120,7 @@
         ultimos.innerHTML = this.maintenances.length ? this.maintenances.slice(0, 3).map(m => `
           <button type="button" onclick="app.switchView('history')" class="w-full text-left p-3 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3">
             <div class="min-w-0">
-              <p class="font-bold text-white truncate">${esc(m.trabajo)}</p>
+              <p class="font-bold text-white truncate">${esc(window.TrabajosVisita ? window.TrabajosVisita.titulo(m) : m.trabajo)}</p>
               <p class="text-xs text-slate-400 truncate">${esc(m.parte)} · ${esc(m.fecha)} · ${Number(m.km).toLocaleString()} km</p>
             </div>
             <span class="font-mono font-black text-emerald-400 shrink-0">$${Number(m.costo || 0).toFixed(2)}</span>
@@ -1228,7 +1234,7 @@
       }
 
       switchView(viewName) {
-        const titulos = { dashboard: 'Inicio', truck: 'Mi camión', history: 'Historial', reports: 'Reportes' };
+        const titulos = { dashboard: 'Inicio', truck: 'Mi camión', history: 'Historial', trips: 'Viajes y tanqueos', reports: 'Reportes' };
         if (viewName !== 'login' && !titulos[viewName]) viewName = 'dashboard';
         ['login', ...Object.keys(titulos)].forEach(v => document.getElementById('view-' + v)?.classList.toggle('hidden', v !== viewName));
         document.body.classList.toggle('con-menu', viewName !== 'login');
@@ -1248,6 +1254,8 @@
           }
         }
         if (viewName === 'reports') this.renderReportsList();
+        if (viewName === 'trips') window.Viajes?.pintarVista();
+        if (viewName === 'dashboard') window.Viajes?.alEntrar();
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -1297,6 +1305,7 @@
         this.renderHistory();
         this.renderInicio();
         this.renderFeedbackHistory();
+        window.Viajes?.pintarInicio();
       }
 
       openNewMaintenanceModal() {
@@ -1313,6 +1322,7 @@
           if (!partSelect.value) partSelect.selectedIndex = 0;
         }
         this.toggleEjeSelect();
+        window.TrabajosVisita?.abrir();
 
         this.selectedTallerFile = null;
         this.selectedRepuestosFile = null;
@@ -1401,6 +1411,16 @@
         if (part === 'Llantas' || part === 'Frenos') part = `${part} - ${document.getElementById('maint-eje').value}`;
         let job = document.getElementById('maint-job').value;
         if (job === window.Flota.OTRO_TRABAJO) job = document.getElementById('maint-job-otro')?.value.trim() || job;
+        // Una visita al taller puede traer varios trabajos sobre varias partes
+        const visita = window.TrabajosVisita ? window.TrabajosVisita.seleccion() : null;
+        if (visita) {
+          if (!visita.length) {
+            this.showToast('Marca al menos un trabajo en «¿Qué se hizo?»', 'warning');
+            return;
+          }
+          part = window.TrabajosVisita.partes(visita);
+          job = window.TrabajosVisita.resumen(visita);
+        }
         const km = parseInt(document.getElementById('maint-km').value, 10);
         const date = document.getElementById('maint-date').value;
         const provincia = document.getElementById('maint-provincia').value;
@@ -1434,6 +1454,7 @@
           km: km,
           parte: part,
           trabajo: job,
+          trabajos: visita || undefined,
           provincia: provincia,
           canton: canton,
           taller: taller,
@@ -1547,7 +1568,14 @@
           return;
         }
 
-        listContainer.innerHTML = this.maintenances.map(m => {
+        const visibles = window.TrabajosVisita ? window.TrabajosVisita.filtrar(this.maintenances) : this.maintenances;
+        if (countBadge) countBadge.textContent = `${visibles.length} ${visibles.length === 1 ? 'visita' : 'visitas'}`;
+        if (!visibles.length) {
+          listContainer.innerHTML = '<p class="text-lg text-slate-300 font-bold bg-slate-950 rounded-2xl border border-slate-800 p-4">Ninguna visita incluye esa parte o ese trabajo. Cambia los filtros de arriba para ver las demás.</p>';
+          return;
+        }
+
+        listContainer.innerHTML = visibles.map(m => {
           const costoTaller = m.costoTaller || 0;
           const costoRep = m.costoRepuestos || 0;
           const anexosCount = (m.anexosPosteriores || []).length;
@@ -1579,8 +1607,8 @@
 
               <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-1">
                 <div>
-                  <h4 class="text-lg font-black text-white">${esc(m.trabajo)}</h4>
-                  <p class="text-xs text-emerald-400 font-semibold">${esc(m.parte)} • ${esc(m.canton)}, ${esc(m.provincia)}</p>
+                  <h4 class="text-lg font-black text-white">${esc(window.TrabajosVisita ? window.TrabajosVisita.texto(m) : m.trabajo)}</h4>
+                  <p class="text-sm text-emerald-400 font-semibold">${window.TrabajosVisita && window.TrabajosVisita.cuantos(m) > 1 ? `${window.TrabajosVisita.cuantos(m)} trabajos en esta visita • ` : ''}${esc(m.canton)}, ${esc(m.provincia)}</p>
                 </div>
                 <div class="text-left sm:text-right">
                   <span class="text-lg font-black font-mono text-emerald-400">
