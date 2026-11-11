@@ -1,9 +1,9 @@
 // Funcionamiento sin conexión: primero la red, y si no hay señal, la copia guardada.
-const CACHE = 'mi-trailer-v22';
+const CACHE = 'mi-trailer-v23';
 const ARCHIVOS = [
-  './', './index.html', './camion3d.html', './css/app.css', './css/menu.css', './css/reporte.css', './icono.svg',
+  './', './index.html', './camion3d.html', './css/app.css', './css/menu.css', './css/reporte.css', './css/accesible.css', './icono.svg',
   './js/camion3d.js', './js/evidencias.js', './js/sincronizacion.js', './dueno.html', './js/dueno.js', './admin.html', './js/admin.js', './js/panel.js', './js/reporte.js', './js/reportes-chofer.js', './js/vista.js', './js/consultas.js', './js/store.js', './js/plantillas.js', './js/catalogo.js',
-  './js/catalogo-trabajos.js', './js/trabajos-visita.js', './js/viajes.js', './js/viajes-logica.js', './js/plantilla-mensaje.js',
+  './js/catalogo-trabajos.js', './js/trabajos-visita.js', './js/viajes.js', './js/viajes-logica.js', './js/plantilla-mensaje.js', './js/mantenimiento-pasos.js',
   './js/validaciones.js', './js/textos.js', './js/config.js', './vendor/three.module.min.js',
 ];
 

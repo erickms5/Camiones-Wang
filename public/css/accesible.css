@@ -1,0 +1,44 @@
+/* Accesibilidad de la app del chofer (la usa una persona mayor): letra de al menos 20 px en el texto de lectura,
+   botones y campos de al menos 56 px de alto, y contraste WCAG AA sobre el fondo oscuro.
+   Se aplica solo dentro de <body class="app-chofer">, sin rehacer la pantalla original.
+   La hoja del reporte es un documento para imprimir: conserva sus propios tamaños. */
+
+body.app-chofer { font-size: 1.25rem; line-height: 1.5; }
+
+/* ---- tamaño de letra: lo que antes era pequeño sube a 20 px; las etiquetas y distintivos, a 18 px */
+body.app-chofer .text-sm,
+body.app-chofer .text-base,
+body.app-chofer .text-lg { font-size: 1.25rem; line-height: 1.75rem; }
+body.app-chofer .text-xs,
+body.app-chofer .text-\[10px\],
+body.app-chofer .text-\[11px\] { font-size: 1.125rem; line-height: 1.5rem; }
+body.app-chofer .menu-item { font-size: 1.25rem; }
+
+/* ---- botones, listas y campos: mínimo 56 px de alto */
+body.app-chofer button,
+body.app-chofer select,
+body.app-chofer summary,
+body.app-chofer input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]) { min-height: 56px; }
+body.app-chofer input[type="checkbox"],
+body.app-chofer input[type="radio"] { width: 1.75rem; height: 1.75rem; flex-shrink: 0; }
+body.app-chofer input[type="file"]::file-selector-button { min-height: 56px; padding: 0 1.25rem; font-size: 1.125rem; font-weight: 800; border-radius: 1rem; }
+
+/* ---- contraste: los grises oscuros no llegan a 4,5:1 sobre el fondo; se aclaran */
+body.app-chofer .text-slate-500,
+body.app-chofer .text-slate-600 { color: #a8b5c8; }
+body.app-chofer ::placeholder { color: #94a3b8; opacity: 1; }
+body.app-chofer :focus-visible { outline: 3px solid #34d399; outline-offset: 2px; }
+
+/* ---- nombre en texto junto a cada ícono */
+.texto-icono { display: block; font-size: 1rem; line-height: 1.2; font-weight: 800; }
+
+/* ---- la hoja del reporte conserva los tamaños y colores de un documento impreso */
+body.app-chofer .hoja-reporte { font-size: 1rem; line-height: 1.5; }
+body.app-chofer .hoja-reporte .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+body.app-chofer .hoja-reporte .text-base { font-size: 1rem; line-height: 1.5rem; }
+body.app-chofer .hoja-reporte .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+body.app-chofer .hoja-reporte .text-xs { font-size: 0.75rem; line-height: 1rem; }
+body.app-chofer .hoja-reporte .text-\[11px\] { font-size: 11px; line-height: 1.3; }
+body.app-chofer .hoja-reporte .text-\[10px\] { font-size: 10px; line-height: 1.3; }
+body.app-chofer .hoja-reporte .text-slate-500 { color: #64748b; }
+body.app-chofer .hoja-reporte .text-slate-600 { color: #475569; }
