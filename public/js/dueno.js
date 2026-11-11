@@ -1,6 +1,8 @@
 // Panel del dueño: sus vehículos (km, chofer, tanque), sus choferes, los mantenimientos y los reportes.
 // El dueño solo ve los vehículos de los que es dueño; un vehículo puede tener varios dueños.
 import { MODELOS, nombreModelo } from './catalogo.js';
+import { resumenTrabajos, textoTrabajos, trabajosDeRegistro } from './catalogo-trabajos.js';
+import { PRODUCTOS, kmRecorridos, nombreProducto } from './viajes-logica.js';
 import { abrirHoja, abrirReporte, htmlEvidencias, nombrePago, nombreMes } from './reporte.js';
 import {
   $, api, esc, dinero, miles, fechaHora, mensajeDe, aviso, iniciarMenu, dialogo, confirmar, entero, sesionPanel, pintarCuenta, barraTanque, placaHTML, nombreVehiculo,
@@ -30,7 +32,7 @@ async function cargarBase() {
   const [flota, { choferes }] = await Promise.all([api('/flota'), api('/choferes')]);
   Object.assign(datos, flota, { choferes });
   const opcionesV = `<option value="">Todos mis vehículos</option>${datos.vehiculos.map((v) => `<option value="${esc(v.id)}">${esc(v.placa)} · ${esc(nombreVehiculo(v))}</option>`).join('')}`;
-  ['m-vehiculo', 'r-vehiculo'].forEach((id) => {
+  ['m-vehiculo', 'r-vehiculo', 'vj-vehiculo'].forEach((id) => {
     const previo = $(id).value;
     $(id).innerHTML = opcionesV;
     $(id).value = previo;
@@ -45,7 +47,7 @@ function filaMantenimiento(m) {
   const v = vehiculoDe(m.vehiculoId);
   return `<button type="button" data-mant="${esc(m.id)}" class="w-full text-left p-3 rounded-2xl bg-slate-950 border border-slate-800 hover:border-emerald-500 flex items-center justify-between gap-3">
     <div class="min-w-0">
-      <p class="font-bold text-white truncate">${esc(m.trabajo)}</p>
+      <p class="font-bold text-white truncate">${esc(resumenTrabajos(trabajosDeRegistro(m)) || m.trabajo)}</p>
       <p class="text-xs text-slate-400 truncate">${esc(m.parte)} · ${esc(m.fecha)} · ${esc(miles(m.km))} km</p>
       <p class="text-xs text-cyan-300 truncate">${esc(v?.placa || '')}${choferDe(m.creadoPor) ? ` · ${esc(choferDe(m.creadoPor).nombre)}` : ''}</p>
     </div>
@@ -304,7 +306,9 @@ async function abrirMantenimiento(id) {
   const v = vehiculoDe(m.vehiculoId);
   const dato = (k, valor) => `<div><span class="font-bold text-slate-500 block text-xs">${k}</span><span class="text-sm font-bold">${esc(valor || '—')}</span></div>`;
   abrirHoja('Mantenimiento', `
-    <div class="border-b-2 border-slate-800 pb-3"><h4 class="text-2xl font-black">${esc(m.trabajo)}</h4><p class="text-sm text-slate-600 font-bold">${esc(m.parte)}</p></div>
+    <div class="border-b-2 border-slate-800 pb-3"><h4 class="text-2xl font-black">${esc(resumenTrabajos(trabajosDeRegistro(m)) || m.trabajo)}</h4>
+      <p class="text-sm text-slate-600 font-bold">${esc(textoTrabajos(trabajosDeRegistro(m)) || m.parte)}</p>
+      ${trabajosDeRegistro(m).some((t) => t.nota) ? `<p class="text-xs text-slate-600">${esc(trabajosDeRegistro(m).filter((t) => t.nota).map((t) => `${t.trabajo}: ${t.nota}`).join(' · '))}</p>` : ''}</div>
     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-100 p-3 rounded-xl">
       ${dato('VEHÍCULO', v ? `${v.placa} · ${nombreVehiculo(v)}` : '')}${dato('CHOFER', choferDe(m.creadoPor)?.nombre)}${dato('FECHA', m.fecha)}
       ${dato('KILOMETRAJE', `${miles(m.km)} km`)}${dato('LUGAR', [m.canton, m.provincia].filter(Boolean).join(', '))}${dato('REPORTE', m.bloqueado ? 'Incluido en un reporte' : 'Aún sin reporte')}
@@ -316,6 +320,91 @@ async function abrirMantenimiento(id) {
     </div>
     ${m.notas ? `<p class="text-sm italic text-slate-700">«${esc(m.notas)}»</p>` : ''}
     <div class="space-y-2"><h5 class="text-xs font-black uppercase text-slate-700">Facturas y fotos</h5>${htmlEvidencias(evidencias, `${m.trabajo} · ${m.fecha}`)}</div>`);
+}
+
+// ---------------------------------------------------------------- viajes y tanqueos
+// «Carga» = producto que lleva el tanque. «Tanqueo» = combustible que consume el vehículo.
+const fechaCorta = (f) => (f ? `${f.slice(8, 10)}/${f.slice(5, 7)}/${f.slice(0, 4)}` : '');
+const cargaDe = (v) => v.productos.map((p) => `${nombreProducto(p.producto)} ${miles(p.galones)} gal · guía ${p.numeroGuia}`);
+let viajesVistos = [];
+
+async function pintarViajes() {
+  if (!datos.vehiculos.length) await cargarBase();
+  if (!$('vj-producto').options.length) $('vj-producto').innerHTML = `<option value="">Todos</option>${PRODUCTOS.map((p) => `<option value="${esc(p.id)}">${esc(p.nombre)}</option>`).join('')}`;
+  const q = new URLSearchParams();
+  if ($('vj-vehiculo').value) q.set('vehiculo', $('vj-vehiculo').value);
+  if ($('vj-mes').value) {
+    const [a, m] = $('vj-mes').value.split('-').map(Number);
+    q.set('desde', `${$('vj-mes').value}-01`);
+    q.set('hasta', new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10));
+  }
+  const qt = new URLSearchParams(q); // los tanqueos no se filtran por destino ni producto
+  if ($('vj-destino').value.trim()) q.set('destino', $('vj-destino').value.trim());
+  if ($('vj-producto').value) q.set('producto', $('vj-producto').value);
+  const [{ viajes }, { tanqueos }] = await Promise.all([api(`/viajes?${q}`), api(`/tanqueos?${qt}`)]);
+  viajesVistos = viajes;
+  const tarjeta = (titulo, valor) => `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-4"><p class="text-xs uppercase font-bold text-slate-400">${titulo}</p><p class="text-2xl font-black font-mono text-emerald-400">${esc(valor)}</p></div>`;
+  $('vj-totales').innerHTML = tarjeta('Viajes', viajes.length)
+    + tarjeta('Km recorridos', miles(viajes.reduce((s, v) => s + kmRecorridos(v), 0)))
+    + tarjeta('Galones cargados', miles(viajes.reduce((s, v) => s + v.volumen, 0)))
+    + tarjeta('Galones tanqueados', miles(tanqueos.reduce((s, t) => s + t.galones, 0)));
+  $('vj-lista').innerHTML = viajes.length ? viajes.map((v) => {
+    const veh = vehiculoDe(v.cabezalId);
+    const estado = v.bloqueado ? ['En un reporte', 'bg-cyan-950 text-cyan-200 border-cyan-800'] : v.estado === 'abierto' ? ['En viaje', 'bg-amber-500/20 text-amber-200 border-amber-500/50'] : ['Terminado', 'bg-slate-800 text-slate-300 border-slate-700'];
+    return `<button type="button" data-viaje="${esc(v.id)}" class="w-full text-left bg-slate-900 border border-slate-800 hover:border-emerald-500 rounded-2xl p-4 space-y-1">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <span class="font-mono font-black text-emerald-400">${esc(fechaCorta(v.fechaSalida))} · ${esc(v.horaSalida)}</span>
+        <span class="text-xs font-bold px-2.5 py-0.5 rounded-full border ${estado[1]}">${esc(estado[0])}</span>
+      </div>
+      <p class="text-lg font-black text-white">${esc(v.origen)} → ${esc(v.destino)}</p>
+      <p class="text-sm text-slate-300">${cargaDe(v).map(esc).join(' / ')}</p>
+      <p class="text-sm text-slate-400">${v.estado === 'cerrado' ? `${esc(miles(kmRecorridos(v)))} km recorridos (${esc(miles(v.kmSalida))} → ${esc(miles(v.kmLlegada))})` : `Salió con ${esc(miles(v.kmSalida))} km`} · Tanqueado: ${esc(miles(v.galonesTanqueados))} gal</p>
+      <p class="text-xs text-cyan-300">${esc(veh?.placa || '')}${choferDe(v.creadoPor) ? ` · ${esc(choferDe(v.creadoPor).nombre)}` : ''} · Ver detalle ›</p>
+    </button>`;
+  }).join('') : vacio('No hay viajes con ese filtro.');
+  $('vj-lista').querySelectorAll('[data-viaje]').forEach((b) => (b.onclick = () => abrirViaje(b.dataset.viaje).catch((e) => aviso(mensajeDe(e), 'error'))));
+  $('vj-tanqueos').innerHTML = tanqueos.length ? tanqueos.map((t) => {
+    const v = viajesVistos.find((x) => x.id === t.viajeId);
+    return `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
+      <div class="min-w-0"><p class="font-bold text-white">${esc(fechaCorta(t.fecha))} · ${esc(t.hora)}${t.lugar ? ` · ${esc(t.lugar)}` : ''}</p>
+        <p class="text-xs text-slate-400">${esc(vehiculoDe(t.cabezalId)?.placa || '')}${choferDe(t.creadoPor) ? ` · ${esc(choferDe(t.creadoPor).nombre)}` : ''} · ${v ? `Viaje: ${esc(v.origen)} → ${esc(v.destino)}` : t.viajeId ? 'Con viaje' : 'Sin viaje'}${t.km ? ` · ${esc(miles(t.km))} km` : ''}</p></div>
+      <div class="text-right"><span class="font-mono font-black text-cyan-300">${esc(miles(t.galones))} gal</span>${t.costo !== null ? `<span class="block text-xs text-slate-400 font-mono">${esc(dinero(t.costo))}</span>` : ''}</div>
+    </div>`;
+  }).join('') : vacio('No hay tanqueos con ese filtro.');
+}
+['vj-vehiculo', 'vj-mes', 'vj-producto'].forEach((id) => ($(id).onchange = () => pintarViajes().catch((e) => aviso(mensajeDe(e), 'error'))));
+let esperaDestino;
+$('vj-destino').oninput = () => {
+  clearTimeout(esperaDestino);
+  esperaDestino = setTimeout(() => pintarViajes().catch((e) => aviso(mensajeDe(e), 'error')), 400);
+};
+
+async function abrirViaje(id) {
+  const { viaje: v, evidencias, tanqueos } = await api(`/viajes/${encodeURIComponent(id)}`);
+  const veh = vehiculoDe(v.cabezalId);
+  const dato = (k, valor) => `<div><span class="font-bold text-slate-500 block text-xs">${k}</span><span class="text-sm font-bold">${esc(valor || '—')}</span></div>`;
+  const celda = 'p-2 border border-slate-300';
+  abrirHoja('Viaje', `
+    <div class="border-b-2 border-slate-800 pb-3"><h4 class="text-2xl font-black">${esc(v.origen)} → ${esc(v.destino)}</h4>
+      <p class="text-sm text-slate-600 font-bold">${v.estado === 'abierto' ? 'Viaje abierto: aún no regresa' : 'Viaje terminado'}${v.bloqueado ? ' · incluido en un reporte' : ''}</p></div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-100 p-3 rounded-xl">
+      ${dato('VEHÍCULO', veh ? `${veh.placa} · ${nombreVehiculo(veh)}` : '')}${dato('CHOFER', choferDe(v.creadoPor)?.nombre)}${dato('SALIDA', `${fechaCorta(v.fechaSalida)} · ${v.horaSalida}`)}
+      ${dato('RETORNO', v.estado === 'cerrado' ? `${fechaCorta(v.fechaRetorno)} · ${v.horaRetorno}` : 'Aún en viaje')}${dato('KM DE SALIDA', miles(v.kmSalida))}${dato('KM DE LLEGADA', v.kmLlegada === null ? '' : `${miles(v.kmLlegada)} (${miles(kmRecorridos(v))} km recorridos)`)}
+    </div>
+    <table class="w-full text-left text-sm border-collapse">
+      <thead><tr class="bg-slate-200 font-bold"><th class="${celda}">Producto (carga)</th><th class="${celda} text-right">Galones</th><th class="${celda}">N.º de guía</th></tr></thead>
+      <tbody>${v.productos.map((p) => `<tr><td class="${celda} font-bold">${esc(nombreProducto(p.producto))}</td><td class="${celda} text-right font-mono">${esc(miles(p.galones))}</td><td class="${celda} font-mono">${esc(p.numeroGuia)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr class="font-black bg-slate-100"><td class="${celda}">Volumen total</td><td class="${celda} text-right font-mono">${esc(miles(v.volumen))}</td><td class="${celda}"></td></tr></tfoot>
+    </table>
+    ${v.compartimentos.length ? `<p class="text-sm"><strong>Compartimentos:</strong> ${v.compartimentos.map((c) => `${esc(c.numero)}: ${esc(nombreProducto(c.producto))}`).join(' · ')}</p>` : ''}
+    <div class="space-y-1"><h5 class="text-xs font-black uppercase text-slate-700">Tanqueos del viaje (combustible del vehículo)</h5>
+      ${tanqueos.length ? `<table class="text-left text-sm border-collapse">
+        <thead><tr class="bg-slate-200 font-bold"><th class="${celda}">Fecha</th><th class="${celda}">Hora</th><th class="${celda}">Lugar</th><th class="${celda} text-right">Galones</th></tr></thead>
+        <tbody>${tanqueos.map((t) => `<tr><td class="${celda} font-mono">${esc(fechaCorta(t.fecha))}</td><td class="${celda} font-mono">${esc(t.hora)}</td><td class="${celda}">${esc(t.lugar || '—')}</td><td class="${celda} text-right font-mono">${esc(miles(t.galones))}</td></tr>`).join('')}</tbody>
+        <tfoot><tr class="font-black bg-slate-100"><td colspan="3" class="${celda}">Total tanqueado</td><td class="${celda} text-right font-mono">${esc(miles(v.galonesTanqueados))}</td></tr></tfoot>
+      </table>` : '<p class="italic text-slate-500 text-sm">Sin tanqueos en este viaje.</p>'}</div>
+    ${v.notas ? `<p class="text-sm italic text-slate-700">«${esc(v.notas)}»</p>` : ''}
+    <div class="space-y-2"><h5 class="text-xs font-black uppercase text-slate-700">Fotos de la guía</h5>${htmlEvidencias(evidencias, `Viaje ${fechaCorta(v.fechaSalida)} · ${v.origen} → ${v.destino}`)}</div>`);
 }
 
 // ---------------------------------------------------------------- reportes
@@ -330,7 +419,7 @@ async function pintarReportes() {
       <button type="button" data-folio="${esc(r.folio)}" class="w-full text-left bg-slate-900 border border-slate-800 hover:border-emerald-500 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <span class="font-mono text-xs bg-slate-800 text-cyan-300 px-2 py-0.5 rounded">${esc(r.folio)}</span>
-          <span class="text-xs text-slate-400 ml-2">${esc(r.tipo === 'mensual' ? `Mensual · ${nombreMes(r.periodo)}` : 'De un solo trabajo')}</span>
+          <span class="text-xs text-slate-400 ml-2">${esc(r.tipo === 'mensual' ? `Mensual · ${nombreMes(r.periodo)}` : r.tipo === 'viaje' ? 'De un solo viaje' : 'De un solo trabajo')}</span>
           <p class="text-lg font-bold text-white mt-1">${esc(r.chofer || 'Chofer')}${r.placa ? ` <span class="text-sm text-cyan-300 font-mono">· ${esc(r.placa)}</span>` : ''}</p>
           <p class="text-xs text-slate-400">Emitido: ${esc(fechaHora(r.generadoEn))}</p>
         </div>
@@ -346,8 +435,8 @@ let ir = () => {};
 try {
   const usuario = await sesionPanel('dueno');
   pintarCuenta(usuario);
-  $('m-mes').value = mesActual();
-  ir = iniciarMenu({ inicio: pintarInicio, vehiculos: pintarVehiculos, choferes: pintarChoferes, pagos: pintarPagos, mantenimientos: pintarMantenimientos, reportes: pintarReportes });
+  $('m-mes').value = $('vj-mes').value = mesActual();
+  ir = iniciarMenu({ inicio: pintarInicio, vehiculos: pintarVehiculos, choferes: pintarChoferes, pagos: pintarPagos, mantenimientos: pintarMantenimientos, viajes: pintarViajes, reportes: pintarReportes });
   ir('inicio');
 } catch (err) {
   aviso(mensajeDe(err), 'error');

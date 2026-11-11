@@ -11,7 +11,9 @@ import { asegurarAdmin } from '../src/administrador.js';
 import { asegurarFlotaInicial } from '../src/flota-inicial.js';
 
 let app, cerrar, db;
-const hoy = new Date().toISOString().slice(0, 10);
+import { hoyEcuador } from '../../public/js/viajes-logica.js';
+
+const hoy = hoyEcuador(); // el servidor trabaja con la fecha de Ecuador (UTC-5)
 const t = {};
 const ADMIN = { adminEmail: 'admin@ejemplo.com', adminClave: 'administrador-2026', adminNombre: 'Soporte' };
 
@@ -245,7 +247,7 @@ test('reportes: el de un solo trabajo no se duplica, no se inventan meses vacío
   await t.chofer.post('/reportes', { tipo: 'mensual', periodo: '2026-13' }).expect(400);
   // Un mes anterior sin trabajos no inventa un reporte vacío
   const sin = await t.chofer.post('/reportes', { tipo: 'mensual', periodo: '2020-01' }).expect(400);
-  assert.match(sin.body.error, /No hay mantenimientos nuevos/);
+  assert.match(sin.body.error, /No hay nada nuevo de ese mes/);
   // Factura agregada después de congelar: sale como anexo sin dañar la huella
   const png = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
   const ev = await t.chofer.post(`/mantenimientos/${t.mant}/evidencias`, { categoria: 'Factura de Repuestos', nombreArchivo: 'despues.png', mime: 'image/png' }).expect(201);

@@ -11,6 +11,7 @@ import { rutasChoferes } from './rutas/choferes.js';
 import { rutasUnidades } from './rutas/unidades.js';
 import { rutasMantenimientos } from './rutas/mantenimientos.js';
 import { rutasReportes } from './rutas/reportes.js';
+import { rutasViajes } from './rutas/viajes.js';
 import { rutasAdmin } from './rutas/admin.js';
 
 export class ErrorHttp extends Error {
@@ -58,6 +59,7 @@ export function crearApp(dep) {
   app.use('/reportes', autenticado, deEmpresa, rutasReportes(ctx));
   app.use('/', autenticado, deEmpresa, rutasUnidades(ctx));
   app.use('/', autenticado, deEmpresa, rutasMantenimientos(ctx));
+  app.use('/', autenticado, deEmpresa, rutasViajes(ctx));
 
   app.use((_req, _res, next) => next(new ErrorHttp(404, 'No encontrado')));
   // eslint-disable-next-line no-unused-vars
@@ -72,6 +74,8 @@ export function crearApp(dep) {
         unidades_placa_unica: 'Esa placa ya está registrada',
         usuarios_email_unico: 'Ese correo ya está registrado',
         usuarios_cedula_cuenta_unica: 'Ya hay un chofer con esa cédula',
+        viajes_un_abierto_por_vehiculo: 'Ya hay un viaje abierto en este vehículo. Termínalo antes de empezar otro.',
+        viaje_producto_unico: 'Cada producto va una sola vez por viaje',
       };
       return res.status(409).json({ error: mensajes[pgErr.constraint] || 'Ese dato ya está registrado' });
     }

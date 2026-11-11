@@ -26,7 +26,7 @@ export function conectarReportes(app) {
     <div class="bg-slate-900 border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-xl space-y-4">
       <div>
         <h2 class="text-xl sm:text-2xl font-black text-white flex items-center gap-2"><i class="fa-solid fa-calendar-check text-emerald-400"></i> Reporte del mes</h2>
-        <p class="text-sm text-slate-400">Reúne los mantenimientos del mes con sus facturas, para entregar al dueño. Al emitirlo queda congelado.</p>
+        <p class="text-sm text-slate-400">Reúne los mantenimientos del mes con sus facturas, y los viajes terminados con sus tanqueos, para entregar al dueño. Al emitirlo queda congelado.</p>
       </div>
       <label class="block text-slate-300 font-bold text-base" for="rc-mes">Mes
         <input type="month" id="rc-mes" class="mt-1 w-full bg-slate-950 border-2 border-slate-700 focus:border-emerald-500 rounded-2xl py-3 px-4 text-lg font-bold text-white focus:outline-none"></label>
@@ -47,14 +47,20 @@ export function conectarReportes(app) {
   // Trabajos del mes elegido que todavía no están en ningún reporte
   const sinReporte = () => app.maintenances.filter((m) => String(m.fecha).startsWith(mes.value) && !m.bloqueado);
 
+  // Lo que entra al reporte del mes: mantenimientos, viajes terminados y tanqueos que aún no están en otro
+  const cuenta = () => ({ mantenimientos: sinReporte().length, ...(window.Viajes?.porReportar(mes.value || mesLocal()) || { viajes: 0, tanqueos: 0 }) });
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+  const detalleCuenta = (c) => [c.mantenimientos && plural(c.mantenimientos, 'mantenimiento', 'mantenimientos'), c.viajes && plural(c.viajes, 'viaje', 'viajes'), c.tanqueos && plural(c.tanqueos, 'tanqueo', 'tanqueos')].filter(Boolean).join(', ');
+
   function pintar() {
     const periodo = mes.value || mesLocal();
-    const n = sinReporte().length;
+    const c = cuenta();
+    const n = c.mantenimientos + c.viajes + c.tanqueos;
     const delMes = lista.filter((r) => r.periodo === periodo);
     $('rc-estado').className = `text-base font-bold ${n ? 'text-emerald-300' : 'text-slate-400'}`;
     $('rc-estado').textContent = n
-      ? `${n} ${n === 1 ? 'mantenimiento' : 'mantenimientos'} de ${nombreMes(periodo)} por incluir en el reporte.`
-      : delMes.length ? `Todo lo de ${nombreMes(periodo)} ya está en un reporte emitido.` : `No hay mantenimientos registrados en ${nombreMes(periodo)}.`;
+      ? `Por incluir en el reporte de ${nombreMes(periodo)}: ${detalleCuenta(c)}.`
+      : delMes.length ? `Todo lo de ${nombreMes(periodo)} ya está en un reporte emitido.` : `No hay mantenimientos, viajes ni tanqueos registrados en ${nombreMes(periodo)}.`;
     $('rc-emitir').disabled = !n;
     $('rc-emitir-texto').textContent = `EMITIR REPORTE DE ${nombreMes(periodo).toUpperCase()}`;
     $('rc-titulo-lista').textContent = soloMes ? `Reportes de ${nombreMes(periodo)}` : 'Todos los reportes emitidos';
@@ -64,7 +70,7 @@ export function conectarReportes(app) {
       <button type="button" data-folio="${esc(r.folio)}" class="w-full text-left p-4 rounded-2xl bg-slate-950 border border-slate-800 hover:border-emerald-500 flex flex-wrap items-center justify-between gap-3">
         <div class="min-w-0">
           <span class="font-mono text-sm font-black text-emerald-400">${esc(r.folio)}</span>
-          <p class="text-base font-bold text-white">${esc(r.tipo === 'mensual' ? `Mensual · ${nombreMes(r.periodo)}` : 'De un solo trabajo')}</p>
+          <p class="text-base font-bold text-white">${esc(r.tipo === 'mensual' ? `Mensual · ${nombreMes(r.periodo)}` : r.tipo === 'viaje' ? 'De un solo viaje' : 'De un solo trabajo')}</p>
           <p class="text-xs text-slate-400">Emitido el ${esc(new Date(r.generadoEn).toLocaleDateString('es-EC'))}${r.placa ? ` · ${esc(r.placa)}` : ''}</p>
         </div>
         <div class="text-right shrink-0"><p class="text-xl font-black font-mono text-emerald-400">$${Number(r.total).toFixed(2)}</p><p class="text-xs font-bold text-cyan-400">Ver e imprimir ›</p></div>
@@ -90,6 +96,7 @@ export function conectarReportes(app) {
       lista = reportes;
       localStorage.setItem(CLAVE_LISTA, JSON.stringify(lista));
       await actualizarMantenimientos(app, Object.fromEntries(reportes.map((r) => [r.id, r.folio])));
+      await window.Viajes?.traer(); // viajes y tanqueos que quedaron congelados en un reporte
     } catch {
       // sin señal: se muestra la última lista guardada
     }
@@ -120,8 +127,7 @@ export function conectarReportes(app) {
   };
   $('rc-emitir').onclick = async () => {
     const periodo = mes.value;
-    const n = sinReporte().length;
-    if (!(await preguntar(`¿Emitir el reporte de ${nombreMes(periodo)}?`, `Entra${n === 1 ? '' : 'n'} ${n} ${n === 1 ? 'mantenimiento' : 'mantenimientos'}. Queda congelado: lo que registres después de este mes irá en otro reporte.`, 'Emitir reporte'))) return;
+    if (!(await preguntar(`¿Emitir el reporte de ${nombreMes(periodo)}?`, `Entra: ${detalleCuenta(cuenta())}. Queda congelado: lo que registres después de este mes irá en otro reporte.`, 'Emitir reporte'))) return;
     $('rc-emitir').disabled = true;
     await emitir({ tipo: 'mensual', periodo, unidadId: app.session.servidor.cabezalId });
     pintar();

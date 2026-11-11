@@ -2,6 +2,8 @@
 // del servidor. Las fotos de las facturas van dentro del reporte y cada factura en PDF se agrega
 // como hojas adicionales (página por página), de modo que todo se ve y se imprime junto.
 import { api } from './sincronizacion.js';
+import { textoTrabajos, trabajosDeRegistro, partesDeVisita } from './catalogo-trabajos.js';
+import { PRODUCTOS } from './viajes-logica.js';
 
 const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const dinero = (n) => `$${Number(n || 0).toFixed(2)}`;
@@ -53,22 +55,26 @@ export function htmlReporte({ reporte, integro, anexos = [] }) {
   const filas = d.mantenimientos.map((m) => `
     <tr>
       <td class="${celda} font-mono">${esc(m.fecha)}<div class="text-[10px] text-slate-500">${esc(miles(m.km))} km</div></td>
-      <td class="${celda} font-bold">${esc(m.parte)}</td>
-      <td class="${celda}">${esc(m.trabajo)}${m.notas ? `<div class="text-[10px] italic text-slate-500">${esc(m.notas)}</div>` : ''}</td>
+      <td class="${celda} font-bold">${esc(partesDeVisita(trabajosDeRegistro(m)).join(' · ') || m.parte)}</td>
+      <td class="${celda}">${esc(textoTrabajos(trabajosDeRegistro(m)) || m.trabajo)}${m.notas ? `<div class="text-[10px] italic text-slate-500">${esc(m.notas)}</div>` : ''}</td>
       <td class="${celda}">${esc(m.taller || '—')}<div class="font-mono font-bold">${esc(dinero(m.costoTaller))}</div>${Number(m.costoTaller) > 0 ? pagoHTML(m.pagoTaller) : ''}</td>
       <td class="${celda}">${esc(m.proveedor || '—')}<div class="font-mono font-bold">${esc(dinero(m.costoRepuestos))}</div>${Number(m.costoRepuestos) > 0 ? pagoHTML(m.pagoRepuestos) : ''}
         ${m.repuestosDetalle ? `<div class="text-[10px] text-slate-500">${esc(m.repuestosDetalle)}</div>` : ''}</td>
       <td class="${celda} text-right font-mono font-bold">${esc(dinero(Number(m.costoTaller) + Number(m.costoRepuestos)))}</td>
     </tr>`).join('');
   const pie = (m) => `${m.trabajo} · ${m.parte} · ${m.fecha}`;
-  const congeladas = d.mantenimientos.flatMap((m) => m.evidencias.map((e) => ({ e, pie: pie(m) })));
-  const posteriores = anexos.map((e) => ({ e, pie: pie(d.mantenimientos.find((m) => m.id === e.mantenimientoId) || {}) }));
+  const viajes = d.viajes || [];
+  const pieViaje = (x) => `Viaje ${x.fechaSalida} · ${x.origen} → ${x.destino}`;
+  const congeladas = [...d.mantenimientos.flatMap((m) => m.evidencias.map((e) => ({ e, pie: pie(m) }))), ...viajes.flatMap((x) => x.evidencias.map((e) => ({ e, pie: pieViaje(x) })))];
+  const posteriores = anexos.map((e) => ({ e, pie: e.viajeId ? pieViaje(viajes.find((x) => x.id === e.viajeId) || {}) : pie(d.mantenimientos.find((m) => m.id === e.mantenimientoId) || {}) }));
+  const titulo = d.tipo === 'viaje' ? 'REPORTE DE VIAJE' : viajes.length || d.tanqueosFuera?.length ? 'REPORTE DE MANTENIMIENTO Y VIAJES' : 'REPORTE DE MANTENIMIENTO';
+  const subtitulo = reporte.tipo === 'mensual' ? `Mensual · ${nombreMes(reporte.periodo)}` : reporte.tipo === 'viaje' ? 'De un solo viaje' : 'De un solo trabajo';
   const credito = d.mantenimientos.reduce((s, m) => s + (m.pagoTaller === 'credito' ? Number(m.costoTaller) : 0) + (m.pagoRepuestos === 'credito' ? Number(m.costoRepuestos) : 0), 0);
   const v = d.vehiculo;
   return `
     <div class="flex justify-between items-start border-b-2 border-slate-800 pb-3 gap-3">
-      <div><h4 class="text-2xl font-black">REPORTE DE MANTENIMIENTO</h4>
-        <p class="text-xs text-slate-600 uppercase font-bold">${reporte.tipo === 'mensual' ? `Mensual · ${esc(nombreMes(reporte.periodo))}` : 'De un solo trabajo'}</p></div>
+      <div><h4 class="text-2xl font-black">${titulo}</h4>
+        <p class="text-xs text-slate-600 uppercase font-bold">${esc(subtitulo)}</p></div>
       <div class="text-right"><span class="bg-slate-900 text-white font-mono text-xs font-bold px-3 py-1 rounded whitespace-nowrap">FOLIO: ${esc(reporte.folio)}</span>
         <p class="text-xs text-slate-500 mt-1 font-mono">Emisión: ${esc(fechaHora(reporte.generadoEn))}</p></div>
     </div>
@@ -76,18 +82,75 @@ export function htmlReporte({ reporte, integro, anexos = [] }) {
       ${dato('VEHÍCULO', v ? `${v.placa} · ${v.modelo}` : '')}
       ${dato('CHOFER', d.chofer.nombre)}${dato('CÉDULA', d.chofer.cedula, 'font-mono')}
     </div>
-    <div class="overflow-x-auto"><table class="w-full text-left text-xs border-collapse">
+    ${d.mantenimientos.length ? `<div class="overflow-x-auto"><table class="w-full text-left text-xs border-collapse">
       <thead><tr class="bg-slate-200 font-bold"><th class="${celda}">Fecha / Km</th><th class="${celda}">Parte</th><th class="${celda}">Trabajo</th><th class="${celda}">Taller (mano de obra)</th><th class="${celda}">Repuestos</th><th class="${celda} text-right">Total</th></tr></thead>
       <tbody>${filas}</tbody>
-      <tfoot><tr class="font-black bg-slate-100"><td colspan="5" class="${celda} text-right">TOTAL (${d.mantenimientos.length} ${d.mantenimientos.length === 1 ? 'trabajo' : 'trabajos'})</td><td class="${celda} text-right">${esc(dinero(d.total))}</td></tr>
+      <tfoot><tr class="font-black bg-slate-100"><td colspan="5" class="${celda} text-right">TOTAL (${d.mantenimientos.length} ${d.mantenimientos.length === 1 ? 'visita al taller' : 'visitas al taller'})</td><td class="${celda} text-right">${esc(dinero(d.total))}</td></tr>
         ${credito > 0 ? `<tr class="font-bold text-amber-800"><td colspan="5" class="${celda} text-right">De ese total quedó a crédito al emitir el reporte</td><td class="${celda} text-right">${esc(dinero(credito))}</td></tr>` : ''}</tfoot>
-    </table></div>
-    <div class="space-y-2"><h5 class="text-xs font-black uppercase text-slate-700">Facturas y fotos adjuntas</h5>${evidenciasHTML(congeladas)}</div>
+    </table></div>` : d.tipo === 'mensual' ? '<p class="italic text-slate-500 text-sm">Sin mantenimientos en este reporte.</p>' : ''}
+    ${seccionViajes(d, celda)}
+    <div class="space-y-2"><h5 class="text-xs font-black uppercase text-slate-700">Facturas, guías y fotos adjuntas</h5>${evidenciasHTML(congeladas)}</div>
     ${posteriores.length ? `<div class="space-y-2 border-t border-slate-300 pt-3"><h5 class="text-xs font-black uppercase text-slate-700">Anexos agregados después de emitir el reporte</h5>${evidenciasHTML(posteriores)}</div>` : ''}
     <div class="pt-3 border-t border-slate-300 text-[10px] font-mono text-slate-600 space-y-1">
       <p><strong>HUELLA SHA-256:</strong> <span class="break-all">${esc(reporte.hash)}</span></p>
       <p class="${integro ? 'text-emerald-700' : 'text-rose-700'} font-bold">${integro ? '✔ Integridad verificada: el reporte no fue modificado desde que se emitió.' : '✖ ATENCIÓN: los datos no coinciden con la huella.'}</p>
     </div>`;
+}
+
+// Sección «Viajes» del reporte: las mismas columnas de la bitácora de la compañía, en ese orden.
+// Un viaje con varios productos ocupa una fila, con los valores separados por «/». El rendimiento (km por galón)
+// está en los datos congelados, pero no se muestra.
+function seccionViajes(d, celda) {
+  const viajes = d.viajes || [];
+  const fuera = d.tanqueosFuera || [];
+  if (!viajes.length && !fuera.length) return '';
+  const t = d.totalesViajes || {};
+  const junto = (lista) => lista.map((x) => esc(x)).join(' / ');
+  const filas = viajes.map((x) => `
+    <tr>
+      <td class="${celda} font-mono whitespace-nowrap">${esc(x.fechaSalida)}</td>
+      <td class="${celda} font-mono">${esc(x.horaSalida)}</td>
+      <td class="${celda} font-mono">${esc(x.horaRetorno || '—')}${x.fechaRetorno && x.fechaRetorno !== x.fechaSalida ? `<div class="text-[10px] text-slate-500">${esc(x.fechaRetorno)}</div>` : ''}</td>
+      <td class="${celda} font-mono text-right">${esc(miles(x.kmSalida))}</td>
+      <td class="${celda} font-mono text-right">${x.kmLlegada === null ? '—' : esc(miles(x.kmLlegada))}</td>
+      <td class="${celda}">${esc(x.origen)}</td>
+      <td class="${celda}">${esc(x.destino)}</td>
+      <td class="${celda} font-mono text-right">${junto(x.productos.map((p) => miles(p.galones)))}</td>
+      <td class="${celda}">${junto(x.productos.map((p) => p.nombre))}</td>
+      <td class="${celda} font-mono">${junto(x.productos.map((p) => p.numeroGuia))}</td>
+      <td class="${celda} font-mono text-right">${esc(miles(x.combustible))}</td>
+    </tr>`).join('');
+  const porProducto = PRODUCTOS.filter((p) => t.galonesPorProducto?.[p.id]).map((p) => `${p.nombre}: ${miles(t.galonesPorProducto[p.id])} gal`).join(' · ');
+  const detalleTanqueos = d.tipo === 'viaje' && viajes[0]?.tanqueos.length ? `
+    <div class="overflow-x-auto"><table class="w-full text-left text-xs border-collapse">
+      <thead><tr class="bg-slate-200 font-bold"><th class="${celda}">Tanqueos del viaje</th><th class="${celda}">Hora</th><th class="${celda}">Lugar</th><th class="${celda} text-right">Galones</th></tr></thead>
+      <tbody>${viajes[0].tanqueos.map((q) => `<tr><td class="${celda} font-mono">${esc(q.fecha)}</td><td class="${celda} font-mono">${esc(q.hora)}</td><td class="${celda}">${esc(q.lugar || '—')}</td><td class="${celda} font-mono text-right">${esc(miles(q.galones))}</td></tr>`).join('')}</tbody>
+    </table></div>` : '';
+  return `
+    ${viajes.length ? `<div class="space-y-2">
+      <h5 class="text-xs font-black uppercase text-slate-700">Viajes</h5>
+      <div class="overflow-x-auto"><table class="tabla-viajes w-full text-left text-[11px] border-collapse">
+        <thead><tr class="bg-slate-200 font-bold">
+          <th class="${celda}">Fecha</th><th class="${celda}">Hora salida</th><th class="${celda}">Hora retorno</th><th class="${celda}">Km salida</th><th class="${celda}">Km llegada</th>
+          <th class="${celda}">Lugar de carga</th><th class="${celda}">Destino final</th><th class="${celda}">Volumen</th><th class="${celda}">Producto</th><th class="${celda}">N.º de guía</th>
+          <th class="${celda}">Combustible consumido por el vehículo</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table></div>
+      ${detalleTanqueos}
+      ${d.tipo === 'viaje' && viajes[0]?.compartimentos?.length ? `<p class="text-xs"><strong>Compartimentos:</strong> ${viajes[0].compartimentos.map((c) => `${esc(c.numero)}: ${esc(PRODUCTOS.find((p) => p.id === c.producto)?.nombre || c.producto)}`).join(' · ')}</p>` : ''}
+    </div>` : ''}
+    ${fuera.length ? `<div class="space-y-2">
+      <h5 class="text-xs font-black uppercase text-slate-700">Tanqueos fuera de viaje</h5>
+      <table class="text-left text-xs border-collapse">
+        <thead><tr class="bg-slate-200 font-bold"><th class="${celda}">Fecha</th><th class="${celda}">Hora</th><th class="${celda} text-right">Galones</th></tr></thead>
+        <tbody>${fuera.map((q) => `<tr><td class="${celda} font-mono">${esc(q.fecha)}</td><td class="${celda} font-mono">${esc(q.hora)}</td><td class="${celda} font-mono text-right">${esc(miles(q.galones))}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>` : ''}
+    ${d.tipo === 'mensual' ? `<div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-100 p-3 rounded-xl text-xs">
+      <div><span class="font-bold text-slate-500 block">KM RECORRIDOS EN EL MES</span><span class="text-sm font-bold font-mono">${esc(miles(t.kmRecorridos))} km</span></div>
+      <div><span class="font-bold text-slate-500 block">GALONES POR PRODUCTO</span><span class="text-sm font-bold">${esc(porProducto || '—')}</span></div>
+      <div><span class="font-bold text-slate-500 block">GALONES TANQUEADOS</span><span class="text-sm font-bold font-mono">${esc(miles(t.galonesTanqueados))} gal</span></div>
+    </div>` : ''}`;
 }
 
 // Bloque de facturas para una hoja que no es un reporte (detalle de un mantenimiento)

@@ -42,6 +42,13 @@ wrangler.jsonc → publicación de public/ en Cloudflare
   `#zona-impresion`.
 - `js/reportes-chofer.js`: sección Reportes del chofer: elige el mes, emite el reporte y consulta los ya
   emitidos de cualquier mes.
+- `js/catalogo-trabajos.js`: **catálogo de trabajos por parte** (Motor, Caja, Frenos, Ejes y llantas, Suspensión,
+  Sistema eléctrico, Tanque y válvulas, General). Es configuración: se edita solo ese archivo. Lo usan la app y
+  el servidor. `js/trabajos-visita.js` pinta «¿Qué se hizo?» (casillas, contador, «Lo mismo que la última vez»)
+  y los filtros del historial.
+- `js/viajes.js`: viajes y tanqueos del chofer (nuevo viaje por pasos, viaje abierto en el inicio, terminar,
+  viaje ya terminado en una pantalla, historial, «Copiar mensaje»). `js/viajes-logica.js` tiene las reglas sin
+  pantalla (las comparten la app, el servidor y las pruebas) y `js/plantilla-mensaje.js` el texto que se copia.
 - `camion3d.html` + `js/camion3d.js` + `js/vista.js`: camión 3D (Three.js en `vendor/`) dentro de «Mi
   camión»; se carga recién al abrir esa sección. Dibuja el cabezal con tanquero o el camión rígido según
   el vehículo. Cada llanta/freno tiene ficha (`mi_trailer_detalles`, se sincroniza).
@@ -70,6 +77,12 @@ wrangler.jsonc → publicación de public/ en Cloudflare
 - Facturas guardadas en PostgreSQL (tabla `archivos`): Render gratuito no tiene disco fijo.
 - Reportes congelados con folio y SHA-256; cada reporte es de un chofer en un vehículo. Lo agregado
   después se devuelve aparte como anexo. El de un solo trabajo no se duplica.
+- **Visita al taller** = un mantenimiento con varios trabajos (`mantenimiento_trabajos`); `parte` y `trabajo`
+  del mantenimiento quedan como resumen. **Viajes** (`viajes`, `viaje_productos`, `viaje_compartimentos`),
+  **lugares** por chofer (`lugares`) y **tanqueos** (`tanqueos`) en `src/rutas/viajes.js`: el teléfono envía el
+  registro completo con su identificador (`PUT`), así no hay duplicados; nada se borra (baja lógica) y todo
+  cambio queda en `auditoria`.
+- Fechas, «hoy» y cortes de mes en hora de Ecuador (UTC-5): `hoyEcuador()` en `public/js/viajes-logica.js`.
 - Migraciones: editar `src/db/esquema.js` → `npm --prefix api run db:generar` → revisar el SQL en
   `drizzle/`. El servidor las aplica al arrancar.
 
@@ -89,6 +102,13 @@ wrangler.jsonc → publicación de public/ en Cloudflare
 - **Reportes**: el chofer emite el del mes que elija (solo entra lo que aún no está en otro reporte) y
   puede abrir e imprimir los de meses anteriores. No se crean reportes vacíos ni inventados.
 - **Sin datos de ejemplo**: no crear cuentas, vehículos ni reportes de muestra.
+- **Carga** = producto que lleva el tanque (Diésel, Súper, Ecopaís). **Tanqueo** = combustible que consume el
+  camión. No mezclar los nombres.
+- **Viajes**: un solo viaje abierto por vehículo; el km de llegada debe ser mayor al de salida y sube el km
+  del vehículo (un viaje atrasado no lo baja; con km pendiente no lo fija). Los galones los escribe el chofer:
+  no se calculan ni se validan contra los compartimentos. Los lugares empiezan vacíos y no se duplican
+  (se comparan sin mayúsculas, tildes ni espacios).
+- Viajes y tanqueos se corrigen hasta que entran a un reporte; el mensual congela los viajes **terminados**.
 - Compartimento 1 = el de adelante (junto al cabezal).
 - **Cada cabezal tiene su tanquero fijo**: no se cambia ni se le pide placa; se identifica por la del cabezal.
 - No mostrar datos de ejemplo/inventados como si fueran reales.
@@ -99,6 +119,7 @@ wrangler.jsonc → publicación de public/ en Cloudflare
 npm run dev    # servidor en http://localhost:3000 (sin DATABASE_URL usa una base local en api/datos-locales)
 npm run app    # app en http://localhost:8790
 npm test       # pruebas de la app (tests/) y de la API (api/test, con PGlite: no necesita PostgreSQL)
+npm run lint   # revisa la sintaxis de todo el JavaScript (no hay build: la app son archivos estáticos)
 npm run deploy # publica public/ en Cloudflare (requiere `npx wrangler login`)
 ```
 
@@ -117,6 +138,13 @@ El navegador integrado de Claude Code no tiene WebGL: para ver el 3D usar Chromi
 - [x] Roles administrador / dueño / chofer; varios dueños por vehículo; flota de tanqueros por modelo.
 - [x] Menú lateral en la app del chofer y en los paneles; formas de pago y créditos por pagar.
 - [x] Reportes desde el servidor con fotos y PDF dentro, imprimibles; reportes por mes.
+- [x] Iteración 2, bloque 1: visitas con varios trabajos, viajes, tanqueos y su sección en los reportes
+      (ver `docs/auditoria-iteracion2.md` y `docs/DECISIONES.md`).
+- [x] Iteración 2, bloque 2: mantenimiento en 4 pasos con fecha por atajos (`js/mantenimiento-pasos.js`), registro
+      retroactivo sin bloqueo y accesibilidad de la app del chofer (`css/accesible.css`: texto ≥ 20 px, botones ≥ 56 px).
+- [x] Panel del dueño: sección «Viajes y tanqueos» (solo consulta).
+- [ ] Publicar la iteración 2: unir `iteracion-2` a `main` (la migración 0007 se aplica sola al arrancar el servidor).
+- [ ] Falta la carpeta `docs/requisitos/` que cita el encargo de la iteración 2 (pedirla).
 - [ ] **Confirmar con el cliente**: que el «FBR» es Chevrolet **FVR**; que el Hino y el Chevrolet son de
       2 ejes (6 llantas); el motor de cada uno; y el nombre de
       la empresa (hoy «Camiones Wang», se cambia en el panel del administrador).
