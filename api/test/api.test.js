@@ -11,7 +11,9 @@ import { asegurarAdmin } from '../src/administrador.js';
 import { asegurarFlotaInicial } from '../src/flota-inicial.js';
 
 let app, cerrar, db;
-const hoy = new Date().toISOString().slice(0, 10);
+import { hoyEcuador } from '../../public/js/viajes-logica.js';
+
+const hoy = hoyEcuador(); // el servidor trabaja con la fecha de Ecuador (UTC-5)
 const t = {};
 const ADMIN = { adminEmail: 'admin@ejemplo.com', adminClave: 'administrador-2026', adminNombre: 'Soporte' };
 
